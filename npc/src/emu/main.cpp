@@ -10,7 +10,7 @@
 #include <nvboard.h>
 #endif
 
-#define DIFFTEST
+//#define DIFFTEST
 #ifdef NETLIST_SIM  // defined in CFLAGS
 #undef DIFFTEST
 #endif
