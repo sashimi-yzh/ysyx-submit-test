@@ -1,0 +1,8 @@
+#include "../inst/pseudo.h"
+#include "../inst/compress.h"
+#include "../inst/compute.h"
+#include "../inst/control.h"
+#include "../inst/ldst.h"
+#include "../inst/muldiv.h"
+#include "../inst/system.h"
+#include "../inst/special.h"

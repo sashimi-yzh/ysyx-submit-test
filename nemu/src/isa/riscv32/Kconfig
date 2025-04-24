@@ -1,0 +1,36 @@
+menu "ISA-dependent Options for riscv"
+
+config RV64
+  bool "64-bit RISC-V architecture"
+  default n
+
+config RVE
+  bool "Use E extension"
+  default n
+#ifndef __ICS_EXPORT
+
+config RVFD
+  bool "Use F and D extension"
+  default y if RV64
+  default n
+
+config PA
+  depends on MODE_SYSTEM
+  bool "Enable PA version"
+  default n
+
+config HAS_CLINT
+  depends on !PA && MODE_SYSTEM && DEVICE && TARGET_NATIVE_ELF
+  bool
+  default y
+
+config CLINT_MMIO
+  depends on HAS_CLINT
+  hex "MMIO address of CLINT"
+  default 0x02000000
+
+config YSYXSOC
+  bool "Maps devices as ysyxSoC"
+  default n
+#endif
+endmenu
