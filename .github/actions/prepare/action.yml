@@ -1,56 +1,9 @@
 name: 'Setup Environment'
 runs:
   using: composite
-  steps:
-    - name: Check submit flag
-      shell: bash
-      run: |
-        MSG=$(git log -1)
-        SUBMIT_FLAG=$(echo $MSG | grep -o "YSYX_SUBMIT=true")
-        if [[ $SUBMIT_FLAG == "" ]]; then
-          echo "Missing flag 'YSYX_SUBMIT=true' in the commit message. Abort."
-          false
-        fi
-
-    - name: Get student ID
-      shell: bash
-      id: get-stuid
-      run: |
-        STUID=$(grep -E -o "STUID = ysyx_[0-9]{8}" Makefile)
-        if [[ $STUID == "" ]]; then
-          echo "Missing STUID in Makefile (format: STUID = ysyx_XXXXXXXX). Abort."
-          false
-        fi
-        STUID=$(echo $STUID | grep -E -o "[0-9]{8}$")
-        echo "STUID=$STUID" >> $GITHUB_ENV
-
-    - name: Check student ID in whitelist
-      shell: bash
-      run: |
-        wget https://raw.githubusercontent.com/OSCPU/ysyx-workbench/whitelist/whitelist.txt
-        if ! grep -o $STUID whitelist.txt 2> /dev/null ; then
-          echo "$STUID is not in whitelist. Abort."
-          false
-        fi
-
-    - name: Changing Directory
-      shell: bash
-      run: |
-        pwd
-        ls
-        YSYX_HOME=$(pwd)
-        cd ..
-        TEMP_DIR=$(mktemp -d -p .)
-        cd $TEMP_DIR
-        TEMP_DIR=$(pwd)
-        mv $YSYX_HOME $TEMP_DIR/ysyx-workbench
-        mkdir -p $YSYX_HOME # leave the original directory empty
-        echo "YSYX_HOME=$TEMP_DIR/ysyx-workbench" >> "$GITHUB_ENV"
-
     - name: Setting environment variables
       shell: bash
       run: |
-        pwd
         cd $YSYX_HOME
         echo "NEMU_HOME=`pwd`/nemu" >> "$GITHUB_ENV"
         echo "AM_HOME=`pwd`/abstract-machine" >> "$GITHUB_ENV"
@@ -62,7 +15,6 @@ runs:
     - name: Disable git tracer
       shell: bash
       run: |
-        pwd
         cd $YSYX_HOME
         echo ".git_commit:" >> Makefile
         echo -e "\t@echo git tracer is disabled" >> Makefile

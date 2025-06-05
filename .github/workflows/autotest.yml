@@ -1,0 +1,204 @@
+name: Auto-test Workflow
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  parse:
+    runs-on: ubuntu-22.04
+    outputs:
+      STUID:  ${{ steps.parse.outputs.STUID }}
+      REPO:   ${{ steps.parse.outputs.REPO }}
+      BRANCH: ${{ steps.parse.outputs.BRANCH }}
+    steps:
+      - name: Print issue details
+        run: |
+          echo "🆕 New Issue Created"
+          echo "---------------------"
+          echo "📌 Title: ${{ github.event.issue.title }}"
+          echo "👤 Author: ${{ github.event.issue.user.login }}"
+          echo "🔗 URL: ${{ github.event.issue.html_url }}"
+          echo ""
+          echo "📝 Body Content:"
+          echo "${{ github.event.issue.body }}"  # 直接输出issue正文
+      - name: Parse information
+        id: parse
+        run: |
+          STUID=$(echo "${{ github.event.issue.body }}" | sed -n -e '3p')
+          REPO=$(echo "${{ github.event.issue.body }}" | sed -n -e '7p')
+          BRANCH=$(echo "${{ github.event.issue.body }}" | sed -n -e '11p')
+          echo "STUID=$STUID" >> $GITHUB_OUTPUT
+          echo "REPO=$REPO" >> $GITHUB_OUTPUT
+          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+
+  setup:
+    needs: parse
+    runs-on: ubuntu-22.04
+    outputs:
+      cache-key: ${{ steps.set-cache.outputs.cache-key }}
+      ysyx-home: ${{ steps.set-cache.outputs.ysyx-home }}
+    steps:
+      - name: Set YSYX_HOME
+        run: |
+          TEMP_DIR=$(mktemp -d -p .)
+          cd $TEMP_DIR
+          YSYX_HOME=$(pwd)/ysyx-workbench
+          echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
+
+      - name: Set environment variables
+        run: |
+          MAKE_CMD="make -j `nproc`"
+          echo "MAKE=$MAKE_CMD" >> "$GITHUB_ENV"
+          echo "STUID=${{ needs.parse.outputs.STUID }}" >> GITHUB_ENV
+
+      - name: Generate cache key
+        id: set-cache
+        run: |
+          echo "cache-key=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "ysyx-home=$YSYX_HOME" >> $GITHUB_OUTPUT
+
+      - name: Cache repo and tools
+        uses: actions/cache@v3
+        id: setup-cache
+        with:
+          path: |
+            ${{ steps.set-cache.outputs.ysyx-home }}
+            oss-cad-suite
+            ~/.local
+            ~/.cache/mill
+          key: ${{ runner.os }}-dir-${{ steps.set-cache.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-dir-
+
+      - name: Clone target repo and setup tools
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          echo "Workflow cache miss..."
+
+          wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-04-24/oss-cad-suite-linux-x64-20250424.tgz
+          tar xf oss-cad-suite-linux-x64-20250424.tgz
+          OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
+          echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
+
+          mkdir -p $YSYX_HOME
+          cd $YSYX_HOME/..
+          git clone --depth 1 -b ${{ needs.parse.outputs.BRANCH }} ${{ needs.parse.outputs.REPO }} ysyx-workbench
+
+          mkdir -p ~/.local/bin
+          MILL_VERSION=0.11.13
+          if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+            MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
+          fi
+          echo "Downloading mill with version $MILL_VERSION"
+          sh -c "curl -L https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION > ~/.local/bin/mill && chmod +x ~/.local/bin/mill"
+          mill --version
+
+      - name: Check student ID
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          stuid=$(grep -E -o "STUID = ysyx_[0-9]{8}" Makefile)
+          if [[ $stuid == "" ]]; then
+            echo "Missing STUID in Makefile (format: STUID = ysyx_XXXXXXXX). Abort."
+            false
+          fi
+          stuid=$(echo $stuid | grep -E -o "[0-9]{8}$")
+          if [[ $stuid != $STUID ]]; then
+            echo "STUID in Makefile($stuid) is different from the one filled in the form($STUID). Abort."
+            false
+          fi
+
+      - name: Check student ID in whitelist
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          wget https://raw.githubusercontent.com/OSCPU/ysyx-workbench/whitelist/whitelist.txt
+          if ! grep -o $STUID whitelist.txt 2> /dev/null ; then
+            echo "$STUID is not in whitelist. Abort."
+            false
+          fi
+
+      - name: Set more environment variables
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          echo "NEMU_HOME=`pwd`/nemu" >> "$GITHUB_ENV"
+          echo "AM_HOME=`pwd`/abstract-machine" >> "$GITHUB_ENV"
+          echo "NAVY_HOME=`pwd`/navy-apps" >> "$GITHUB_ENV"
+          echo "NPC_HOME=`pwd`/npc" >> "$GITHUB_ENV"
+
+      - name: Disable git tracer
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          echo ".git_commit:" >> Makefile
+          echo -e "\t@echo git tracer is disabled" >> Makefile
+
+      - name: Clone other repos
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          git clone https://github.com/NJU-ProjectN/am-kernels
+
+      - name: clean up
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          $MAKE -C $NEMU_HOME clean
+          $MAKE -C $AM_HOME clean-all
+          $MAKE -C $NPC_HOME clean
+
+
+  hello:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+            #      - name: Prepare
+            #        uses: ./.github/actions/prepare
+
+      - name: Restore cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ steps.set-cache.outputs.ysyx-home }}
+            oss-cad-suite
+            ~/.local
+            ~/.cache/mill
+          key: ${{ runner.os }}-dir-${{ needs.setup.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-dir-
+
+      - name: Install RISC-V toolchain
+        run: |
+          sudo apt install g++-riscv64-linux-gnu
+          sudo sed -i -e '8d' /usr/riscv64-linux-gnu/include/gnu/stubs.h
+
+      - name: hello
+        run: $MAKE ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/kernels/hello run
+
+          #  cpu-tests:
+          #    needs: setup
+          #    runs-on: ubuntu-22.04
+          #    steps:
+          #      - uses: actions/checkout@v4
+          #        with:
+          #          fetch-depth: 0
+          #            #      - name: Prepare
+          #            #        uses: ./.github/actions/prepare
+          #      - name: cpu-tests
+          #        run: $MAKE ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/tests/cpu-tests run
+
+  check-internal:
+    #needs: [hello, cpu-tests]
+    needs: [hello]
+    runs-on: self-hosted
+    steps:
+      - name: Login
+        run: |
+          pwd
+          echo "hello from github workflow"
+          ip link
+          hostnamectl
