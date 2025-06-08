@@ -1,0 +1,34 @@
+name: B阶段考核提交表单
+description: 申请B阶段考核
+body:
+  - type: input
+    id: stuid
+    attributes:
+      label: 一生一芯学号
+      description: 填写8位的一生一芯学号
+    validations:
+      required: true
+  - type: input
+    id: repo-url
+    attributes:
+      label: 仓库URL
+      description: 填写仓库URL
+      placeholder: https://github.com/OSCPU/ysyx-workbench
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: 分支名
+      description: 填写分支名
+      placeholder: main
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 学术诚信
+      description: 代码都是本人自行编写的.
+      options:
+        - label: 我同意
+          required: true
