@@ -1,0 +1,53 @@
+name: common
+inputs:
+  YSYX_HOME:
+    required: true
+  cache-key:
+    required: true
+  install-toolchain:
+    required: true
+    default: 'true'
+runs:
+  using: "composite"
+  steps:
+    - name: Restore cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ${{ inputs.YSYX_HOME }}
+          oss-cad-suite
+          ~/.local
+          ~/.cache/mill
+        key: ${{ runner.os }}-dir-${{ inputs.cache-key }}
+        restore-keys: |
+          ${{ runner.os }}-dir-
+
+    - name: Set environment variables
+      shell: bash
+      run: |
+        YSYX_HOME=${{ inputs.YSYX_HOME }}
+        echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
+        echo "NEMU_HOME=$YSYX_HOME/nemu" >> $GITHUB_ENV
+        echo "AM_HOME=$YSYX_HOME/abstract-machine" >> $GITHUB_ENV
+        echo "NAVY_HOME=$YSYX_HOME/navy-apps" >> $GITHUB_ENV
+        echo "NPC_HOME=$YSYX_HOME/npc" >> $GITHUB_ENV
+        echo "NVBOARD_HOME=$YSYX_HOME/nvboard" >> $GITHUB_ENV
+
+        MAKE="make -j `nproc`"
+        echo "MAKE=$MAKE" >> $GITHUB_ENV
+
+        OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
+        echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
+
+    - name: Install RISC-V toolchain
+      shell: bash
+      if: inputs.install-toolchain == 'true'
+      run: |
+        sudo apt update
+        sudo apt install -y g++-riscv64-linux-gnu
+        sudo sed -i -e '8d' /usr/riscv64-linux-gnu/include/gnu/stubs.h
+
+    - name: Install dependency for NVBoard
+      shell: bash
+      if: inputs.install-toolchain == 'true'
+      run: sudo apt install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev

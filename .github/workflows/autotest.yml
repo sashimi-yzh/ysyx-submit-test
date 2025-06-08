@@ -1,0 +1,463 @@
+name: Auto-test Workflow
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  parse:
+    runs-on: ubuntu-22.04
+    outputs:
+      STUID:  ${{ steps.parse.outputs.STUID }}
+      REPO:   ${{ steps.parse.outputs.REPO }}
+      BRANCH: ${{ steps.parse.outputs.BRANCH }}
+    steps:
+      - name: Print issue details
+        run: |
+          echo "🆕 New Issue Created"
+          echo "---------------------"
+          echo "📌 Title: ${{ github.event.issue.title }}"
+          echo "👤 Author: ${{ github.event.issue.user.login }}"
+          echo "🔗 URL: ${{ github.event.issue.html_url }}"
+          echo ""
+          echo "📝 Body Content:"
+          echo "${{ github.event.issue.body }}"  # 直接输出issue正文
+      - name: Parse information
+        id: parse
+        run: |
+          STUID=$(echo "${{ github.event.issue.body }}" | sed -n -e '3p')
+          REPO=$(echo "${{ github.event.issue.body }}" | sed -n -e '7p')
+          BRANCH=$(echo "${{ github.event.issue.body }}" | sed -n -e '11p')
+          echo "STUID=$STUID" >> $GITHUB_OUTPUT
+          echo "REPO=$REPO" >> $GITHUB_OUTPUT
+          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+
+  setup:
+    needs: parse
+    runs-on: ubuntu-22.04
+    outputs:
+      cache-key: ${{ steps.set-cache.outputs.cache-key }}
+      YSYX_HOME: ${{ steps.set-ysyx-home.outputs.YSYX_HOME }}
+      VFILE:     ${{ steps.vfilename.outputs.VFILE }}
+    steps:
+      - name: Set YSYX_HOME
+        id: set-ysyx-home
+        run: |
+          TEMP_DIR=$(mktemp -d -p .)
+          cd $TEMP_DIR
+          YSYX_HOME=$(pwd)/ysyx-workbench
+          echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
+          echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_OUTPUT
+
+      - name: Generate cache key
+        id: set-cache
+        run: |
+          echo "cache-key=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Cache repo and tools
+        uses: actions/cache@v3
+        id: setup-cache
+        with:
+          path: |
+            ${{ steps.set-ysyx-home.outputs.YSYX_HOME }}
+            oss-cad-suite
+            ~/.local
+            ~/.cache/mill
+          key: ${{ runner.os }}-dir-${{ steps.set-cache.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-dir-
+
+      - name: Clone target repo and setup tools
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          echo "Workflow cache miss..."
+
+          wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-04-24/oss-cad-suite-linux-x64-20250424.tgz
+          tar xf oss-cad-suite-linux-x64-20250424.tgz
+          OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
+          echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
+
+          mkdir -p $YSYX_HOME
+          cd $YSYX_HOME/..
+          git clone --depth 1 -b ${{ needs.parse.outputs.BRANCH }} ${{ needs.parse.outputs.REPO }} ysyx-workbench
+
+          mkdir -p ~/.local/bin
+          MILL_VERSION=0.11.13
+          if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+            MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
+          fi
+          echo "Downloading mill with version $MILL_VERSION"
+          sh -c "curl -L https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION > ~/.local/bin/mill && chmod +x ~/.local/bin/mill"
+          mill --version
+
+      - name: Set student ID as environment variable
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          echo "STUID=${{ needs.parse.outputs.STUID }}" >> $GITHUB_ENV
+
+      - name: Check student ID
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          stuid=$(grep -E -o "STUID = ysyx_[0-9]{8}" Makefile)
+          if [[ $stuid == "" ]]; then
+            echo "Missing STUID in Makefile (format: STUID = ysyx_XXXXXXXX). Abort."
+            false
+          fi
+          stuid=$(echo $stuid | grep -E -o "[0-9]{8}$")
+          if [[ $stuid != $STUID ]]; then
+            echo "STUID in Makefile($stuid) is different from the one filled in the form($STUID). Abort."
+            false
+          fi
+
+      - name: Check student ID in whitelist
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          wget https://raw.githubusercontent.com/OSCPU/ysyx-workbench/whitelist/whitelist.txt
+          if ! grep -o $STUID whitelist.txt 2> /dev/null ; then
+            echo "$STUID is not in whitelist. Abort."
+            false
+          fi
+
+      - name: Set environment variables
+        run: |
+          cd $YSYX_HOME
+          NEMU_HOME="`pwd`/nemu"
+          AM_HOME="`pwd`/abstract-machine"
+          NAVY_HOME="`pwd`/navy-apps"
+          NPC_HOME="`pwd`/npc"
+          NVBOARD_HOME="`pwd`/nvboard"
+
+          echo "NEMU_HOME=$NEMU_HOME" >> $GITHUB_ENV
+          echo "AM_HOME=$AM_HOME" >> $GITHUB_ENV
+          echo "NAVY_HOME=$NAVY_HOME" >> $GITHUB_ENV
+          echo "NPC_HOME=$NPC_HOME" >> $GITHUB_ENV
+          echo "NVBOARD_HOME=$NVBOARD_HOME" >> $GITHUB_ENV
+
+          MAKE="make -j `nproc`"
+          echo "MAKE=$MAKE" >> $GITHUB_ENV
+
+      - name: Disable git tracer
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          echo ".git_commit:" >> Makefile
+          echo -e "\t@echo git tracer is disabled" >> Makefile
+
+      - name: Clone other repos
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          cd $YSYX_HOME
+          git clone --depth 1 https://github.com/NJU-ProjectN/am-kernels
+          git clone --depth 1 https://github.com/NJU-ProjectN/rt-thread-am
+          git clone --depth 1 -b no-gui https://github.com/NJU-ProjectN/nvboard
+          git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
+
+          cd rt-thread-am
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+          git am $YSYX_HOME/patch/rt-thread-am/*
+          cd $YSYX_HOME
+
+          cd ysyxSoC
+          git am $YSYX_HOME/patch/ysyxSoC/*
+
+      - name: Clean up
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          $MAKE -C $NEMU_HOME clean
+          $MAKE -C $AM_HOME clean-all
+          $MAKE -C $NPC_HOME clean
+
+      - name: Generate verilog for NPC
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          touch $NPC_HOME/.timestamp
+          $MAKE -C $NPC_HOME verilog
+
+      - name: Generate verilog for ysyxSoC
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          sed -i -e 's+git@github.com:+https://github.com/+' $YSYX_HOME/ysyxSoC/.gitmodules
+          $MAKE -C $YSYX_HOME/ysyxSoC dev-init
+          $MAKE -C $YSYX_HOME/ysyxSoC verilog
+
+      - name: Check verilog file name
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        id: vfilename
+        run: |
+          FILE_SV=$NPC_HOME/build/ysyx_$STUID.sv
+          FILE_V=$NPC_HOME/build/ysyx_$STUID.v
+          if [[ -f $FILE_SV ]]; then
+            echo "Find $FILE_SV"
+            VFILE=$FILE_SV
+          elif [[ -f $FILE_V ]]; then
+            echo "Find $FILE_V"
+            VFILE=$FILE_V
+          else
+            echo "$FILE_SV or $FILE_V does not exist. Abort."
+            false
+          fi
+
+          if [[ $NPC_HOME/.timestamp -nt $VFILE ]]; then
+            echo "$VFILE is older than .timestamp. Abort."
+            false
+          fi
+
+          echo "VFILE=$VFILE" >> $GITHUB_OUTPUT
+
+      - name: Check verilog top module name
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          VFILE=${{ steps.vfilename.outputs.VFILE }}
+          STR=`cat $VFILE | tr '\n' ' ' | grep -E "module\s+ysyx_$STUID" 2> /dev/null`
+          if [[ $STR == "" ]]; then
+            echo "Can not find module ysyx_$STUID in $VFILE. Abort."
+            false
+          fi
+
+      - name: Check verilog clock edge
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          VFILE=${{ steps.vfilename.outputs.VFILE }}
+          if grep "negedge" $VFILE; then
+            echo "$VFILE contains negedge. Abort."
+            false
+          fi
+
+      - name: Upload verilog file
+        uses: actions/upload-artifact@v4
+        with:
+          name: verilog
+          path: ${{ steps.vfilename.outputs.VFILE }}
+
+  hello:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: hello
+        run: $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run
+
+  cpu-tests:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: cpu-tests
+        run: |
+          $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run ALL=dummy
+          $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run
+
+  riscv-tests:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: riscv-tests
+        run: |
+          git clone --depth 1 https://github.com/NJU-ProjectN/riscv-tests-am
+          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i ALL=auipc
+          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i
+
+  riscv-arch-test:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: riscv-arch-test
+        run: |
+          git clone --depth 1 https://github.com/NJU-ProjectN/riscv-arch-test-am
+          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-arch-test-am run TEST_ISA=E ALL=add-01
+          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-arch-test-am run TEST_ISA="E Zifencei"
+
+  microbench:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: microbench
+        run: $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=test
+
+  rt-thread:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Install dependency
+        run: sudo apt install -y scons
+
+      - name: rt-thread
+        run: |
+          cd $YSYX_HOME/rt-thread-am/bsp/abstract-machine
+          $MAKE ARCH=riscv32e-ysyxsoc init
+          $MAKE ARCH=riscv32e-ysyxsoc run
+
+  yosys-sta:
+    needs: [parse, setup]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+          install-toolchain: 'false'
+
+      - name: Install dependency
+        run: |
+          sudo apt install -y libunwind-dev liblzma-dev
+
+      - name: Clone yosys-sta
+        run: |
+          git clone https://github.com/OSCPU/yosys-sta
+          cd yosys-sta
+          make init
+          echo exit | ./bin/iEDA -v
+
+      - name: Generate Verilog
+        run: |
+          $MAKE -C $NPC_HOME verilog
+
+      - name: Set environment variables
+        run: |
+          echo "STUID=${{ needs.parse.outputs.STUID }}" >> $GITHUB_ENV
+          echo "VFILE=${{ needs.setup.outputs.VFILE }}" >> $GITHUB_ENV
+
+      - name: Run STA
+        run: |
+          $MAKE -C yosys-sta sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
+
+      - name: Check verilog module name
+        run: |
+          YOSYS_LOG=yosys-sta/result/ysyx_$STUID-500MHz/yosys.log
+          LINE=`grep -n "Successfully finished Verilog frontend" $YOSYS_LOG | head -n 1 | grep -o '^[0-9]*'`
+          if head -n $LINE $YOSYS_LOG | grep "Generating RTLIL representation for module" | grep -v "ysyx_$STUID" ; then
+            echo "There exist modules which do not start with ysyx_$STUID"
+            false
+          fi
+
+      - name: Check latch
+        run: |
+          YOSYS_LOG=yosys-sta/result/ysyx_$STUID-500MHz/synth_stat.txt
+          if grep "DLL\|DLH" $YOSYS_LOG ; then
+            echo "The design contains latch, which is not allowed."
+            false
+          fi
+
+      - name: Parse area
+        run: |
+          YOSYS_LOG=yosys-sta/result/ysyx_$STUID-500MHz/yosys-fixed.log
+          AREA=`grep -o "Chip area for module .*: .*" $YOSYS_LOG | sed -e 's/.*: \([0-9]*\.[0-9]*\)$/\1/'`
+          if [[ $AREA == "" ]] ; then
+            echo "Can not obtain area from yosys-sta. Abort."
+            false
+          fi
+          echo "Area: $AREA"
+          echo "AREA=$AREA" >> $GITHUB_ENV
+
+      - name: Run STA with older version
+        run: |
+          cd yosys-sta
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+          git revert --no-edit 97fa7fcb80de4966c6f390af8df1b37d6d4c42c8
+          make clean
+          $MAKE sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
+
+      - name: Parse area with older version
+        run: |
+          YOSYS_LOG=yosys-sta/result/ysyx_$STUID-500MHz/yosys-fixed.log
+          AREA_OLD=`grep -o "Chip area for module .*: .*" $YOSYS_LOG | sed -e 's/.*: \([0-9]*\.[0-9]*\)$/\1/'`
+          if [[ $AREA_OLD == "" ]] ; then
+            echo "Can not obtain area from yosys-sta. Abort."
+            false
+          fi
+          echo "Area: $AREA_OLD"
+          echo "AREA_OLD=$AREA_OLD" >> $GITHUB_ENV
+
+      - name: Check area
+        run: |
+          AREA_BUDGET=16500
+          AREA_OLD_BUDGET=25000
+          AREA_OK=`echo "$AREA <= $AREA_BUDGET" | bc`
+          AREA_OLD_OK=`echo "$AREA_OLD <= $AREA_OLD_BUDGET" | bc`
+          if [[ $AREA_OK == "0" ]] ; then
+            if [[ $AREA_OLD_OK == "0" ]] ; then
+              echo "Area($AREA) is larger than the budget($AREA_BUDGET)."
+              echo "Area for old version of yosys-sta($AREA_OLD) is larger than the budget($AREA_OLD_BUDGET)."
+              false
+            fi
+          fi
+
+          #more-tests:
+          #  #needs: [setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, yosys-sta]
+          #  needs: [setup]
+          #  runs-on: self-hosted
+          #  steps:
+          #    - name: Download verilog file
+          #      uses: actions/download-artifact@v4
+          #      with:
+          #        name: verilog
+          #    - name: More tests
+          #      run: |
+          #        VFILE=`basename "${{ needs.setup.outputs.VFILE }}"`
+          #        bash ../../../more-tests.sh `realpath $VFILE`
