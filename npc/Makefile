@@ -138,6 +138,9 @@ EMU_LDFLAGS += -O3
 EMU_FLAGS  += -O3 --Mdir $(EMU_DIR) -CFLAGS "$(call escape_quote, $(EMU_CFLAGS) $(VERI_EMU_CFLAGS))" -LDFLAGS "$(EMU_LDFLAGS)"
 
 verilog: $(VFILE-syn)
+	cp $^ $(BUILD_DIR)/ysyx_88888888.sv
+	sed -i -e 's/module $(TOP)/module ysyx_88888888/' $(BUILD_DIR)/ysyx_88888888.sv
+
 emu-dep: update-ysyxsoc $(EMU_PATH)
 
 ifeq ($(IVERILOG),1)
