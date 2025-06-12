@@ -1,0 +1,84 @@
+From 8cc3ad632ad8ca597497fce278220270e00799a6 Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sat, 13 Apr 2024 22:51:14 +0800
+Subject: [PATCH 09/13] device,VGA: impl VGA
+
+---
+ src/device/VGA.scala | 53 ++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 51 insertions(+), 2 deletions(-)
+
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index 6724bc38..fc36acc5 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -28,8 +28,57 @@ class vga_top_apb extends BlackBox {
+   val io = IO(new VGACtrlIO)
+ }
+ 
+-class vgaChisel extends Module {
++trait HasVGAConst {
++  val ScreenW = 640
++  val ScreenH = 480
++  val HFrontPorch = 96
++  val HActive = 144
++  val HBackPorch = 784
++  val HTotal = 800
++  val VFrontPorch = 2
++  val VActive = 35
++  val VBackPorch = 515
++  val VTotal = 525
++}
++
++trait HasVGAParameter extends HasVGAConst {
++  val FBWidth = ScreenW
++  val FBHeight = ScreenH
++  val FBPixels = FBWidth * FBHeight
++}
++
++class vgaChisel extends Module with HasVGAParameter {
+   val io = IO(new VGACtrlIO)
++  val in = io.in
++
++  val fb = SyncReadMem(FBPixels, Vec(4, UInt(8.W)))
++  in.pready := in.psel && in.penable
++  in.pslverr := false.B
++  val wen = in.psel && !in.penable && in.pwrite
++  val fbAddrWidth = log2Up(ScreenW * ScreenH)
++  val waddr = in.paddr(fbAddrWidth + 2 - 1, 2)
++  when (wen) { fb.write(waddr, in.pwdata.asTypeOf(fb(0)), in.pstrb.asBools) }
++
++  in.prdata := 0.U
++  in.pready := in.psel && in.penable
++  in.pslverr := false.B
++
++  def inRange(x: UInt, start: Int, end: Int) = (x >= start.U) && (x < end.U)
++  val (hCounter, hFinish) = Counter(true.B, HTotal)
++  val (vCounter, vFinish) = Counter(hFinish, VTotal)
++  val hInRange = inRange(hCounter, HActive, HBackPorch)
++  val vInRange = inRange(vCounter, VActive, VBackPorch)
++
++  // there is 1 cycle latency to read fb, so issue the read request 1 cycle eariler
++  val nextPixel = inRange(hCounter, HActive - 1, HBackPorch - 1) && vInRange
++  val fbPixelAddr = Counter(nextPixel, FBPixels)._1
++  val color = fb(fbPixelAddr)
++  io.vga.b := Mux(io.vga.valid, color(0), 0.U)
++  io.vga.g := Mux(io.vga.valid, color(1), 0.U)
++  io.vga.r := Mux(io.vga.valid, color(2), 0.U)
++  io.vga.valid := hInRange && vInRange
++  io.vga.hsync := hCounter >= HFrontPorch.U
++  io.vga.vsync := vCounter >= VFrontPorch.U
+ }
+ 
+ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -46,7 +95,7 @@ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     val (in, _) = node.in(0)
+     val vga_bundle = IO(new VGAIO)
+ 
+-    val mvga = Module(new vga_top_apb)
++    val mvga = Module(new vgaChisel)
+     mvga.io.clock := clock
+     mvga.io.reset := reset
+     mvga.io.in <> in
+-- 
+2.43.0
+

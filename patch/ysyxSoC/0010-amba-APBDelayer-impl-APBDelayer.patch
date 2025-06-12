@@ -1,0 +1,92 @@
+From 5d5f851ab74da96fb705f1ec8667fa93a48a98f9 Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sun, 31 Mar 2024 13:12:09 +0800
+Subject: [PATCH 10/13] amba,APBDelayer: impl APBDelayer
+
+---
+ src/Top.scala             |  2 ++
+ src/amba/APBDelayer.scala | 41 +++++++++++++++++++++++++++++++++++++--
+ 2 files changed, 41 insertions(+), 2 deletions(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..122f22ef 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -8,6 +8,8 @@ import freechips.rocketchip.diplomacy.LazyModule
+ object Config {
+   def hasChipLink: Boolean = false
+   def sdramUseAXI: Boolean = false
++  def coreMHz: Double = 1103.174
++  def devMHz: Double = 100
+ }
+ 
+ class ysyxSoCTop extends Module {
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 0cfc3d0c..c5510b82 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -8,6 +8,7 @@ import freechips.rocketchip.amba._
+ import freechips.rocketchip.amba.apb._
+ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
++import freechips.rocketchip.tilelink.LFSRNoiseMaker
+ 
+ class APBDelayerIO extends Bundle {
+   val clock = Input(Clock())
+@@ -22,7 +23,43 @@ class apb_delayer extends BlackBox {
+ 
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+-  io.out <> io.in
++  val (in, out) = (io.in, io.out)
++
++  val scale = 16
++  val hasNoise = false
++  def incrScale(cnt: UInt) = cnt + ((Config.coreMHz / Config.devMHz - 1) * scala.math.pow(2, scale)).toInt.U
++  def scaleDown(cnt: UInt) = cnt(cnt.getWidth-1, scale)
++
++  def bindNoise(x: UInt) = x := (if (hasNoise) LFSRNoiseMaker(x.getWidth) else 0.U)
++
++  val cnt = Reg(UInt(64.W))
++  val fire = out.psel && out.penable && out.pready
++  val delayFinish = (cnt === 0.U)
++  val s_idle :: s_inflight :: s_delay :: Nil = Enum(3)
++  val state = RegInit(s_idle)
++  switch (state) {
++    is (s_idle)     { state := Mux(in.psel, s_inflight, s_idle) }
++    is (s_inflight) { state := Mux(fire, Mux(delayFinish, s_idle, s_delay), s_inflight) }
++    is (s_delay)    { state := Mux(delayFinish, s_idle, s_delay) }
++  }
++
++  val cntNext = Mux(state === s_idle, Mux(!in.psel, 0.U, incrScale(cnt)),
++      Mux(state === s_inflight, Mux(!out.pready, incrScale(cnt), scaleDown(incrScale(cnt))), cnt - 1.U))
++  cnt := cntNext
++
++  out <> in
++  // overwrite
++  out.psel := in.psel && (state =/= s_delay)
++  out.penable := in.penable && (state =/= s_delay)
++  when (!out.psel) {
++    List(out.pwrite, out.paddr, out.pwdata, out.pstrb, out.pprot).map(bindNoise(_))
++  }
++  in.pready := delayFinish && (((state === s_inflight) && fire) || (state === s_delay))
++  in.prdata := out.prdata holdUnless fire
++  in.pslverr := out.pslverr holdUnless fire
++  when (!in.pready) {
++    List(in.prdata, in.pslverr).map(bindNoise(_))
++  }
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +68,7 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new apb_delayer)
++      val delayer = Module(new APBDelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.43.0
+

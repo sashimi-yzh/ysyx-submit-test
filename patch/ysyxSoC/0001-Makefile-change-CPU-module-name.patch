@@ -1,0 +1,25 @@
+From 917fe11977dbd37aa3e693aab7dd86e9c2ebe33a Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sat, 13 Apr 2024 23:02:07 +0800
+Subject: [PATCH 01/13] Makefile: change CPU module name
+
+============ answer code starts in this commit =============
+---
+ Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Makefile b/Makefile
+index c30262ea..f5284243 100644
+--- a/Makefile
++++ b/Makefile
+@@ -15,6 +15,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	mv $(V_FILE_GEN) $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
++	sed -i -e 's/ysyx_00000000/Top/g' $@
+ 
+ verilog: $(V_FILE_FINAL)
+ 
+-- 
+2.43.0
+

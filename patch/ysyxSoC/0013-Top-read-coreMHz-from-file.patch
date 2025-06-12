@@ -1,0 +1,31 @@
+From 3ae69f15c8f7335269fd00e1b4b21c8f6c52bc8c Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Fri, 26 Jul 2024 10:38:21 +0800
+Subject: [PATCH 13/13] Top: read coreMHz from file
+
+---
+ src/Top.scala | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index 32fab80f..f628ed5d 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -8,7 +8,13 @@ import freechips.rocketchip.diplomacy.LazyModule
+ object Config {
+   def hasChipLink: Boolean = false
+   def sdramUseAXI: Boolean = true
+-  def coreMHz: Double = 1103.174
++  def freqFile = "/home/yzh/projectn/npc/build/freq.txt"
++  val coreMHz: Double = {
++   val freqMHz = if (!(new java.io.File(freqFile)).exists()) 100.0
++                 else scala.io.Source.fromFile(freqFile).mkString.trim.toFloat
++   println("freqMHz = " + freqMHz + "MHz")
++   freqMHz
++ }
+   def devMHz: Double = 100
+ }
+ 
+-- 
+2.43.0
+

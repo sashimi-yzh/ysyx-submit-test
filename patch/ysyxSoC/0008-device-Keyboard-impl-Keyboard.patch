@@ -1,0 +1,48 @@
+From 524feaee38bee05c71755a602f3602d5ee04551f Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sat, 13 Apr 2024 22:33:35 +0800
+Subject: [PATCH 08/13] device,Keyboard: impl Keyboard
+
+---
+ src/device/Keyboard.scala | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/src/device/Keyboard.scala b/src/device/Keyboard.scala
+index 5bd7f5b4..1d364fe2 100644
+--- a/src/device/Keyboard.scala
++++ b/src/device/Keyboard.scala
+@@ -26,6 +26,22 @@ class ps2_top_apb extends BlackBox {
+ 
+ class ps2Chisel extends Module {
+   val io = IO(new PS2CtrlIO)
++  val in = io.in
++  val buf = Reg(UInt(10.W))
++  val ps2ClkSync = RegInit(0.U(3.W))
++  ps2ClkSync := Cat(ps2ClkSync(1, 0), io.ps2.clk)
++  val sampling = ps2ClkSync(2) & !ps2ClkSync(1)
++  when (sampling) { buf := Cat(io.ps2.data, buf(9,1)) }
++
++  val cnt = Counter(sampling, 11)
++  val queue = Module(new Queue(UInt(8.W), 8))
++  queue.io.enq.valid := cnt._2 && !buf(0) && io.ps2.data && buf(9,1).xorR
++  queue.io.enq.bits := buf(8,1)
++  queue.io.deq.ready := in.pready
++
++  in.prdata := Mux(queue.io.deq.valid, queue.io.deq.bits, 0.U)
++  in.pready := in.psel && in.penable
++  in.pslverr := false.B
+ }
+ 
+ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -42,7 +58,7 @@ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends Lazy
+     val (in, _) = node.in(0)
+     val ps2_bundle = IO(new PS2IO)
+ 
+-    val mps2 = Module(new ps2_top_apb)
++    val mps2 = Module(new ps2Chisel)
+     mps2.io.clock := clock
+     mps2.io.reset := reset
+     mps2.io.in <> in
+-- 
+2.43.0
+

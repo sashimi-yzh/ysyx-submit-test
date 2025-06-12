@@ -1,0 +1,62 @@
+From 68e3b55834d8aae67e07c9503eb61cdc129a8aa8 Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sat, 13 Apr 2024 21:55:05 +0800
+Subject: [PATCH 04/13] device,PSRAM: impl PSRAM chip
+
+---
+ src/SoC.scala          |  2 +-
+ src/device/PSRAM.scala | 25 ++++++++++++++++++++++++-
+ 2 files changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 29267c58..a86a9498 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -140,7 +140,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+ 
+-    val psram = Module(new psram)
++    val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+     val sdram = Module(new sdram)
+     sdram.io <> masic.sdram
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index 09d889e4..dcf540bd 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -30,7 +30,30 @@ class psram extends BlackBox {
+ 
+ class psramChisel extends RawModule {
+   val io = IO(Flipped(new QSPIIO))
+-  val di = TriStateInBuf(io.dio, 0.U, false.B) // change this if you need
++  withClockAndReset(io.sck.asClock, io.ce_n.asAsyncReset) {
++    val st_cmd :: st_addr :: st_dummy :: st_read :: st_write :: Nil = Enum(5)
++    val state = RegInit(st_cmd)
++    val is_read = (state === st_dummy) || (state === st_read)
++    val is_write = (state === st_write)
++    val cnt = withClock ((~io.sck).asClock) { Counter(true.B, 32)._1 }
++    val cmd = RegInit(0.U(8.W))
++    val data = RegInit(0.U(8.W))
++    val di = TriStateInBuf(io.dio, RegNext(data(7,4)), state === st_read)
++    when (state === st_cmd) { cmd := cmd(6, 0) ## di(0) }
++    switch (state) {
++      is (st_cmd)   { when (cnt === 7.U ) { state := st_addr } }
++      is (st_addr)  { when (cnt === 13.U) { state := Mux(cmd === "heb".U, st_dummy, Mux(cmd === "h38".U, st_write, state)) } }
++      is (st_dummy) { when (cnt === 19.U) { state := st_read } }
++    }
++
++    val addr = RegInit(0.U(24.W))
++    val addrIncr1 = Mux(cnt(0), is_read && cnt >= 19.U, is_write && cnt >= 15.U)
++    addr := Mux(state === st_addr, addr(19, 0) ## di, addr + addrIncr1)
++
++    val ram = Mem(4 * 1024 * 1024, UInt(8.W)) // 4MB
++    data := Mux(is_write, data(3, 0) ## di, Mux(is_read && cnt >= 19.U, Mux(cnt(0), ram(addr(21,0)), data << 4), data))
++    withClock ((~io.sck).asClock) { when (is_write && cnt >= 15.U && cnt(0)) { ram(addr(21,0)) := data } }
++  }
+ }
+ 
+ class APBPSRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-- 
+2.43.0
+

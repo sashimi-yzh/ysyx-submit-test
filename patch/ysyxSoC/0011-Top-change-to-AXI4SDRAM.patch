@@ -1,0 +1,25 @@
+From cb76d901fdf71314852b73112a9aa656c9c62b72 Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Mon, 15 Apr 2024 03:07:47 +0800
+Subject: [PATCH 11/13] Top: change to AXI4SDRAM
+
+---
+ src/Top.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index 122f22ef..32fab80f 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+   def coreMHz: Double = 1103.174
+   def devMHz: Double = 100
+ }
+-- 
+2.43.0
+
