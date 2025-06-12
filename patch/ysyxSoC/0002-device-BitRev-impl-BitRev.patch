@@ -1,0 +1,42 @@
+From 0c36744f92b18c4cc491ea958286e965e369e1bc Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Fri, 12 Apr 2024 21:22:29 +0800
+Subject: [PATCH 02/13] device,BitRev: impl BitRev
+
+---
+ src/SoC.scala           | 2 +-
+ src/device/BitRev.scala | 7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 1c65cd87..29267c58 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -135,7 +135,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     val flash = Module(new flash)
+     flash.io <> masic.spi
+     flash.io.ss := masic.spi.ss(0)
+-    val bitrev = Module(new bitrev)
++    val bitrev = Module(new bitrevChisel)
+     bitrev.io <> masic.spi
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+index 6bd3d572..333451af 100644
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -9,5 +9,10 @@ class bitrev extends BlackBox {
+ 
+ class bitrevChisel extends RawModule { // we do not need clock and reset
+   val io = IO(Flipped(new SPIIO(1)))
+-  io.miso := true.B
++  withClockAndReset(io.sck.asClock, io.ss.asBool.asAsyncReset) {
++    val data = RegInit(0.U(8.W))
++    val dataTmp = Mux(Counter(true.B, 8)._1 === 0.U, Reverse(data), data)
++    data := dataTmp(6, 0) ## io.mosi
++    io.miso := Mux(io.ss.asBool, true.B, dataTmp(7))
++  }
+ }
+-- 
+2.43.0
+

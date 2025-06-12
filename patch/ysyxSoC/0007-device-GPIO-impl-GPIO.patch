@@ -1,0 +1,66 @@
+From a70fe1b4bb8a4e9dd271a75d7c72fa6cfa8d5e8f Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sat, 13 Apr 2024 22:19:51 +0800
+Subject: [PATCH 07/13] device,GPIO: impl GPIO
+
+* include LED, switch, 7-seg
+---
+ src/device/GPIO.scala | 35 ++++++++++++++++++++++++++++++++++-
+ 1 file changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/src/device/GPIO.scala b/src/device/GPIO.scala
+index f770e96a..93490b1b 100644
+--- a/src/device/GPIO.scala
++++ b/src/device/GPIO.scala
+@@ -27,6 +27,39 @@ class gpio_top_apb extends BlackBox {
+ 
+ class gpioChisel extends Module {
+   val io = IO(new GPIOCtrlIO)
++
++  val in = io.in
++  val outReg = RegInit(0.U(16.W))
++  val inReg = RegInit(0.U(16.W))
++  val segReg = RegInit(0.U(32.W))
++  io.gpio.out := outReg
++  inReg := io.gpio.in
++
++  val hexToSeg = VecInit(
++    "b11111100".U, "b01100000".U, "b11011010".U, "b11110010".U,
++    "b01100110".U, "b10110110".U, "b10111110".U, "b11100000".U,
++    "b11111110".U, "b11110110".U, "b11101110".U, "b00111110".U,
++    "b10011100".U, "b01111010".U, "b10011110".U, "b10001110".U,
++  )
++  segReg.asTypeOf(Vec(8, UInt(4.W))).zip(io.gpio.seg).map { case (hex, pin) => pin := ~hexToSeg(hex) }
++
++  val is_write = in.psel && !in.penable && in.pwrite
++  val wmask_full = Cat(in.pstrb.asBools.map(Fill(8, _)).reverse)
++  def writeFn(r: UInt) = r := (wmask_full & in.pwdata) | (~wmask_full & r)
++  when (is_write) {
++    switch (in.paddr(3,2)) {
++      is(0.U) { writeFn(outReg) }
++      is(2.U) { writeFn(segReg) }
++    }
++  }
++  val addrReg = RegNext(in.paddr)
++  in.prdata := MuxLookup(addrReg(3,2), 0.U)(Array(
++    0.U -> outReg,
++    1.U -> inReg,
++    2.U -> segReg
++  ))
++  in.pready := RegNext(in.psel)
++  in.pslverr := false.B
+ }
+ 
+ class APBGPIO(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -43,7 +76,7 @@ class APBGPIO(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModu
+     val (in, _) = node.in(0)
+     val gpio_bundle = IO(new GPIOIO)
+ 
+-    val mgpio = Module(new gpio_top_apb)
++    val mgpio = Module(new gpioChisel)
+     mgpio.io.clock := clock
+     mgpio.io.reset := reset
+     mgpio.io.in <> in
+-- 
+2.43.0
+

@@ -1,0 +1,58 @@
+From 7b5429c7f557ccf713fa8f5d5659d57e7303683f Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sat, 13 Apr 2024 21:57:26 +0800
+Subject: [PATCH 05/13] device,SDRAM: impl SDRAM chip
+
+---
+ src/SoC.scala          |  2 +-
+ src/device/SDRAM.scala | 21 +++++++++++++++++++++
+ 2 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/src/SoC.scala b/src/SoC.scala
+index a86a9498..e82b3ad1 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -142,7 +142,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+ 
+     val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+-    val sdram = Module(new sdram)
++    val sdram = Module(new sdramChisel)
+     sdram.io <> masic.sdram
+ 
+     val externalPins = IO(new Bundle{
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index a823c718..2fa845bc 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -47,6 +47,27 @@ class sdram extends BlackBox {
+ 
+ class sdramChisel extends RawModule {
+   val io = IO(Flipped(new SDRAMIO))
++  val (rowWidth, colWidth, bankWidth) = (io.a.getWidth, 9, io.ba.getWidth)
++  val addrWidth = rowWidth + colWidth + bankWidth
++  withClock(io.clk.asClock) {
++    val mem = SyncReadMem(1 << addrWidth, Vec(2, UInt(8.W)))
++    val cmd = io.cs ## io.ras ## io.cas ## io.we
++    val rowReg = Mem(1 << bankWidth, UInt(rowWidth.W))
++    when (io.cke && (cmd === "b0011".U)) { rowReg(io.ba) := io.a } // active
++    val mode = RegEnable(io.a, io.cke && (cmd === "b0000".U)) // load mode register
++    def burstOP(start: Bool) = {
++      val word_remain = Reg(UInt(4.W))
++      val addr_s1 = Reg(UInt(addrWidth.W))
++      val inflight = (word_remain =/= 0.U)
++      word_remain := Mux(start, 1.U << mode(1, 0), Mux(inflight, word_remain - 1.U, 0.U))
++      addr_s1 := Mux(start, rowReg(io.ba) ## io.ba ## io.a(colWidth-1, 0), addr_s1 + inflight)
++      (inflight, addr_s1)
++    }
++    val (reading, raddr_s1) = burstOP(io.cke && (cmd === "b0101".U))
++    val (writing, waddr_s1) = burstOP(io.cke && (cmd === "b0100".U))
++    val di = TriStateInBuf(io.dq, Cat(mem(raddr_s1).reverse), RegNext(reading))
++    when (writing) { mem.write(waddr_s1, RegNext(di).asTypeOf(mem(0)), RegEnable(~io.dqm, true.B).asBools) }
++  }
+ }
+ 
+ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-- 
+2.43.0
+

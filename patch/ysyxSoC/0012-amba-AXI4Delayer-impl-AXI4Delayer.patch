@@ -1,0 +1,124 @@
+From 3fa34e203cf8518ba912ede4e833ff262c31b083 Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Wed, 10 Apr 2024 07:41:19 +0800
+Subject: [PATCH 12/13] amba,AXI4Delayer: impl AXI4Delayer
+
+---
+ src/amba/AXI4Delayer.scala | 87 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 85 insertions(+), 2 deletions(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index b60bb57d..898c344e 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -8,6 +8,7 @@ import freechips.rocketchip.amba._
+ import freechips.rocketchip.amba.axi4._
+ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
++import freechips.rocketchip.tilelink.LFSRNoiseMaker
+ 
+ class AXI4DelayerIO extends Bundle {
+   val clock = Input(Clock())
+@@ -22,7 +23,89 @@ class axi4_delayer extends BlackBox {
+ 
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+-  io.out <> io.in
++  val (in, out) = (io.in, io.out)
++
++  val scale = 16
++  val hasNoise = false
++  val burstLenMax = 8
++  def incrScale(cnt: UInt) = cnt + ((Config.coreMHz / Config.devMHz) * scala.math.pow(2, scale)).toInt.U
++  def scaleDown(cnt: UInt) = cnt(cnt.getWidth-1, scale)
++
++  def bindNoise(x: UInt) = x := (if (hasNoise) LFSRNoiseMaker(x.getWidth) else 0.U)
++
++  out <> in
++  assert(!(out.ar.fire && ((1.U << out.ar.bits.size) > burstLenMax.U)), p"Burst len > ${burstLenMax} is not supported")
++  assert(!(out.aw.fire && ((1.U << out.aw.bits.size) > burstLenMax.U)), p"Burst len > ${burstLenMax} is not supported")
++
++  val finish_r = in.r.fire && in.r.bits.last
++  val s_r_idle :: s_wait_arready :: s_r_inflight :: Nil = Enum(3)
++  val state_r = RegInit(s_r_idle)
++  switch (state_r) {
++    is (s_r_idle)       { state_r := Mux(out.ar.valid, Mux(out.ar.ready, s_r_inflight, s_wait_arready), s_r_idle) }
++    is (s_wait_arready) { state_r := Mux(out.ar.ready, s_r_inflight, s_wait_arready) }
++    is (s_r_inflight)   { state_r := Mux(finish_r, s_r_idle, s_r_inflight) }
++  }
++
++  val cnt_r = Reg(UInt(64.W))
++  val cnt_scale_r = Reg(UInt(64.W))
++  cnt_r       := Mux((state_r === s_r_idle && !out.ar.valid) || finish_r, 0.U, cnt_r + 1.U)
++  cnt_scale_r := Mux((state_r === s_r_idle && !out.ar.valid) || finish_r, 0.U, incrScale(cnt_scale_r))
++
++  val queue_r = Queue(out.r, burstLenMax, flow = true)
++  in.r.bits := queue_r.bits
++  val cnt_enq_r = Wire(Decoupled(UInt(64.W)))
++  val queue_cnt_r = Queue(cnt_enq_r, burstLenMax, flow = true)
++  cnt_enq_r.valid := out.r.valid
++  cnt_enq_r.bits  := scaleDown(cnt_scale_r)
++  val can_pass_r = queue_r.valid && (cnt_r >= queue_cnt_r.bits)
++  in.r.valid    := can_pass_r && queue_r.valid
++  queue_r.ready := can_pass_r && in.r.ready
++  queue_cnt_r.ready := queue_r.ready
++  assert(queue_r.valid === queue_cnt_r.valid)
++
++  out.ar.valid := in.ar.valid && (state_r =/= s_r_inflight)
++
++
++  val cnt_w = Reg(UInt(64.W))
++  val cnt_scale_w = Reg(UInt(64.W))
++  val finish_b_delay = Wire(Bool())
++
++  val finish_w = RegInit(false.B)
++  finish_w := Mux(out.w.fire && out.w.bits.last, true.B, Mux(in.b.fire, false.B, finish_w))
++  val s_w_idle :: s_wait_awready :: s_w_inflight :: s_wait_bvalid :: s_delay_b :: s_wait_bready :: Nil = Enum(6)
++  val state_w = RegInit(s_w_idle)
++  switch (state_w) {
++    is (s_w_idle)       { state_w := Mux(out.aw.valid, Mux(out.aw.ready, s_w_inflight, s_wait_awready), s_w_idle) }
++    is (s_wait_awready) { state_w := Mux(out.aw.ready, s_w_inflight, s_wait_awready) }
++    is (s_w_inflight)   { state_w := Mux(finish_w, s_wait_bvalid, s_w_inflight) }
++    is (s_wait_bvalid)  { state_w := Mux(out.b.valid, Mux(finish_b_delay, Mux(in.b.ready, s_w_idle, s_wait_bready), s_delay_b), s_wait_bvalid) }
++    is (s_delay_b)      { state_w := Mux(finish_b_delay, Mux(in.b.ready, s_w_idle, s_wait_bready), s_delay_b) }
++    is (s_wait_bready)  { state_w := Mux(in.b.ready, s_w_idle, s_wait_bready) }
++  }
++
++  cnt_w       := Mux((state_w === s_w_idle && !out.aw.valid) || in.b.fire, 0.U, cnt_w + 1.U)
++  cnt_scale_w := Mux((state_w === s_w_idle && !out.aw.valid) || in.b.fire, 0.U, incrScale(cnt_scale_w))
++
++  val queue_w = Queue(in.w, burstLenMax, flow = true)
++  out.w.bits := queue_w.bits
++  val cnt_enq_w = Wire(Decoupled(UInt(64.W)))
++  val queue_cnt_w = Queue(cnt_enq_w, burstLenMax, flow = true)
++  cnt_enq_w.valid := in.w.valid
++  cnt_enq_w.bits  := scaleDown(cnt_scale_w)
++  val can_pass_w = queue_w.valid && (cnt_w >= queue_cnt_w.bits)
++  out.w.valid   := can_pass_w && queue_w.valid
++  queue_w.ready := can_pass_w && out.w.ready
++  queue_cnt_w.ready := queue_w.ready
++  assert(queue_w.valid === queue_cnt_w.valid)
++
++  out.aw.valid := in.aw.valid && ((state_w === s_w_idle) || (state_w === s_wait_awready))
++
++  val cnt_b = scaleDown(cnt_scale_w) holdUnless out.b.fire
++  finish_b_delay := (cnt_w >= cnt_b)
++  out.b.ready := (state_w === s_wait_bvalid)
++  in.b.valid := ((state_w === s_wait_bvalid) && out.b.valid && finish_b_delay) ||
++                ((state_w === s_delay_b) && finish_b_delay) ||
++                (state_w === s_wait_bready)
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +114,7 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new axi4_delayer)
++      val delayer = Module(new AXI4DelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.43.0
+

@@ -1,0 +1,132 @@
+From f173fbfd9afa0fd133695e0899851aa30bce118d Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Thu, 11 Jan 2024 01:46:07 +0800
+Subject: [PATCH] answer
+
+---
+ bsp/abstract-machine/extra.ld      |  4 +--
+ bsp/abstract-machine/src/context.c | 45 ++++++++++++++++++++++++++----
+ bsp/abstract-machine/src/uart.c    |  5 +++-
+ 3 files changed, 45 insertions(+), 9 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc6567..9eb3814a 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -27,7 +27,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram AT> flash
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +40,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram AT> flash
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829a..36d80e82 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -1,10 +1,22 @@
+ #include <am.h>
+ #include <klib.h>
+ #include <rtthread.h>
++#include <klib-macros.h>
++
++static Context* context_switch(Context *prev) {
++  Context ***args = (Context ***)(rt_thread_self()->user_data);
++  Context **from = args[0];
++  Context **to = args[1];
++  if (from) *from = prev;
++  return *to;
++}
+ 
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD: return context_switch(c);
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++    case EVENT_IRQ_IODEV: break;
++    case EVENT_IRQ_TIMER: break;
+   }
+   return c;
+ }
+@@ -13,19 +25,40 @@ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++  rt_ubase_t user_data_save = rt_thread_self()->user_data;
++  Context **args[2];
++  args[0] = (Context **)from;
++  args[1] = (Context **)to;
++  rt_thread_self()->user_data = (rt_ubase_t)args;
++  yield();
++  rt_thread_self()->user_data = user_data_save;
+ }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++void rt_hw_context_switch_to(rt_ubase_t to) {
++  rt_hw_context_switch(0, to);
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++static void wrapper(void *v) {
++  void **argv = (void **)v;
++  void (*entry)(void *) = argv[0];
++  void *arg = argv[1];
++  void (*exit_func)(void) = argv[2];
++  entry(arg);
++  exit_func();
++}
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  // stack_addr is the rightmost boundary
++  void **wrapper_args = (void **)ROUNDDOWN(stack_addr, sizeof(void *));
++  wrapper_args -= 3;
++  wrapper_args[0] = tentry;
++  wrapper_args[1] = parameter;
++  wrapper_args[2] = texit;
++  // kstack.start is not used
++  return (uint8_t *)kcontext(RANGE(stack_addr - 4096, wrapper_args), wrapper, wrapper_args);
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb8668..1fd141f5 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  if (*p != '\0') return *(p ++);
++  int8_t ch = io_read(AM_UART_RX).data;
++  return ch;
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.43.0
+
