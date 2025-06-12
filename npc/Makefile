@@ -1,5 +1,5 @@
 #ENABLE_WAVE = 1
-#YSYXSOC = 1
+YSYXSOC = 1
 #NETLIST_SIM = 1
 #HAS_NVBOARD = 1
 #SYNC_FREQ = 1
@@ -36,7 +36,7 @@ EMU_CFLAGS += -DNETLIST_SIM=1
 $(VFILE-sim): sta
 endif
 
-YSYXSOC_HOME = /home/yzh/ysyx/ysyxSoC
+YSYXSOC_HOME = $(abspath ../ysyxSoC)
 ifeq ($(YSYXSOC),1)
 YSYXSOCFULL_V = $(YSYXSOC_HOME)/build/ysyxSoCFull.v
 VFILE_EXTRA += $(shell find $(YSYXSOC_HOME)/perip/ -name "*.v") $(YSYXSOCFULL_V)
