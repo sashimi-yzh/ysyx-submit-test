@@ -116,12 +116,11 @@ index e4eb8668..1fd141f5 100644
  
  #define UART_DEFAULT_BAUDRATE 115200
  
-@@ -38,7 +39,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+@@ -38,7 +39,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
  
  static int _uart_getc(struct rt_serial_device *serial) {
-   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
 -  return (*p != '\0' ? *(p ++) : -1);
-+  if (*p != '\0') return *(p ++);
 +  int8_t ch = io_read(AM_UART_RX).data;
 +  return ch;
  }
