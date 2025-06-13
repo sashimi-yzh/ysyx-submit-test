@@ -198,7 +198,7 @@ sim:
 	$(MAKE) gsim-run
 else
 sim: emu-dep
-	taskset 0x1 $(EMU_PATH) $(IMG)
+	$(EMU_PATH) $(IMG)
 endif
 
 .NOTPARALLEL: emu-dep
