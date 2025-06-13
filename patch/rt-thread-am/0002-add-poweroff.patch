@@ -1,0 +1,29 @@
+From cd3d2d72f2d7c53384e365de17dd469570d8c926 Mon Sep 17 00:00:00 2001
+From: Zihao Yu <yuzihao@ict.ac.cn>
+Date: Sat, 14 Jun 2025 00:05:08 +0800
+Subject: [PATCH 2/2] add poweroff
+
+---
+ bsp/abstract-machine/src/poweroff.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 bsp/abstract-machine/src/poweroff.c
+
+diff --git a/bsp/abstract-machine/src/poweroff.c b/bsp/abstract-machine/src/poweroff.c
+new file mode 100644
+index 00000000..9b0fb967
+--- /dev/null
++++ b/bsp/abstract-machine/src/poweroff.c
+@@ -0,0 +1,10 @@
++#include <rtthread.h>
++#include <am.h>
++
++int poweroff(int argc, char **argv) {
++  rt_kprintf("poweroff...\n");
++  halt(0);
++  return 0;
++}
++
++MSH_CMD_EXPORT(poweroff, poweroff);
+-- 
+2.43.0
+
