@@ -104,7 +104,7 @@ class Top extends NPCModule {
     val slave     = if (Global.mode != "sim") Some(Flipped(new AXI4(idBits = 4))) else None
   })
 
-  val npc = Module(new NPC)
+  val npc = withModulePrefix("ysyx_88888888") { Module(new NPC) }
 
   if (Global.mode == "sim") {
     val mem = Module(new AXI4DMEM)
