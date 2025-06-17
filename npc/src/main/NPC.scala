@@ -123,7 +123,7 @@ class NPC extends NPCModule {
 }
 
 class Top extends NPCModule {
-  val npc = Module(new NPC)
+  val npc = withModulePrefix("ysyx_88888888") { Module(new NPC) }
   if (Global.mode == "sim") {
     val xbar = Module(new AXI4Crossbar1toN(List((0x30000000, 0xfff), (0, 0)), new AXI4(idBits = 4)))
     val flash = Module(new AXI4Flash)

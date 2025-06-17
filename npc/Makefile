@@ -93,10 +93,11 @@ endif
 $(VFILE_PREFIX)%.sv: $(SCALA_FILES)
 	$(call git_commit, "generate verilog")
 	mill -i $(PRJ).runMain Elaborate --target-dir $(BUILD_DIR) --mode $* $(MILL_FLAGS) --freq-file $(FREQ_FILE)
-	mv $(VFILE_PREFIX).sv $@
+	cd $(BUILD_DIR) && sed -i -e 's/ *$$//' `cat filelist.f firrtl_black_box_resource_files.f`
+	cd $(BUILD_DIR) && cat `cat filelist.f firrtl_black_box_resource_files.f` > $@
 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
-	verilator --lint-only -Wall -Wno-DECLFILENAME -Wno-UNUSED -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY $@
+	verilator --lint-only -Wall --top-module $(TOP) -Wno-DECLFILENAME -Wno-UNUSED -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY $@
 ifeq ($(NETLIST_SIM),1)
 	bash -c "if [[ "$*" == "sim" ]] ; then sed -i -e 's/^module NPC(/module NPC2(/' $@; fi"
 endif
