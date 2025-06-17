@@ -89,7 +89,7 @@ $(VFILE_PREFIX)%.sv: $(SCALA_FILES)
 	cd $(BUILD_DIR) && sed -i -e 's/ *$$//' `cat filelist.f firrtl_black_box_resource_files.f`
 	cd $(BUILD_DIR) && cat `cat filelist.f firrtl_black_box_resource_files.f` > $@
 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
-	verilator --lint-only -Wall --top-module $(TOP) -Wno-DECLFILENAME -Wno-UNUSED -Wno-SYNCASYNCNET $@
+	verilator --lint-only -Wall --top-module $(TOP) -Wno-DECLFILENAME -Wno-UNUSED -Wno-SYNCASYNCNET -Wno-VARHIDDEN $@
 
 help:
 	mill -i $(PRJ).runMain Elaborate --help
