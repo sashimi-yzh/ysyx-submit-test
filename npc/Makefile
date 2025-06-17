@@ -97,7 +97,7 @@ $(VFILE_PREFIX)%.sv: $(SCALA_FILES)
 	cd $(BUILD_DIR) && cat `cat filelist.f firrtl_black_box_resource_files.f` > $@
 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
-	verilator --lint-only -Wall --top-module $(TOP) -Wno-DECLFILENAME -Wno-UNUSED -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY $@
+	verilator --lint-only -Wall --top-module $(TOP) -Wno-DECLFILENAME -Wno-UNUSED -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY -Wno-VARHIDDEN $@
 ifeq ($(NETLIST_SIM),1)
 	bash -c "if [[ "$*" == "sim" ]] ; then sed -i -e 's/^module NPC(/module NPC2(/' $@; fi"
 endif

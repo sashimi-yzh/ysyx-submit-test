@@ -22,7 +22,7 @@ object Elaborate extends App {
   val (firrtlOpt, firtoolOpt) = parseArgs(Array[String](), Array[String](), args.toList)
   require(Seq("sim", "syn").exists(npc.Global.mode == _))
   val firtoolOptDebug = (if (npc.Global.debug) Array("--preserve-aggregate=vec", "--preserve-values=all") else
-                                               Array("--preserve-aggregate=none", "--preserve-values=none"))
+                                               Array("--preserve-aggregate=none", "--preserve-values=strip"))
   val firtoolOptFinal = firtoolOpt ++ firtoolOptDebug ++
                         (if (npc.Global.mode == "syn" || npc.Global.iverilog == true) firtoolLoweringOptions else Array())
 
