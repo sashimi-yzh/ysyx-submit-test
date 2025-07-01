@@ -28,8 +28,8 @@ object Elaborate extends App {
 
   (new circt.stage.ChiselStage).execute(
     Array("--target", "chirrtl") ++ firrtlOpt,
-    Seq(chisel3.stage.ChiselGeneratorAnnotation(() => new npc.Top())) ++ firtoolOptFinal.map(circt.stage.FirtoolOption(_))
+    Seq(chisel3.stage.ChiselGeneratorAnnotation(() => new npc.ysyx_88888888_Top())) ++ firtoolOptFinal.map(circt.stage.FirtoolOption(_))
   )
 
-  circt.stage.ChiselStage.emitSystemVerilogFile(new npc.Top(), firrtlOpt, firtoolOptFinal)
+  circt.stage.ChiselStage.emitSystemVerilogFile(new npc.ysyx_88888888_Top(), firrtlOpt, firtoolOptFinal)
 }

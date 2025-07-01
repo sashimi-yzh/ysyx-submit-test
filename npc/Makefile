@@ -12,14 +12,14 @@ BUILD_DIR = $(abspath ./build)
 $(shell mkdir -p $(BUILD_DIR))
 SCALA_FILES = $(shell find src/main/ -name "*.scala")
 PRJ = playground
-TOP = Top
+TOP = ysyx_88888888_Top
 VFILE_PREFIX = $(BUILD_DIR)/$(TOP)
 VFILE-sim = $(VFILE_PREFIX)sim.sv
 VFILE-syn = $(VFILE_PREFIX)syn.sv
 
 YOSYS_STA_HOME = ~/ysyx/yosys-sta
 CLK_FREQ_MHZ = 2000
-STA_TOP = NPC
+STA_TOP = ysyx_88888888
 STA_RESULT_DIR = $(BUILD_DIR)/sta/$(STA_TOP)-$(CLK_FREQ_MHZ)MHz
 
 ifeq ($(RV64),1)
@@ -140,7 +140,7 @@ EMU_FLAGS  += -O3 --Mdir $(EMU_DIR) -CFLAGS "$(call escape_quote, $(EMU_CFLAGS) 
 
 verilog: $(VFILE-syn)
 	cp $^ $(BUILD_DIR)/ysyx_88888888.sv
-	sed -i -e 's/module $(TOP)/module ysyx_88888888/' $(BUILD_DIR)/ysyx_88888888.sv
+	sed -i -e 's/module ysyx_88888888_NPC/module ysyx_88888888/' $(BUILD_DIR)/ysyx_88888888.sv
 
 emu-dep: update-ysyxsoc $(EMU_PATH)
 
