@@ -16,7 +16,7 @@ index c30262ea..f5284243 100644
  	mv $(V_FILE_GEN) $@
  	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
  	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
-+	sed -i -e 's/ysyx_00000000/Top/g' $@
++	sed -i -e 's/ysyx_00000000/ysyx_88888888_NPC/g' $@
  
  verilog: $(V_FILE_FINAL)
  
