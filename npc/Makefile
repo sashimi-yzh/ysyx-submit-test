@@ -36,7 +36,7 @@ VFILE_EXTRA += src/test/iverilog-top.sv
 endif
 
 ifeq ($(NETLIST_SIM),1)
-VFILE-netlist = $(STA_RESULT_DIR)/$(STA_TOP).netlist.fixed.v
+VFILE-netlist ?= $(STA_RESULT_DIR)/$(STA_TOP).netlist.fixed.v
 $(VFILE-netlist): sta
 VFILE_EXTRA += $(VFILE-netlist)
 VFILE_EXTRA += $(YOSYS_STA_HOME)/pdk/nangate45/sim/cells.v
@@ -230,5 +230,11 @@ sta: verilog
 		CLK_FREQ_MHZ=$(CLK_FREQ_MHZ) CLK_PORT_NAME=clock
 
 .PHONY: sta
+
+sim-iverilog:
+	$(MAKE) sim IVERILOG=1 IMG=$(IMG)
+
+sim-iverilog-netlist:
+	$(MAKE) sim IVERILOG=1 NETLIST_SIM=1 IMG=$(IMG) VFILE-netlist=$(NETLIST)
 
 -include ../Makefile
