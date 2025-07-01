@@ -25,7 +25,7 @@ image: image-dep
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
-NPC_HOME = /home/yzh/projectn/npc
+NPC_HOME ?= /home/yzh/projectn/npc
 run: insert-arg
 	$(MAKE) -C $(NPC_HOME) sim IMG=$(IMAGE).bin
 
