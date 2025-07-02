@@ -40,6 +40,10 @@ jobs:
       YSYX_HOME: ${{ steps.set-ysyx-home.outputs.YSYX_HOME }}
       VFILE:     ${{ steps.vfilename.outputs.VFILE }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Set YSYX_HOME
         id: set-ysyx-home
         run: |
@@ -246,7 +250,7 @@ jobs:
           cache-key: ${{ needs.setup.outputs.cache-key }}
 
       - name: hello
-        run: $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run
+        run: python $MONITOR_PY $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run
 
   cpu-tests:
     needs: setup
@@ -322,7 +326,7 @@ jobs:
           cache-key: ${{ needs.setup.outputs.cache-key }}
 
       - name: microbench
-        run: $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=test
+        run: python $MONITOR_PY $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=test
 
   rt-thread:
     needs: setup
@@ -345,7 +349,7 @@ jobs:
         run: |
           cd $YSYX_HOME/rt-thread-am/bsp/abstract-machine
           $MAKE ARCH=riscv32e-ysyxsoc init
-          $MAKE ARCH=riscv32e-ysyxsoc run
+          python $MONITOR_PY $MAKE ARCH=riscv32e-ysyxsoc run
 
   yosys-sta:
     needs: [parse, setup]

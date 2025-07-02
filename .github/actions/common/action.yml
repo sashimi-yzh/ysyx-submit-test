@@ -25,6 +25,9 @@ runs:
     - name: Set environment variables
       shell: bash
       run: |
+        MONITOR_PY="`pwd`/monitor.py"
+        echo "MONITOR_PY=$MONITOR_PY" >> $GITHUB_ENV
+
         YSYX_HOME=${{ inputs.YSYX_HOME }}
         echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
         echo "NEMU_HOME=$YSYX_HOME/nemu" >> $GITHUB_ENV
