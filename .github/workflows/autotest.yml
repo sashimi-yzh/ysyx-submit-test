@@ -351,6 +351,30 @@ jobs:
           $MAKE ARCH=riscv32e-ysyxsoc init
           python $MONITOR_PY $MAKE ARCH=riscv32e-ysyxsoc run
 
+  iverilog-microbench:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: compile microbench
+        run: |
+          sed -i -e 's/\(int setting_id = -1;\)/\1 setting_name = "test";/' $YSYX_HOME/am-kernels/benchmarks/microbench/src/bench.c
+          $MAKE ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
+
+      - name: run microbench with iverilog
+        run: |
+          $MAKE -C $NPC_HOME clean
+          python $MONITOR_PY --good="MicroBench PASS" $MAKE -C $NPC_HOME sim-iverilog IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
+
   yosys-sta:
     needs: [parse, setup]
     runs-on: ubuntu-22.04
@@ -451,6 +475,50 @@ jobs:
               false
             fi
           fi
+
+      - name: Upload netlist file
+        uses: actions/upload-artifact@v4
+        with:
+          name: netlist
+          path: yosys-sta/result/ysyx_${{ needs.parse.outputs.STUID }}-500MHz/ysyx_${{ needs.parse.outputs.STUID }}.netlist.fixed.v
+
+  iverilog-netlist-microbench:
+    needs: [parse, setup, yosys-sta]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Download verilog file
+        uses: actions/download-artifact@v4
+        with:
+          name: netlist
+
+      - name: Clone yosys-sta
+        run: |
+          git clone https://github.com/OSCPU/yosys-sta
+          cd yosys-sta
+          make init
+          echo exit | ./bin/iEDA -v
+
+      - name: compile microbench
+        run: |
+          sed -i -e 's/\(int setting_id = -1;\)/\1 setting_name = "test";/' $YSYX_HOME/am-kernels/benchmarks/microbench/src/bench.c
+          $MAKE ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
+
+      - name: run microbench with iverilog netlist
+        run: |
+          $MAKE -C $NPC_HOME clean
+          NETLIST=`pwd`/ysyx_${{ needs.parse.outputs.STUID }}.netlist.fixed.v
+          CELLS=`pwd`/yosys-sta/pdk/nangate45/sim/cells.v
+          python $MONITOR_PY --good="MicroBench PASS" $MAKE -C $NPC_HOME sim-iverilog-netlist IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin NETLIST=$NETLIST CELLS=$CELLS
 
           #more-tests:
           #  #needs: [setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, yosys-sta]
