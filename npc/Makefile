@@ -1,12 +1,12 @@
 #ENABLE_WAVE = 1
-YSYXSOC = 1
-#NETLIST_SIM = 1
-HAS_NVBOARD = 1
+YSYXSOC ?= 1
+NETLIST_SIM ?= 0
+HAS_NVBOARD ?= 1
 #SYNC_FREQ = 1
 #RV64 = 1
 #MILL_FLAGS += --debug
 #GSIM = 1
-#IVERILOG = 1
+IVERILOG ?= 0
 
 BUILD_DIR = $(abspath ./build)
 $(shell mkdir -p $(BUILD_DIR))
@@ -232,9 +232,9 @@ sta: verilog
 .PHONY: sta
 
 sim-iverilog:
-	$(MAKE) sim IVERILOG=1 IMG=$(IMG)
+	$(MAKE) sim YSYXSOC=0 HAS_NVBOARD=0 IVERILOG=1 IMG=$(IMG)
 
 sim-iverilog-netlist:
-	$(MAKE) sim IVERILOG=1 NETLIST_SIM=1 IMG=$(IMG) VFILE-netlist=$(NETLIST)
+	$(MAKE) sim YSYXSOC=0 HAS_NVBOARD=0 IVERILOG=1 NETLIST_SIM=1 IMG=$(IMG) VFILE-netlist=$(NETLIST)
 
 -include ../Makefile
