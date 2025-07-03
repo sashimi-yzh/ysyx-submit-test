@@ -37,9 +37,10 @@ endif
 
 ifeq ($(NETLIST_SIM),1)
 VFILE-netlist ?= $(STA_RESULT_DIR)/$(STA_TOP).netlist.fixed.v
-$(VFILE-netlist): sta
+VFILE-cells ?= $(YOSYS_STA_HOME)/pdk/nangate45/sim/cells.v
+#$(VFILE-netlist): sta
 VFILE_EXTRA += $(VFILE-netlist)
-VFILE_EXTRA += $(YOSYS_STA_HOME)/pdk/nangate45/sim/cells.v
+VFILE_EXTRA += $(VFILE-cells)
 EMU_CFLAGS += -DNETLIST_SIM=1
 EMU_FLAGS  += -Wno-UNOPTFLAT
 endif
@@ -235,6 +236,6 @@ sim-iverilog:
 	$(MAKE) sim YSYXSOC=0 HAS_NVBOARD=0 IVERILOG=1 IMG=$(IMG)
 
 sim-iverilog-netlist:
-	$(MAKE) sim YSYXSOC=0 HAS_NVBOARD=0 IVERILOG=1 NETLIST_SIM=1 IMG=$(IMG) VFILE-netlist=$(NETLIST)
+	$(MAKE) sim YSYXSOC=0 HAS_NVBOARD=0 IVERILOG=1 NETLIST_SIM=1 IMG=$(IMG) VFILE-netlist=$(NETLIST) VFILE-cells=$(CELLS)
 
 -include ../Makefile
