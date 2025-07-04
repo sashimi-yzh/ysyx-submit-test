@@ -12,7 +12,11 @@ args = parser.parse_args()
 
 keys = {"success": args.good, "error": args.bad}
 state = "empty"
-rtt_input = ['help', 'echo "Hello World"', 'am_hello', 'am_microbench', 'echo "HIT GOOD TRAP"']
+            # input                  string for success
+rtt_input = [('help',                 'am_hello'),
+             ('am_hello',             'Hello, AbstractMachine!'),
+             ('am_microbench',        'MicroBench PASS'),
+             ('echo "HIT GOOD TRAP"', 'HIT GOOD TRAP')]
 
 buffer = bytearray()
 def read_line(fd, buffer_size=1024):
@@ -52,21 +56,28 @@ def monitor_output(proc, result_queue):
     global state
     global master
     global rtt_input
+    rtt_ans = ""
     while True:
         line = read_line(master)
         if line == None:
             break
         print(line)
-        if line == "msh />" and rtt_input != []:
-            proc.stdin.write(rtt_input[0] + '\n')
-            proc.stdin.flush()
-            rtt_input = rtt_input[1:]
-        for s, k in keys.items():
-            if k in line:
-                state = s
-                result_queue.put("match")
-                proc.kill()
-                return
+        if state == "rtt-monitor":
+            if rtt_ans in line:
+                state = "empty"
+        else:
+            if line == "msh />" and rtt_input != []:
+                proc.stdin.write(rtt_input[0][0] + '\n')
+                proc.stdin.flush()
+                rtt_ans = rtt_input[0][1]
+                state = "rtt-monitor"
+                rtt_input = rtt_input[1:]
+            for s, k in keys.items():
+                if k in line:
+                    state = s
+                    result_queue.put("match")
+                    proc.kill()
+                    return
 
     result_queue.put("end")
 
