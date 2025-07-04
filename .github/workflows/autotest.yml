@@ -14,6 +14,8 @@ jobs:
       STUID:  ${{ steps.parse.outputs.STUID }}
       REPO:   ${{ steps.parse.outputs.REPO }}
       BRANCH: ${{ steps.parse.outputs.BRANCH }}
+      COMMENT: ${{ steps.parse.outputs.COMMENT }}
+      RUN_URL: ${{ steps.parse.outputs.RUN_URL }}
     steps:
       - name: Print issue details
         run: |
@@ -543,16 +545,32 @@ jobs:
           CELLS=`pwd`/yosys-sta/pdk/nangate45/sim/cells.v
           python $MONITOR_PY --good="MicroBench PASS" $MAKE -C $NPC_HOME sim-iverilog-netlist IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin NETLIST=$NETLIST CELLS=$CELLS
 
-          #more-tests:
-          #  #needs: [setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, yosys-sta]
-          #  needs: [setup]
-          #  runs-on: self-hosted
-          #  steps:
-          #    - name: Download verilog file
-          #      uses: actions/download-artifact@v4
-          #      with:
-          #        name: verilog
-          #    - name: More tests
-          #      run: |
-          #        VFILE=`basename "${{ needs.setup.outputs.VFILE }}"`
-          #        bash ../../../more-tests.sh `realpath $VFILE`
+  more-tests:
+    needs: [setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, rt-thread, iverilog-microbench, yosys-sta, iverilog-netlist-microbench]
+    runs-on: self-hosted
+    steps:
+      - name: Download verilog file
+        uses: actions/download-artifact@v4
+        with:
+          name: verilog
+      - name: More tests
+        run: |
+          VFILE=`basename "${{ needs.setup.outputs.VFILE }}"`
+          bash ../../../more-tests.sh `realpath $VFILE`
+
+  finish:
+    needs: [parse, more-tests]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Comment the issue
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Finish
+            Comment - ${{ needs.parse.outputs.COMMENT }}
+            Workflow URL - ${{ needs.parse.outputs.RUN_URL }}
+      - name: Close the issue
+        uses: peter-evans/close-issue@v2
+        with:
+          issue-number: ${{ github.event.issue.number }}
