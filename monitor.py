@@ -12,7 +12,7 @@ args = parser.parse_args()
 
 keys = {"success": args.good, "error": args.bad}
 state = "empty"
-rtt_input = ['help', 'echo "Hello World"', "am_hello", 'echo "HIT GOOD TRAP"']
+rtt_input = ['help', 'echo "Hello World"', 'am_hello', 'am_microbench', 'echo "HIT GOOD TRAP"']
 
 buffer = bytearray()
 def read_line(fd, buffer_size=1024):

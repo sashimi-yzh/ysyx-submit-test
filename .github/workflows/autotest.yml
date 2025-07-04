@@ -166,6 +166,11 @@ jobs:
           cd ysyxSoC
           git am $YSYX_HOME/patch/ysyxSoC/*
 
+      - name: Set microbench input to 'test' size by default
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          sed -i -e 's/\(int setting_id = -1;\)/\1 setting_name = "test";/' $YSYX_HOME/am-kernels/benchmarks/microbench/src/bench.c
+
       - name: Clean up
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
@@ -367,7 +372,6 @@ jobs:
 
       - name: compile microbench
         run: |
-          sed -i -e 's/\(int setting_id = -1;\)/\1 setting_name = "test";/' $YSYX_HOME/am-kernels/benchmarks/microbench/src/bench.c
           $MAKE ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
 
       - name: run microbench with iverilog
