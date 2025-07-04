@@ -4,6 +4,9 @@ on:
   issues:
     types: [opened, edited]
 
+permissions:
+  issues: write
+
 jobs:
   parse:
     runs-on: ubuntu-22.04
@@ -31,6 +34,22 @@ jobs:
           echo "STUID=$STUID" >> $GITHUB_OUTPUT
           echo "REPO=$REPO" >> $GITHUB_OUTPUT
           echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+
+          sudo timedatectl set-timezone Asia/Shanghai
+          DATE=`date +"%F %T.%N"`
+          COMMENT=$(echo "${{ github.event.issue.body }}" | sed -n -e '15p')
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          echo "DATE=$DATE" >> $GITHUB_OUTPUT
+          echo "COMMENT=$COMMENT" >> $GITHUB_OUTPUT
+          echo "RUN_URL=$RUN_URL" >> $GITHUB_OUTPUT
+      - name: Comment the issue
+        uses: peter-evans/create-or-update-comment@v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            Workflow starts at ${{ steps.parse.outputs.DATE }}
+            Comment - ${{ steps.parse.outputs.COMMENT }}
+            Workflow URL - ${{ steps.parse.outputs.RUN_URL }}
 
   setup:
     needs: parse

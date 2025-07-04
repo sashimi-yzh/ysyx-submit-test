@@ -24,11 +24,11 @@ body:
       placeholder: main
     validations:
       required: true
-  - type: checkboxes
-    id: terms
+  - type: input
+    id: comment
     attributes:
-      label: 学术诚信
-      description: 代码都是本人自行编写的.
-      options:
-        - label: 我同意
-          required: true
+      label: 注释
+      description: 填写注释, 可用于标识此次提交
+      placeholder: my submission
+    validations:
+      required: true
