@@ -12,6 +12,7 @@ args = parser.parse_args()
 
 keys = {"success": args.good, "error": args.bad}
 state = "empty"
+rtt_input = ['help', 'echo "Hello World"', "am_hello", 'echo "HIT GOOD TRAP"']
 
 buffer = bytearray()
 def read_line(fd, buffer_size=1024):
@@ -29,6 +30,8 @@ def read_line(fd, buffer_size=1024):
             buffer.extend(chunk)
             # 检查是否包含换行符
             if b'\n' in buffer:
+                break
+            if b'msh />' in buffer:  # for rt-thread
                 break
 
     # 分割出第一行（含换行符）
@@ -48,11 +51,16 @@ def read_line(fd, buffer_size=1024):
 def monitor_output(proc, result_queue):
     global state
     global master
+    global rtt_input
     while True:
         line = read_line(master)
         if line == None:
             break
         print(line)
+        if line == "msh />" and rtt_input != []:
+            proc.stdin.write(rtt_input[0] + '\n')
+            proc.stdin.flush()
+            rtt_input = rtt_input[1:]
         for s, k in keys.items():
             if k in line:
                 state = s
@@ -63,7 +71,7 @@ def monitor_output(proc, result_queue):
     result_queue.put("end")
 
 master, slave = pty.openpty()
-proc = subprocess.Popen(args.cmd, stdout=slave, text=True)
+proc = subprocess.Popen(args.cmd, stdin=subprocess.PIPE, stdout=slave, text=True)
 os.close(slave)
 
 result_queue = queue.Queue()
