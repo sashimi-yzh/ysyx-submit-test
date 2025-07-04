@@ -14,6 +14,7 @@ jobs:
       STUID:  ${{ steps.parse.outputs.STUID }}
       REPO:   ${{ steps.parse.outputs.REPO }}
       BRANCH: ${{ steps.parse.outputs.BRANCH }}
+      DATE:    ${{ steps.parse.outputs.DATE }}
       COMMENT: ${{ steps.parse.outputs.COMMENT }}
       RUN_URL: ${{ steps.parse.outputs.RUN_URL }}
     steps:
@@ -52,6 +53,23 @@ jobs:
             Workflow starts at ${{ steps.parse.outputs.DATE }}
             Comment - ${{ steps.parse.outputs.COMMENT }}
             Workflow URL - ${{ steps.parse.outputs.RUN_URL }}
+      - name: Find Comment
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Workflow starts at ${{ steps.parse.outputs.DATE }}
+      - name: update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          body: |
+            test here!
+          edit-mode: append
+      - name: false
+        run: false
 
   setup:
     needs: parse
