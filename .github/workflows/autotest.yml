@@ -72,6 +72,24 @@ jobs:
       YSYX_HOME: ${{ steps.set-ysyx-home.outputs.YSYX_HOME }}
       VFILE:     ${{ steps.vfilename.outputs.VFILE }}
     steps:
+      - name: Set Git user and email
+        run: |
+          git config --global user.email "ci@ysyx.org"
+          git config --global user.name "ysyx-ci"
+
+      - name: Set student ID as environment variable
+        run: |
+          echo "STUID=${{ needs.parse.outputs.STUID }}" >> $GITHUB_ENV
+
+      - name: Check branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # 自动拥有当前仓库读取权限
+        run: |
+          if gh api "repos/${{ github.repository }}/branches" --jq '.[].name' | grep "ysyx_$STUID" ; then
+            echo "Branch ysyx_$STUID has been submitted before. Overwriting is not allowed. Abort."
+            false
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -112,10 +130,18 @@ jobs:
           cd $YSYX_HOME/..
           git clone --depth 1 -b ${{ needs.parse.outputs.BRANCH }} ${{ needs.parse.outputs.REPO }} ysyx-workbench
 
-      - name: Set student ID as environment variable
+      - name: Create orphan branch
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
-          echo "STUID=${{ needs.parse.outputs.STUID }}" >> $GITHUB_ENV
+          cd $YSYX_HOME
+          git checkout --orphan tmp-ci
+          git commit -m "orphan branch created by CI"
+          cd ..
+          git clone -b tmp-ci file://$YSYX_HOME ysyx-workbench-ci
+          rm -rf ysyx-workbench
+          mv ysyx-workbench-ci ysyx-workbench
+          cd $YSYX_HOME
+          git remote set-url origin ${{ needs.parse.outputs.REPO }}
 
       - name: Check student ID
         if: steps.cache-dir.outputs.cache-hit != 'true'
@@ -209,8 +235,6 @@ jobs:
           git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
 
           cd rt-thread-am
-          git config --global user.email "you@example.com"
-          git config --global user.name "Your Name"
           git am $YSYX_HOME/patch/rt-thread-am/*
           cd $YSYX_HOME
 
@@ -517,8 +541,8 @@ jobs:
       - name: Run STA with older version
         run: |
           cd yosys-sta
-          git config --global user.email "you@example.com"
-          git config --global user.name "Your Name"
+          git config --global user.email "ci@ysyx.org"
+          git config --global user.name "ysyx-ci"
           git revert --no-edit 97fa7fcb80de4966c6f390af8df1b37d6d4c42c8
           make clean
           $MAKE sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
@@ -605,8 +629,75 @@ jobs:
           VFILE=`basename "${{ needs.setup.outputs.VFILE }}"`
           bash ../../../more-tests.sh `realpath $VFILE`
 
+  push-code:
+    needs: [parse, setup, more-tests]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write  # 关键：授予写入权限
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+          install-toolchain: 'false'
+
+      - name: Set Git user and email
+        run: |
+          git config --global user.email "ci@ysyx.org"
+          git config --global user.name "ysyx-ci"
+
+      - name: Fetch target branch
+        run: |
+          pwd
+          git remote add local file://$YSYX_HOME
+          git fetch local tmp-ci:tmp-ci
+          git checkout tmp-ci
+          git checkout master .github
+          git reset HEAD .github
+
+      - name: Add info
+        run: |
+          echo "" >> README.md
+          echo "STUID - ysyx_${{ needs.parse.outputs.STUID }}" >> README.md
+          echo "" >> README.md
+          echo "Original repo - ${{ needs.parse.outputs.REPO }}" >> README.md
+          echo "" >> README.md
+          echo "Original branch - ${{ needs.parse.outputs.BRANCH }}" >> README.md
+          git add -f README.md
+          git commit -m "add original info"
+
+      - name: Add exam script
+        run: |
+          mkdir ysyx-ci
+          cd ysyx-ci
+          echo "empty" > init-exam.sh
+          git add -f init-exam.sh
+          git commit -m "add init-exam.sh"
+
+      - name: Add result git tracer
+        run: |
+          cd $YSYX_HOME
+          git log -u tracer-ysyx > tracer.log
+          tar cj tracer.log > tracer.tar.bz2
+          rm tracer.log
+          cd -
+          mv $YSYX_HOME/tracer.tar.bz2 ysyx-ci/
+          git add -f ysyx-ci/tracer.tar.bz2
+          git commit -m "add tracer.tar.bz2"
+
+      - name: Push code
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin HEAD:ysyx_${{ needs.parse.outputs.STUID }}
+
   finish:
-    needs: [parse, more-tests]
+    needs: [parse, push-code]
     runs-on: ubuntu-22.04
     steps:
       - name: Comment the issue
@@ -617,6 +708,7 @@ jobs:
           body: |
             Finish
           edit-mode: append
+
       - name: Close the issue
         uses: peter-evans/close-issue@v2
         with:
@@ -624,7 +716,7 @@ jobs:
 
   error-handler:
     runs-on: ubuntu-22.04
-    needs: [parse, setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, rt-thread, iverilog-microbench, yosys-sta, iverilog-netlist-microbench, more-tests]
+    needs: [parse, setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, rt-thread, iverilog-microbench, yosys-sta, iverilog-netlist-microbench, more-tests, push-code]
     if: ${{ failure() }}
     steps:
       - name: Comment the issue
