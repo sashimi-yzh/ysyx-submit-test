@@ -36,8 +36,8 @@ runs:
         echo "NPC_HOME=$YSYX_HOME/npc" >> $GITHUB_ENV
         echo "NVBOARD_HOME=$YSYX_HOME/nvboard" >> $GITHUB_ENV
 
-        MAKE="make -j `nproc`"
-        echo "MAKE=$MAKE" >> $GITHUB_ENV
+        MAKEFLAGS="-j`nproc`"
+        echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_ENV
 
         OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
         echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV

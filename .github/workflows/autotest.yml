@@ -215,8 +215,8 @@ jobs:
           echo "NPC_HOME=$NPC_HOME" >> $GITHUB_ENV
           echo "NVBOARD_HOME=$NVBOARD_HOME" >> $GITHUB_ENV
 
-          MAKE="make -j `nproc`"
-          echo "MAKE=$MAKE" >> $GITHUB_ENV
+          MAKEFLAGS="-j`nproc`"
+          echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_ENV
 
       - name: Disable git tracer
         if: steps.cache-dir.outputs.cache-hit != 'true'
@@ -249,9 +249,9 @@ jobs:
       - name: Clean up
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
-          $MAKE -C $NEMU_HOME clean
-          $MAKE -C $AM_HOME clean-all
-          $MAKE -C $NPC_HOME clean
+          make -C $NEMU_HOME clean
+          make -C $AM_HOME clean-all
+          make -C $NPC_HOME clean
 
       - name: Setup tools
         if: steps.cache-dir.outputs.cache-hit != 'true'
@@ -274,7 +274,7 @@ jobs:
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
           touch $NPC_HOME/.timestamp
-          $MAKE -C $NPC_HOME verilog
+          make -C $NPC_HOME verilog
 
       - name: Check verilog file name
         if: steps.cache-dir.outputs.cache-hit != 'true'
@@ -323,8 +323,8 @@ jobs:
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
           sed -i -e 's+git@github.com:+https://github.com/+' $YSYX_HOME/ysyxSoC/.gitmodules
-          $MAKE -C $YSYX_HOME/ysyxSoC dev-init
-          $MAKE -C $YSYX_HOME/ysyxSoC verilog
+          make -C $YSYX_HOME/ysyxSoC dev-init
+          make -C $YSYX_HOME/ysyxSoC verilog
 
       - name: Upload verilog file
         uses: actions/upload-artifact@v4
@@ -347,7 +347,7 @@ jobs:
           cache-key: ${{ needs.setup.outputs.cache-key }}
 
       - name: hello
-        run: python $MONITOR_PY $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run
+        run: python $MONITOR_PY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run
 
   cpu-tests:
     needs: setup
@@ -365,8 +365,8 @@ jobs:
 
       - name: cpu-tests
         run: |
-          $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run ALL=dummy
-          $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run
+          make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run ALL=dummy
+          make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run
 
   riscv-tests:
     needs: setup
@@ -385,8 +385,8 @@ jobs:
       - name: riscv-tests
         run: |
           git clone --depth 1 https://github.com/NJU-ProjectN/riscv-tests-am
-          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i ALL=auipc
-          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i
+          make ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i ALL=auipc
+          make ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i
 
   riscv-arch-test:
     needs: setup
@@ -405,8 +405,8 @@ jobs:
       - name: riscv-arch-test
         run: |
           git clone --depth 1 https://github.com/NJU-ProjectN/riscv-arch-test-am
-          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-arch-test-am run TEST_ISA=E ALL=add-01
-          $MAKE ARCH=riscv32e-ysyxsoc -C riscv-arch-test-am run TEST_ISA="E Zifencei"
+          make ARCH=riscv32e-ysyxsoc -C riscv-arch-test-am run TEST_ISA=E ALL=add-01
+          make ARCH=riscv32e-ysyxsoc -C riscv-arch-test-am run TEST_ISA="E Zifencei"
 
   microbench:
     needs: setup
@@ -423,7 +423,7 @@ jobs:
           cache-key: ${{ needs.setup.outputs.cache-key }}
 
       - name: microbench
-        run: python $MONITOR_PY $MAKE ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=test
+        run: python $MONITOR_PY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=test
 
   rt-thread:
     needs: setup
@@ -445,8 +445,8 @@ jobs:
       - name: rt-thread
         run: |
           cd $YSYX_HOME/rt-thread-am/bsp/abstract-machine
-          $MAKE ARCH=riscv32e-ysyxsoc init
-          python $MONITOR_PY $MAKE ARCH=riscv32e-ysyxsoc run
+          make ARCH=riscv32e-ysyxsoc init
+          python $MONITOR_PY make ARCH=riscv32e-ysyxsoc run
 
   iverilog-microbench:
     needs: setup
@@ -464,12 +464,12 @@ jobs:
 
       - name: compile microbench
         run: |
-          $MAKE ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
+          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
 
       - name: run microbench with iverilog
         run: |
-          $MAKE -C $NPC_HOME clean
-          python $MONITOR_PY --good="MicroBench PASS" $MAKE -C $NPC_HOME sim-iverilog IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
+          make -C $NPC_HOME clean
+          python $MONITOR_PY --good="MicroBench PASS" make -C $NPC_HOME sim-iverilog IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
 
   yosys-sta:
     needs: [parse, setup]
@@ -499,7 +499,7 @@ jobs:
 
       - name: Generate Verilog
         run: |
-          $MAKE -C $NPC_HOME verilog
+          make -C $NPC_HOME verilog
 
       - name: Set environment variables
         run: |
@@ -508,7 +508,7 @@ jobs:
 
       - name: Run STA
         run: |
-          $MAKE -C yosys-sta sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
+          make -C yosys-sta sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
 
       - name: Check verilog module name
         run: |
@@ -545,7 +545,7 @@ jobs:
           git config --global user.name "ysyx-ci"
           git revert --no-edit 97fa7fcb80de4966c6f390af8df1b37d6d4c42c8
           make clean
-          $MAKE sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
+          make sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
 
       - name: Parse area with older version
         run: |
@@ -607,14 +607,14 @@ jobs:
       - name: compile microbench
         run: |
           sed -i -e 's/\(int setting_id = -1;\)/\1 setting_name = "test";/' $YSYX_HOME/am-kernels/benchmarks/microbench/src/bench.c
-          $MAKE ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
+          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
 
       - name: run microbench with iverilog netlist
         run: |
-          $MAKE -C $NPC_HOME clean
+          make -C $NPC_HOME clean
           NETLIST=`pwd`/ysyx_${{ needs.parse.outputs.STUID }}.netlist.fixed.v
           CELLS=`pwd`/yosys-sta/pdk/nangate45/sim/cells.v
-          python $MONITOR_PY --good="MicroBench PASS" $MAKE -C $NPC_HOME sim-iverilog-netlist IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin NETLIST=$NETLIST CELLS=$CELLS
+          python $MONITOR_PY --good="MicroBench PASS" make -C $NPC_HOME sim-iverilog-netlist IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin NETLIST=$NETLIST CELLS=$CELLS
 
   more-tests:
     needs: [setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, rt-thread, iverilog-microbench, yosys-sta, iverilog-netlist-microbench]
