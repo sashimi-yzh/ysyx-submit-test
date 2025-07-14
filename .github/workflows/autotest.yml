@@ -14,6 +14,7 @@ jobs:
       STUID:  ${{ steps.parse.outputs.STUID }}
       REPO:   ${{ steps.parse.outputs.REPO }}
       BRANCH: ${{ steps.parse.outputs.BRANCH }}
+      MAKEJOBS: ${{ steps.parse.outputs.MAKEJOBS }}
       COMMENT_ID: ${{ steps.comment-id.outputs.COMMENT_ID }}
     steps:
       - name: Print issue details
@@ -43,6 +44,12 @@ jobs:
           echo "DATE=$DATE" >> $GITHUB_OUTPUT
           echo "COMMENT=$COMMENT" >> $GITHUB_OUTPUT
           echo "RUN_URL=$RUN_URL" >> $GITHUB_OUTPUT
+
+          MAKEJOBS=1
+          if echo "${{ github.event.issue.body }}" | sed -n -e '19p' | grep '^- \[ \] ' ; then
+            MAKEJOBS=`nproc`
+          fi
+          echo "MAKEJOBS=$MAKEJOBS" >> $GITHUB_OUTPUT
       - name: Comment the issue
         uses: peter-evans/create-or-update-comment@v1
         with:
@@ -71,6 +78,7 @@ jobs:
       cache-key: ${{ steps.set-cache.outputs.cache-key }}
       YSYX_HOME: ${{ steps.set-ysyx-home.outputs.YSYX_HOME }}
       VFILE:     ${{ steps.vfilename.outputs.VFILE }}
+      MAKEFLAGS: ${{ steps.set-env.outputs.MAKEFLAGS }}
     steps:
       - name: Set Git user and email
         run: |
@@ -201,6 +209,7 @@ jobs:
           edit-mode: append
 
       - name: Set environment variables
+        id: set-env
         run: |
           cd $YSYX_HOME
           NEMU_HOME="`pwd`/nemu"
@@ -215,8 +224,9 @@ jobs:
           echo "NPC_HOME=$NPC_HOME" >> $GITHUB_ENV
           echo "NVBOARD_HOME=$NVBOARD_HOME" >> $GITHUB_ENV
 
-          MAKEFLAGS="-j`nproc`"
+          MAKEFLAGS="-j${{ needs.parse.outputs.MAKEJOBS }}"
           echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_ENV
+          echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_OUTPUT
 
       - name: Disable git tracer
         if: steps.cache-dir.outputs.cache-hit != 'true'
@@ -345,6 +355,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: hello
         run: python $MONITOR_PY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run
@@ -362,6 +373,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: cpu-tests
         run: |
@@ -381,6 +393,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: riscv-tests
         run: |
@@ -401,6 +414,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: riscv-arch-test
         run: |
@@ -421,6 +435,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: microbench
         run: python $MONITOR_PY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=test
@@ -438,6 +453,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: Install dependency
         run: sudo apt install -y scons
@@ -461,6 +477,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: compile microbench
         run: |
@@ -484,6 +501,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
           install-toolchain: 'false'
 
       - name: Install dependency
@@ -591,6 +609,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: Download verilog file
         uses: actions/download-artifact@v4
@@ -644,6 +663,7 @@ jobs:
         with:
           YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
           cache-key: ${{ needs.setup.outputs.cache-key }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
           install-toolchain: 'false'
 
       - name: Set Git user and email

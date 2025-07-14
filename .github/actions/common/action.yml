@@ -4,6 +4,8 @@ inputs:
     required: true
   cache-key:
     required: true
+  MAKEFLAGS:
+    required: true
   install-toolchain:
     required: true
     default: 'true'
@@ -36,7 +38,7 @@ runs:
         echo "NPC_HOME=$YSYX_HOME/npc" >> $GITHUB_ENV
         echo "NVBOARD_HOME=$YSYX_HOME/nvboard" >> $GITHUB_ENV
 
-        MAKEFLAGS="-j`nproc`"
+        MAKEFLAGS=${{ inputs.MAKEFLAGS }}
         echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_ENV
 
         OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin

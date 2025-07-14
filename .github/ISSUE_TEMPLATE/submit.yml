@@ -32,3 +32,11 @@ body:
       placeholder: my submission
     validations:
       required: true
+  - type: checkboxes
+    id: make
+    attributes:
+      label: make参数
+      description: 根据情况选择
+      options:
+        - label: 不使用'-j'参数, 若cpu-tests等测试由于该参数而失败, 可以勾选此项
+          required: false
