@@ -1,0 +1,87 @@
+From 4b76b4eb57c1ccc985a201008dd76f034b05a246 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E8=96=9B=E6=B5=B7=E6=B4=8B?= <993994957@qq.com>
+Date: Sun, 27 Jul 2025 14:27:26 +0800
+Subject: [PATCH 72/72] patch
+
+---
+ perip/bitrev/bitrev.v | 29 ++++++++++++++++++++++++++++-
+ src/CPU.scala         |  4 ++--
+ src/Top.scala         |  2 +-
+ 3 files changed, 31 insertions(+), 4 deletions(-)
+
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+index f1c3b363..d196f6f1 100644
+--- a/perip/bitrev/bitrev.v
++++ b/perip/bitrev/bitrev.v
+@@ -4,5 +4,32 @@ module bitrev (
+   input  mosi,
+   output miso
+ );
+-  assign miso = 1'b1;
++
++reg [4:0] count;
++reg [7:0] data;
++reg out;
++
++always @(posedge sck or posedge ss) begin
++	if (ss) begin
++		count <= 0;
++		data <= 8'b0;
++		out <= 1'b1;
++	end else begin
++		count <= count + 1;
++		if (count < 7) begin
++			data <= {data[6:0], mosi};
++			out <= 1'b1;
++		end else if (count >= 8) begin
++			data <= {1'b1, data[7:1]};
++			out <= data[1];
++		end
++		else begin
++			data <= {data[6:0], mosi};
++			out <= mosi;
++		end
++	end
++end
++
++assign miso = out;
++
+ endmodule
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195f..602b99f5 100644
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_23060299 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_23060299)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.34.1
+

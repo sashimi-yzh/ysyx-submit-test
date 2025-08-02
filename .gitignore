@@ -1,0 +1,8 @@
+/am-kernels
+/ysyxSoC
+/yosys-sta
+/nvboard
+build/
+obj_dir/
+*.fst
+waveform.fst.hier

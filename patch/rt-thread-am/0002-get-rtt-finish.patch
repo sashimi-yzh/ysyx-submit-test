@@ -1,0 +1,184 @@
+From 4d689c8fda685c3a1b8f174d1b572af87e885cfd Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E8=96=9B=E6=B5=B7=E6=B4=8B?= <993994957@qq.com>
+Date: Sat, 2 Aug 2025 14:30:51 +0800
+Subject: [PATCH 2/2] get rtt finish
+
+---
+ bsp/abstract-machine/src/context.c | 115 ++++++++++++++++++-----------
+ bsp/abstract-machine/src/uart.c    |   4 +-
+ 2 files changed, 74 insertions(+), 45 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index f80c39785..e15fa8442 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,15 +2,19 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++static rt_ubase_t _from, _to;
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-    case EVENT_YIELD:  {
+-      printf("ev_handler\n");
+-      rt_thread_t cp = rt_thread_self(); 
+-      rt_ubase_t to = cp->user_data;
+-      c = *(Context**)to;
+-      break;
+-    }
++    // case EVENT_YIELD:  {
++    //   printf("ev_handler\n");
++    //   rt_thread_t cp = rt_thread_self(); 
++    //   rt_ubase_t to = cp->user_data;
++    //   c = *(Context**)to;
++    //   break;
++    // }
++		case EVENT_YIELD: if (_from) {*(Context **)_from = c;} c = *(Context **)_to; break;
++		case EVENT_IRQ_TIMER: case EVENT_IRQ_IODEV: break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -21,56 +25,79 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  rt_thread_t pcb = rt_thread_self();
+-  rt_ubase_t user_data_replicator = pcb->user_data;
+-  pcb->user_data = to;
+-  printf("yield switch_to\n");
+-  yield();
+-  pcb->user_data = user_data_replicator;
++  // rt_thread_t pcb = rt_thread_self();
++  // rt_ubase_t user_data_replicator = pcb->user_data;
++  // pcb->user_data = to;
++  // printf("yield switch_to\n");
++  // yield();
++  // pcb->user_data = user_data_replicator;
++  _to = to;
++ 	yield();
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  rt_thread_t pcb = rt_thread_self();
+-  rt_ubase_t user_data_replicator = pcb->user_data;
+-  pcb->user_data = to;
+-  *(Context**)from = pcb->sp;
+-  printf("yield switch\n");
++  // rt_thread_t pcb = rt_thread_self();
++  // rt_ubase_t user_data_replicator = pcb->user_data;
++  // pcb->user_data = to;
++  // *(Context**)from = pcb->sp;
++  // printf("yield switch\n");
++  // yield();
++  // pcb->user_data = user_data_replicator;
++   _to = to;
++  _from = from;
+   yield();
+-  pcb->user_data = user_data_replicator;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
+-void wrap(void *arg) {
+-  // parse paramater
+-  rt_ubase_t *stack_bottom = (rt_ubase_t *)arg;
+-  rt_ubase_t tentry = *stack_bottom; 
+-  stack_bottom--;
+-  rt_ubase_t texit = *stack_bottom; 
+-  stack_bottom--;
+-  rt_ubase_t parameter = *stack_bottom; 
+-  // function call
+-  ((void(*)())tentry) (parameter);
+-  ((void(*)())texit) ();
++// void wrap(void *arg) {
++//   // parse paramater
++//   rt_ubase_t *stack_bottom = (rt_ubase_t *)arg;
++//   rt_ubase_t tentry = *stack_bottom; 
++//   stack_bottom--;
++//   rt_ubase_t texit = *stack_bottom; 
++//   stack_bottom--;
++//   rt_ubase_t parameter = *stack_bottom; 
++//   // function call
++//   ((void(*)())tentry) (parameter);
++//   ((void(*)())texit) ();
++// }
++
++void packed(void *packed_args) {
++	void **_packed_args = (void **)packed_args;
++	void (*_tentry)(void *parameter) = (void (*)(void *))_packed_args[0];
++	void *parameter = _packed_args[1];
++	void (*_texit)(void) = (void (*)(void))_packed_args[2];
++	_tentry(parameter);
++	_texit();
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  // align
+-  stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
+-  // create context
+-  Area stack;
+-  stack.start = stack_addr - 1024;
+-  stack.end = stack_addr;
+-  Context *cp = kcontext(stack, wrap, (void *)(stack.end - sizeof(Context) - 4));
+-  // set parameter
+-  rt_ubase_t *stack_bottom = (rt_ubase_t *)(stack.end - sizeof(Context) - 4);
+-  *stack_bottom = (rt_ubase_t)tentry;
+-  stack_bottom--;
+-  *stack_bottom = (rt_ubase_t)texit;
+-  stack_bottom--;
+-  *stack_bottom = (rt_ubase_t)parameter;
++  // // align
++  // stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
++  // // create context
++  // Area stack;
++  // stack.start = stack_addr - 1024;
++  // stack.end = stack_addr;
++  // Context *cp = kcontext(stack, wrap, (void *)(stack.end - sizeof(Context) - 4));
++  // // set parameter
++  // rt_ubase_t *stack_bottom = (rt_ubase_t *)(stack.end - sizeof(Context) - 4);
++  // *stack_bottom = (rt_ubase_t)tentry;
++  // stack_bottom--;
++  // *stack_bottom = (rt_ubase_t)texit;
++  // stack_bottom--;
++  // *stack_bottom = (rt_ubase_t)parameter;
+ 
++  // return (rt_uint8_t *)cp;
++  stack_addr = (rt_uint8_t *)((~(sizeof(uintptr_t) - 1)) & (unsigned long)stack_addr);
++  Area kstack;
++  kstack.end = (void *)stack_addr - 3 * sizeof(void *);
++  void **packed_args = (void **)kstack.end;
++  Context *cp = kcontext(kstack, (void (*)(void *))packed, (void *)packed_args);
++  packed_args[0] = tentry;
++  packed_args[1] = parameter;
++  packed_args[2] = texit;
+   return (rt_uint8_t *)cp;
+ }
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..54b97938f 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,8 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  if(*p == '\0') halt(0);
++  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

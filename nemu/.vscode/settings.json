@@ -1,0 +1,29 @@
+{
+    "files.associations": {
+        "random": "c",
+        "readline.h": "c",
+        "array": "c",
+        "compare": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "map.h": "c",
+        "paddr.h": "c",
+        "host.h": "c",
+        "cpu.h": "c",
+        "reg.h": "c",
+        "assert.h": "c",
+        "bitset": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "typeinfo": "c",
+        "common.h": "c",
+        "debug.h": "c",
+        "exception": "c",
+        "new": "c",
+        "ifetch.h": "c",
+        "isa.h": "c",
+        "string": "c"
+    }
+}

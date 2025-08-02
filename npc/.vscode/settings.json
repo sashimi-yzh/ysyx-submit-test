@@ -1,0 +1,23 @@
+{
+    "C_Cpp.errorSquiggles": "disabled",
+    "files.associations": {
+        "algorithm": "cpp",
+        "new": "cpp",
+        "iostream": "cpp",
+        "functional": "c",
+        "history.h": "c",
+        "readline.h": "c",
+        "stdlib.h": "c",
+        "memory.h": "c",
+        "array": "c",
+        "string": "c",
+        "string_view": "c",
+        "deque": "c",
+        "list": "c",
+        "unordered_map": "c",
+        "vector": "c",
+        "initializer_list": "c",
+        "bitset": "c",
+        "utility": "c"
+    }
+}
