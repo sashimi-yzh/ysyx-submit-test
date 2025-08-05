@@ -241,6 +241,19 @@ jobs:
           echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_ENV
           echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_OUTPUT
 
+      - name: Check the version of AM
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          if [[ ! -e $AM_HOME/tools/insert-arg.py ]] ; then
+            URL="https://github.com/NJU-ProjectN/abstract-machine/commit/c52a41181f8ea5d0e970008e51f58867a3ce65bb"
+            echo "$AM_HOME/tools/insert-arg.py does not exist. Abort."
+            echo "You may use AM with the version older than May, 2024."
+            echo "Please refer to $URL to apply the patch to AM. After that, the CI flow can insert mainargs to the binary by the python script."
+            false
+          fi
+
+          sed -i -e 's/MAINARGS_PLACEHOLDER = .*/MAINARGS_PLACEHOLDER = the_insert-arg_rule_in_Makefile_will_insert_mainargs_here/' $AM_HOME/scripts/platform/npc.mk
+
       - name: Disable git tracer
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
@@ -252,7 +265,7 @@ jobs:
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
           cd $YSYX_HOME
-          git clone --depth 1 https://github.com/NJU-ProjectN/am-kernels
+          git clone --depth 1 -b ci https://github.com/NJU-ProjectN/am-kernels
           git clone --depth 1 https://github.com/NJU-ProjectN/rt-thread-am
           git clone --depth 1 -b no-gui https://github.com/NJU-ProjectN/nvboard
           git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
@@ -263,11 +276,6 @@ jobs:
 
           cd ysyxSoC
           git am $YSYX_HOME/patch/ysyxSoC/*
-
-      - name: Set microbench input to 'test' size by default
-        if: steps.cache-dir.outputs.cache-hit != 'true'
-        run: |
-          sed -i -e 's/\(int setting_id = -1;\)/\1 setting_name = "test";/' $YSYX_HOME/am-kernels/benchmarks/microbench/src/bench.c
 
       - name: Clean up
         if: steps.cache-dir.outputs.cache-hit != 'true'
@@ -371,7 +379,9 @@ jobs:
           MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: hello
-        run: python $MONITOR_PY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run
+        run: |
+          KEY=$(head -c 5 /dev/urandom | base32)
+          python $MONITOR_PY --middle="Hello, AbstractMachine!" --good=$KEY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run mainargs=$KEY
 
   cpu-tests:
     needs: setup
@@ -451,7 +461,9 @@ jobs:
           MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
 
       - name: microbench
-        run: python $MONITOR_PY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=test
+        run: |
+          KEY=$(head -c 5 /dev/urandom | base32)
+          python $MONITOR_PY --good="$KEY" make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=$KEY
 
   rt-thread:
     needs: setup
@@ -475,7 +487,8 @@ jobs:
         run: |
           cd $YSYX_HOME/rt-thread-am/bsp/abstract-machine
           make ARCH=riscv32e-ysyxsoc init
-          python $MONITOR_PY make ARCH=riscv32e-ysyxsoc run
+          KEY=$(head -c 5 /dev/urandom | base32)
+          python $MONITOR_PY --good=$KEY make ARCH=riscv32e-ysyxsoc run
 
   iverilog-microbench:
     needs: setup
@@ -494,12 +507,15 @@ jobs:
 
       - name: compile microbench
         run: |
-          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
+          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench mainargs=the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
 
       - name: run microbench with iverilog
         run: |
           make -C $NPC_HOME clean
-          python $MONITOR_PY --good="MicroBench PASS" make -C $NPC_HOME sim-iverilog IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
+          KEY=$(head -c 5 /dev/urandom | base32)
+          IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
+          python $AM_HOME/tools/insert-arg.py $IMG 64 the_insert-arg_rule_in_Makefile_will_insert_mainargs_here $KEY
+          python $MONITOR_PY --good=$KEY make -C $NPC_HOME sim-iverilog IMG=$IMG
 
   yosys-sta:
     needs: [parse, setup]
@@ -638,15 +654,17 @@ jobs:
 
       - name: compile microbench
         run: |
-          sed -i -e 's/\(int setting_id = -1;\)/\1 setting_name = "test";/' $YSYX_HOME/am-kernels/benchmarks/microbench/src/bench.c
-          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench
+          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench mainargs=the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
 
       - name: run microbench with iverilog netlist
         run: |
           make -C $NPC_HOME clean
           NETLIST=`pwd`/ysyx_${{ needs.parse.outputs.STUID }}.netlist.fixed.v
           CELLS=`pwd`/yosys-sta/pdk/nangate45/sim/cells.v
-          python $MONITOR_PY --good="MicroBench PASS" make -C $NPC_HOME sim-iverilog-netlist IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin NETLIST=$NETLIST CELLS=$CELLS
+          KEY=$(head -c 5 /dev/urandom | base32)
+          IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
+          python $AM_HOME/tools/insert-arg.py $IMG 64 the_insert-arg_rule_in_Makefile_will_insert_mainargs_here $KEY
+          python $MONITOR_PY --good=$KEY make -C $NPC_HOME sim-iverilog-netlist IMG=$IMG NETLIST=$NETLIST CELLS=$CELLS
 
   more-tests:
     needs: [setup, hello, cpu-tests, riscv-tests, riscv-arch-test, microbench, rt-thread, iverilog-microbench, yosys-sta, iverilog-netlist-microbench]
