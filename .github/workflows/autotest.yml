@@ -192,6 +192,19 @@ jobs:
           echo "NR_GDB_NEMU=$NR_GDB_NEMU" >> $GITHUB_OUTPUT
           echo "NR_SIM_RTL=$NR_SIM_RTL" >> $GITHUB_OUTPUT
 
+          if [[ $NR_COMPILE_NEMU -eq 0 ]]; then
+            echo "The times of compiling NEMU is 0. Abort"
+            false
+          fi
+          if [[ $NR_RUN_NEMU -eq 0 ]]; then
+            echo "The times of running NEMU is 0. Abort"
+            false
+          fi
+          if [[ $NR_SIM_RTL -eq 0 ]]; then
+            echo "The times of RTL simulation is 0. Abort"
+            false
+          fi
+
           rm log.txt
 
       - name: Comment the issue
