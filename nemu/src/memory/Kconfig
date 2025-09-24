@@ -1,0 +1,58 @@
+menu "Memory Configuration"
+
+config MBASE
+  hex "Memory base address"
+  default 0x0        if ISA_x86
+  default 0x80000000
+
+config MSIZE
+  hex "Memory size"
+  default 0x8000000
+
+config FLASH_BASE
+  hex "Flash base address"
+  default 0x30000000
+
+config FLASH_SIZE
+  hex "Flash size"
+  default 0x10000000
+
+config SRAM_BASE
+  hex "Sram base address"
+  default 0x0f000000
+
+config SRAM_SIZE
+  hex "Sram size"
+  default 0x2000
+
+config SDRAM_BASE
+  hex "Sdram base address"
+  default 0xa0000000
+
+config SDRAM_SIZE
+  hex "Sdram size"
+  default 0x4000000
+
+config PC_RESET_OFFSET
+  hex "Offset of reset vector from the base of memory"
+  default 0x100000 if ISA_x86
+  default 0
+
+choice
+  prompt "Physical memory definition"
+  default PMEM_GARRAY
+config PMEM_MALLOC
+  bool "Using malloc()"
+config PMEM_GARRAY
+  depends on !TARGET_AM
+  bool "Using global array"
+endchoice
+
+config MEM_RANDOM
+  depends on MODE_SYSTEM && !DIFFTEST && !TARGET_AM
+  bool "Initialize the memory with random values"
+  default y
+  help
+    This may help to find undefined behaviors.
+
+endmenu #MEMORY

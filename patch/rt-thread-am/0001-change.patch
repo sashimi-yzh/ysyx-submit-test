@@ -1,0 +1,303 @@
+From 52988b0cdbca3a8ffcb4b645ca9d9351a4347923 Mon Sep 17 00:00:00 2001
+From: "hanfu.xing" <550559524@qq.com>
+Date: Mon, 15 Sep 2025 15:03:31 +0800
+Subject: [PATCH] change
+
+---
+ bsp/abstract-machine/Makefile                 |   4 +
+ bsp/abstract-machine/line_curpos              |   0
+ bsp/abstract-machine/src/context.c            |  71 +++++++++++-
+ bsp/abstract-machine/src/libc.c               | 107 +++++++++++++++++-
+ bsp/abstract-machine/src/uart.c               |   8 +-
+ components/dfs/dfs_v1/filesystems/elmfat/ff.h |   2 +-
+ 6 files changed, 183 insertions(+), 9 deletions(-)
+ create mode 100644 bsp/abstract-machine/line_curpos
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..b77256afd 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,11 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
++
++ifneq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
++endif
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/line_curpos b/bsp/abstract-machine/line_curpos
+new file mode 100644
+index 000000000..e69de29bb
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..53e4ae56a 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -3,7 +3,23 @@
+ #include <rtthread.h>
+ 
+ static Context* ev_handler(Event e, Context *c) {
++  rt_thread_t thread = NULL;
++  uintptr_t *from;
++
+   switch (e.event) {
++    case EVENT_YIELD:
++      thread = rt_thread_self();
++      rt_ubase_t *switch_data = (rt_ubase_t *)thread->user_data;
++      // save context to from
++      if (switch_data[2] != 0) {
++        from = (uintptr_t *)switch_data[2];
++        *from = (uintptr_t)c;
++      }
++      thread->user_data = switch_data[0];
++      c = (Context *)*(uintptr_t *)switch_data[1];
++      break;
++    case EVENT_IRQ_TIMER:
++      break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -14,18 +30,65 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t thread;
++  thread = rt_thread_self();
++
++  rt_ubase_t *switch_data = (rt_ubase_t *)((Context *)to-2);
++  switch_data[0] = thread->user_data;
++  switch_data[1] = to;
++  switch_data[2] = 0; // unused
++  thread->user_data = (rt_ubase_t)switch_data;
++
++  yield();
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t thread;
++  thread = rt_thread_self();
++
++  rt_ubase_t *switch_data = (rt_ubase_t *)((Context *)to-2);
++  switch_data[0] = thread->user_data;
++  switch_data[1] = to;
++  switch_data[2] = from;
++  thread->user_data = (rt_ubase_t)switch_data;
++
++  yield();
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++void wrap_fuc(void *args) {
++  void (*tentry)(void *);
++  void (*texit)();
++
++  // unpack args
++  uintptr_t *a = (uintptr_t *)args;
++  tentry = (void (*)(void *))a[0];
++  void *parameter = (void *)a[1];
++  texit = (void (*)())a[2];
++
++  // call func
++  tentry(parameter);
++  // exit safly
++  texit();
++}
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  // align addr
++  uintptr_t ptr = (uintptr_t)stack_addr;
++  uintptr_t aligned_addr = (ptr + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
++
++  // create context
++  Area stack = {.end = (void *)aligned_addr};
++
++  uintptr_t *args = (uintptr_t *)((Context *)aligned_addr-2);
++  args[0] = (uintptr_t)tentry; 
++  args[1] = (uintptr_t)parameter;
++  args[2] = (uintptr_t)texit;
++
++  Context *cp = kcontext(stack, wrap_fuc, args);
++
++  return (rt_uint8_t *)cp;
+ }
+diff --git a/bsp/abstract-machine/src/libc.c b/bsp/abstract-machine/src/libc.c
+index 696a72da7..694937a8e 100644
+--- a/bsp/abstract-machine/src/libc.c
++++ b/bsp/abstract-machine/src/libc.c
+@@ -1,12 +1,51 @@
++#include <ctype.h> // for isspace and isdigit
+ #include <klib.h>
++#include <limits.h> // for LONG_MAX and LONG_MIN
+ #include <rtthread.h>
+ 
+ char *strchr(const char *s, int c) {
+-  assert(0);
++  // 将 int c 转换为 char，因为字符串是由 char 组成的
++  char ch = (char)c;
++
++  // 遍历字符串，直到遇到字符串的结束符 '\0'
++  while (*s != '\0') {
++    // 检查当前字符是否是我们要找的字符
++    if (*s == ch) {
++      // 返回当前字符的指针
++      return (char *)s;
++    }
++    s++; // 移动到下一个字符
++  }
++
++  // 如果 c 是 '\0'，则特殊处理，因为字符串总是以 '\0' 结尾
++  // 这时应该返回指向 '\0' 的指针
++  if (ch == '\0') {
++    return (char *)s;
++  }
++
++  // 如果没有找到字符，返回 NULL
++  return NULL;
+ }
+ 
+ char *strrchr(const char *s, int c) {
+-  assert(0);
++  const char *last_occurrence = NULL; // 用来记录最后一次出现的位置
++
++  // 如果 c 是 '\0'，则特殊处理，因为字符串总是以 '\0' 结尾
++  if (c == '\0') {
++    return (char *)(s + strlen(s));
++  }
++
++  // 遍历字符串直到遇到字符串结束符 '\0'
++  while (*s) {
++    // 如果找到字符 c，更新 last_occurrence
++    if (*s == (char)c) {
++      last_occurrence = s;
++    }
++    s++; // 移动到下一个字符
++  }
++
++  // 返回最后一次出现的位置，如果没找到则返回 NULL
++  return (char *)last_occurrence;
+ }
+ 
+ char *strstr(const char *haystack, const char *needle) {
+@@ -14,7 +53,69 @@ char *strstr(const char *haystack, const char *needle) {
+ }
+ 
+ long strtol(const char *restrict nptr, char **restrict endptr, int base) {
+-  assert(0);
++  // 忽略空格字符
++  while (*nptr == ' ') {
++    nptr++;
++  }
++
++  // 处理符号位
++  bool negative = false;
++  if (*nptr == '-') {
++    negative = true;
++    nptr++;
++  } else if (*nptr == '+') {
++    nptr++;
++  }
++
++  // 确定进制基数
++  if (base == 0) {
++    if (*nptr == '0') {
++      base = (nptr[1] == 'x' || nptr[1] == 'X') ? 16 : 8;
++    } else {
++      base = 10;
++    }
++  }
++
++  // 初始化结果变量
++  long result = 0;
++  int digit;
++
++  // 进行转换
++  while (*nptr != '\0') {
++    // 获取当前字符对应的数字值
++    if ('0' <= *nptr && *nptr <= '9') {
++      digit = *nptr - '0';
++    } else if ('a' <= *nptr && *nptr <= 'z') {
++      digit = *nptr - 'a' + 10;
++    } else if ('A' <= *nptr && *nptr <= 'Z') {
++      digit = *nptr - 'A' + 10;
++    } else {
++      break; // 遇到无效字符，终止转换
++    }
++
++    // 检查是否超出了结果类型的范围
++    if (result > (LONG_MAX - digit) / base) {
++      result = negative ? LONG_MIN : LONG_MAX;
++      if (endptr != NULL) {
++        *endptr = (char *)nptr;
++      }
++      return result;
++    }
++
++    // 更新结果变量
++    result = result * base + digit;
++    nptr++;
++  }
++
++  // 规范化结果
++  result = negative ? -result : result;
++
++  // 设置结束指针，指向最后一个有效字符的下一个位置
++  if (endptr != NULL) {
++    *endptr = (char *)nptr;
++  }
++
++  return result;
+ }
+ 
+ char *strncat(char *restrict dst, const char *restrict src, size_t sz) {
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..12a828900 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,12 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  if (*p != '\0') return *(p++);
++  else {
++    char c = io_read(AM_UART_RX).data;
++    return c == 0xff ? -1 : c;
++  }
++  // return (*p != '\0' ? *(p ++) : -1);
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+diff --git a/components/dfs/dfs_v1/filesystems/elmfat/ff.h b/components/dfs/dfs_v1/filesystems/elmfat/ff.h
+index 7db1c4d4a..0e1eb47a8 100644
+--- a/components/dfs/dfs_v1/filesystems/elmfat/ff.h
++++ b/components/dfs/dfs_v1/filesystems/elmfat/ff.h
+@@ -232,7 +232,7 @@ typedef struct {
+ 	DWORD	clust;			/* Current cluster */
+ 	LBA_t	sect;			/* Current sector (0:Read operation has terminated) */
+ 	BYTE*	dir;			/* Pointer to the directory item in the win[] */
+-	BYTE	fn[12];			/* SFN (in/out) {body[8],ext[3],status[1]} */
++	BYTE	fn[14];			/* SFN (in/out) {body[8],ext[3],status[1]} */
+ #if FF_USE_LFN
+ 	DWORD	blk_ofs;		/* Offset of current entry block being processed (0xFFFFFFFF:Invalid) */
+ #endif
+-- 
+2.34.1
+
