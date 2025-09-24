@@ -1,0 +1,31 @@
+From ea607528867e5121953c5b70995cd116290d568a Mon Sep 17 00:00:00 2001
+From: AfalpHy <736353503@qq.com>
+Date: Tue, 5 Aug 2025 06:32:06 +0800
+Subject: [PATCH] modify extra.ld
+
+---
+ bsp/abstract-machine/extra.ld | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 8324806ad..4f3dc882a 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -29,7 +29,7 @@ SECTIONS {
+     . = ALIGN(8);
+   } > sdram AT > flash : data
+ }
+-INSERT BEFORE .data;
++INSERT AFTER .data;
+ 
+ SECTIONS {
+   .bss.extra : {
+@@ -42,4 +42,4 @@ SECTIONS {
+     . = ALIGN(8);
+   } > sdram AT > flash : bss
+ }
+-INSERT BEFORE .bss;
++INSERT AFTER .bss;
+-- 
+2.34.1
+

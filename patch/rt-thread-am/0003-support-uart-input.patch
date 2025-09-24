@@ -1,0 +1,55 @@
+From 9a792092b24d7d219e97c04b5daaf66f34aa4c95 Mon Sep 17 00:00:00 2001
+From: AfalpHy <736353503@qq.com>
+Date: Mon, 17 Feb 2025 22:26:03 +0800
+Subject: [PATCH 3/3] support uart input
+
+---
+ bsp/abstract-machine/extra.ld   | 4 ++--
+ bsp/abstract-machine/src/uart.c | 3 ++-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index d689b179d..8324806ad 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -27,7 +27,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  } > psram AT > flash : data
++  } > sdram AT > flash : data
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +40,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  } > psram AT > flash : bss
++  } > sdram AT > flash : bss
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..69af3fb8c 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

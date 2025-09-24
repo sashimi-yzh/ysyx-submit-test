@@ -1,0 +1,33 @@
+From 401867735432410c51222bf99dc5ca20388cce88 Mon Sep 17 00:00:00 2001
+From: AfalpHy <736353503@qq.com>
+Date: Wed, 12 Feb 2025 22:02:38 +0800
+Subject: [PATCH 2/3] modify extra.ld to fit ysyxsoc
+
+---
+ bsp/abstract-machine/extra.ld | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..d689b179d 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -27,7 +27,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++  } > psram AT > flash : data
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +40,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > psram AT > flash : bss
+ }
+ INSERT BEFORE .bss;
+-- 
+2.34.1
+

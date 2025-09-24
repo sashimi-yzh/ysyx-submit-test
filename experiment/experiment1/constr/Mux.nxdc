@@ -1,0 +1,9 @@
+top=Mux
+
+Y (SW1, SW0)
+X0 (SW3, SW2)
+X1 (SW5, SW4)
+X2 (SW7, SW6)
+X3 (SW9, SW8)
+
+F (LD1, LD0)
