@@ -1,0 +1,63 @@
+From 75bc3a8fab69cedc3c42193e7f50e707008d5868 Mon Sep 17 00:00:00 2001
+From: CmdBlock <54425466+CmdBlockZQG@users.noreply.github.com>
+Date: Mon, 14 Jul 2025 16:31:03 +0800
+Subject: [PATCH] double UART FIFO depth
+
+---
+ perip/uart16550/rtl/uart_defines.v | 6 +++---
+ perip/uart16550/rtl/uart_regs.v    | 8 ++++----
+ 2 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/perip/uart16550/rtl/uart_defines.v b/perip/uart16550/rtl/uart_defines.v
+index 84f9fbb..6d48775 100644
+--- a/perip/uart16550/rtl/uart_defines.v
++++ b/perip/uart16550/rtl/uart_defines.v
+@@ -234,9 +234,9 @@
+ // FIFO parameter defines
+ 
+ `define UART_FIFO_WIDTH	8
+-`define UART_FIFO_DEPTH	16
+-`define UART_FIFO_POINTER_W	4
+-`define UART_FIFO_COUNTER_W	5
++`define UART_FIFO_DEPTH	32
++`define UART_FIFO_POINTER_W	5
++`define UART_FIFO_COUNTER_W	6
+ // receiver fifo has width 11 because it has break, parity and framing error bits
+ `define UART_FIFO_REC_WIDTH  11
+ 
+diff --git a/perip/uart16550/rtl/uart_regs.v b/perip/uart16550/rtl/uart_regs.v
+index b48d1d6..e4bfc4d 100644
+--- a/perip/uart16550/rtl/uart_regs.v
++++ b/perip/uart16550/rtl/uart_regs.v
+@@ -600,8 +600,8 @@ assign lsr1 = rf_overrun;     // Receiver overrun error
+ assign lsr2 = rf_data_out[1]; // parity error bit
+ assign lsr3 = rf_data_out[0]; // framing error bit
+ assign lsr4 = rf_data_out[2]; // break error in the character
+-assign lsr5 = (tf_count==5'b0 && thre_set_en);  // transmitter fifo is empty
+-assign lsr6 = (tf_count==5'b0 && thre_set_en && (tstate == /*`S_IDLE */ 0)); // transmitter empty
++assign lsr5 = (tf_count==6'b0 && thre_set_en);  // transmitter fifo is empty
++assign lsr6 = (tf_count==6'b0 && thre_set_en && (tstate == /*`S_IDLE */ 0)); // transmitter empty
+ assign lsr7 = rf_error_bit | rf_overrun;
+ 
+ // lsr bit0 (receiver data available)
+@@ -751,7 +751,7 @@ assign thre_set_en = ~(|block_cnt);
+ //
+ 
+ assign rls_int  = ier[`UART_IE_RLS] && (lsr[`UART_LS_OE] || lsr[`UART_LS_PE] || lsr[`UART_LS_FE] || lsr[`UART_LS_BI]);
+-assign rda_int  = ier[`UART_IE_RDA] && (rf_count >= {1'b0,trigger_level});
++assign rda_int  = ier[`UART_IE_RDA] && (rf_count >= {2'b0,trigger_level});
+ assign thre_int = ier[`UART_IE_THRE] && lsr[`UART_LS_TFE];
+ assign ms_int   = ier[`UART_IE_MS] && (| msr[3:0]);
+ assign ti_int   = ier[`UART_IE_RDA] && (counter_t == 10'b0) && (|rf_count);
+@@ -815,7 +815,7 @@ always  @(posedge clk or posedge wb_rst_i)
+ always  @(posedge clk or posedge wb_rst_i)
+     if (wb_rst_i) rda_int_pnd <= #1 0;
+     else
+-        rda_int_pnd <= #1 ((rf_count == {1'b0,trigger_level}) && fifo_read) ? 0 :      // reset condition
++        rda_int_pnd <= #1 ((rf_count == {2'b0,trigger_level}) && fifo_read) ? 0 :      // reset condition
+                             rda_int_rise ? 1 :                        // latch condition
+                             rda_int_pnd && ier[`UART_IE_RDA];    // default operation: remove if masked
+ 
+-- 
+2.50.1
+

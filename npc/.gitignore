@@ -1,0 +1,16 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.v
+!*.sv
+!*.cc
+!*.cpp
+!.gitignore
+!README.md
+!*.nxdc
+!*.py
+!tools/sv2v
+build/
