@@ -1,0 +1,3 @@
+[submodule "bug-needle"]
+	path = bug-needle
+	url = git@github.com:OSCPU/bug-needle.git

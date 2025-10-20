@@ -1,0 +1,137 @@
+From b986e960bd5f2ceda39f5bf3f8fc281906fbf273 Mon Sep 17 00:00:00 2001
+From: Tanghongwei <tanghongwei2024@outlook.com>
+Date: Mon, 15 Sep 2025 20:51:03 +0800
+Subject: [PATCH 1/3] rtt
+
+---
+ bsp/abstract-machine/src/context.c | 53 +++++++++++++++++++++++++++---
+ bsp/abstract-machine/src/uart.c    | 21 ++++++++++--
+ 2 files changed, 68 insertions(+), 6 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..0278e9c0e 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,23 +2,53 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++#define STACK_SIZE (4096 * 8)
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++      case EVENT_YIELD:  {
++      rt_thread_t cp = rt_thread_self(); 
++      rt_ubase_t to = cp->user_data;
++      c = *(Context**)to;
++      break;
++    }
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+ 
++void parcel(void *arg) {
++  // 获取参数
++  rt_ubase_t *stack_bottom = (rt_ubase_t *)arg;
++  rt_ubase_t tentry = *stack_bottom; 
++  stack_bottom--;
++  rt_ubase_t texit = *stack_bottom; 
++  stack_bottom--;
++  rt_ubase_t parameter = *stack_bottom; 
++
++  ((void(*)())tentry) (parameter);  //采用无返回值无参数函数类型，绕过函数参数类型检查
++  ((void(*)())texit) ();
++}
++
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t user_data_temp = pcb->user_data;
++  pcb->user_data = to;
++  yield();
++  pcb->user_data = user_data_temp;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t user_data_temp = pcb->user_data;
++  pcb->user_data = to;
++  *(Context**)from = pcb->sp;
++  yield();
++  pcb->user_data = user_data_temp;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+@@ -26,6 +56,21 @@ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t t
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  // 对齐
++  stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr & ~sizeof(uintptr_t));
++  // create context
++  Area stack;
++  stack.start = stack_addr - STACK_SIZE;
++  stack.end = stack_addr;
++  // 传递参数
++  rt_ubase_t *stack_bottom = (rt_ubase_t *)(stack.end - sizeof(Context));
++  *stack_bottom = (rt_ubase_t)tentry;
++  stack_bottom--;
++  *stack_bottom = (rt_ubase_t)texit;
++  stack_bottom--;
++  *stack_bottom = (rt_ubase_t)parameter;
++
++  Context *cp = kcontext(stack, parcel, (void *)(stack.end - sizeof(Context)));
++
++  return (rt_uint8_t *)cp;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..a6bfd1cb2 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -7,6 +7,8 @@
+  * Date           Author       Notes
+  */
+ 
++#include <am.h>
++#include <klib-macros.h>
+ #include <rtdevice.h>
+ #include <rtthread.h>
+ #include <am.h>
+@@ -36,9 +38,24 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+   return 1;
+ }
+ 
++
++
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  static const char *const pp = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *p = pp;
++  static bool exhausted = false;
++
++  // return (*p != '\0' ? *(p ++) : -1);
++
++  if (exhausted) {
++    return io_read(AM_UART_RX).data;
++  }
++  if (*p != '\0') {
++    return *(p++);
++  } else {
++    exhausted = true;
++    return io_read(AM_UART_RX).data;
++  }
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

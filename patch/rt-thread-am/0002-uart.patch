@@ -1,0 +1,141 @@
+From 4731ee757a7fae50089a7145f4ce64d69153a1d3 Mon Sep 17 00:00:00 2001
+From: Tanghongwei <tanghongwei2024@outlook.com>
+Date: Tue, 16 Sep 2025 19:01:53 +0800
+Subject: [PATCH 2/3] uart
+
+---
+ bsp/abstract-machine/src/context.c | 83 +++++++++++++-----------------
+ bsp/abstract-machine/src/uart.c    |  2 +-
+ 2 files changed, 36 insertions(+), 49 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 0278e9c0e..8786712e5 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,75 +2,62 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-#define STACK_SIZE (4096 * 8)
+-
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-      case EVENT_YIELD:  {
+-      rt_thread_t cp = rt_thread_self(); 
+-      rt_ubase_t to = cp->user_data;
+-      c = *(Context**)to;
++    case EVENT_YIELD: {
++      rt_thread_t self= rt_thread_self();
++      rt_ubase_t *args = (void*)self->user_data;
++      Context **from = (Context **)args[0], **to = (Context **)args[1];
++      if (from!=NULL)
++        *from = c;
++      c = *to;
+       break;
+     }
++    case EVENT_IRQ_TIMER: break;
++    case EVENT_IRQ_IODEV: break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+ 
+-void parcel(void *arg) {
+-  // 获取参数
+-  rt_ubase_t *stack_bottom = (rt_ubase_t *)arg;
+-  rt_ubase_t tentry = *stack_bottom; 
+-  stack_bottom--;
+-  rt_ubase_t texit = *stack_bottom; 
+-  stack_bottom--;
+-  rt_ubase_t parameter = *stack_bottom; 
+-
+-  ((void(*)())tentry) (parameter);  //采用无返回值无参数函数类型，绕过函数参数类型检查
+-  ((void(*)())texit) ();
+-}
+-
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  rt_thread_t pcb = rt_thread_self();
+-  rt_ubase_t user_data_temp = pcb->user_data;
+-  pcb->user_data = to;
+-  yield();
+-  pcb->user_data = user_data_temp;
+-}
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  rt_thread_t pcb = rt_thread_self();
+-  rt_ubase_t user_data_temp = pcb->user_data;
+-  pcb->user_data = to;
+-  *(Context**)from = pcb->sp;
++  rt_thread_t self = rt_thread_self();
++  rt_ubase_t pre_user_data = self->user_data;
++  rt_ubase_t user_data[2] = {from, to};
++  self->user_data = (rt_ubase_t)user_data;
+   yield();
+-  pcb->user_data = user_data_temp;
++  self->user_data = pre_user_data;
++}
++
++void rt_hw_context_switch_to(rt_ubase_t to) {
++  rt_hw_context_switch(0, to);
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++static void rt_entry(void *parameter){
++  uintptr_t *get = (void *)parameter;
++  void (*tentry)(void *) = (void *)get[2]; 
++  void (*texit)() = (void *)get[1];
++  tentry((void *)get[0]);
++  texit();
++}
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  // 对齐
+-  stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr & ~sizeof(uintptr_t));
+-  // create context
+-  Area stack;
+-  stack.start = stack_addr - STACK_SIZE;
+-  stack.end = stack_addr;
+-  // 传递参数
+-  rt_ubase_t *stack_bottom = (rt_ubase_t *)(stack.end - sizeof(Context));
+-  *stack_bottom = (rt_ubase_t)tentry;
+-  stack_bottom--;
+-  *stack_bottom = (rt_ubase_t)texit;
+-  stack_bottom--;
+-  *stack_bottom = (rt_ubase_t)parameter;
+-
+-  Context *cp = kcontext(stack, parcel, (void *)(stack.end - sizeof(Context)));
+-
+-  return (rt_uint8_t *)cp;
++ 
++  stack_addr = (rt_uint8_t*)((rt_ubase_t)stack_addr & ~0xf);
++  uintptr_t *get = (void *)(stack_addr - sizeof(uintptr_t)*3);
++  
++  get[2] = (uintptr_t)tentry;
++  get[1] = (uintptr_t)texit; 
++  get[0] = (uintptr_t)parameter; 
++  
++  Context *c = kcontext((Area){0, stack_addr - sizeof(uintptr_t)*3}, rt_entry, get);
++  return (rt_uint8_t *)c;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index a6bfd1cb2..7e370f384 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -41,7 +41,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *const pp = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *const pp = "help\nam_hello\nam_microbench\n";
+   static const char *p = pp;
+   static bool exhausted = false;
+ 
+-- 
+2.34.1
+
