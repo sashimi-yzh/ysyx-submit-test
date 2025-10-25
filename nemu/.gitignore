@@ -1,0 +1,13 @@
+*.*
+*
+!libcapstone.so.5
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.cc
+!.gitignore
+!README.md
+!Kconfig
+include/config
+include/generated

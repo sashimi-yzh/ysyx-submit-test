@@ -1,0 +1,28 @@
+From e3c6c43418abe28cbcc2775d669844b7013b4041 Mon Sep 17 00:00:00 2001
+From: 100014536-Zhou chenxi <213241017@seu.edu.cn>
+Date: Fri, 24 Oct 2025 07:27:05 -0400
+Subject: [PATCH 4/4] =?UTF-8?q?=E6=B7=BB=E5=8A=A0=E6=89=93=E5=AD=97?=
+ =?UTF-8?q?=E6=B8=B8=E6=88=8F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/integrate-am-apps.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index a2f18e34b..2f7b6c39b 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -9,6 +9,7 @@ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
++  AM_KERNELS_HOME / "kernels" / "typing-game",
+ ]
+ 
+ if len(sys.argv) != 3:
+-- 
+2.34.1
+

@@ -1,0 +1,44 @@
+From 08ca04d5e40791b57bee7763fe85eb9dccbaf471 Mon Sep 17 00:00:00 2001
+From: 100014536-Zhou chenxi <213241017@seu.edu.cn>
+Date: Tue, 9 Sep 2025 10:07:22 -0400
+Subject: [PATCH 4/5] =?UTF-8?q?=E4=BF=AE=E5=A4=8D=E4=BA=86sdram=E6=8E=A7?=
+ =?UTF-8?q?=E5=88=B6=E5=99=A8=E7=9A=84=E5=B0=8Fbug?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 1d89137b..d4299c43 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -57,8 +57,8 @@ module sdram_axi_core
+     ,output          sdram_we_o
+     ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+-	,output          sdram_choose_high_o
+-	,output          sdram_choose_low_o
++	,output   reg       sdram_choose_high_o
++	,output   reg       sdram_choose_low_o
+     ,output [  1:0]  sdram_ba_o
+     ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+@@ -110,8 +110,10 @@ localparam STATE_WRITE0      = 4'd6;
+ localparam STATE_WRITE1      = 4'd7;
+ localparam STATE_PRECHARGE   = 4'd8;
+ localparam STATE_REFRESH     = 4'd9;
+-assign sdram_choose_high_o = ((state_q == STATE_INIT ) || (state_q == STATE_DELAY))?1'b1:inport_addr_i[26];
+-assign sdram_choose_low_o  = ((state_q == STATE_INIT ) || (state_q == STATE_DELAY))?1'b1:~inport_addr_i[26];
++always @(posedge clk_i ) begin
++	sdram_choose_high_o <= ((state_q == STATE_INIT ) || (state_q == STATE_DELAY))?1'b1:inport_addr_i[26];
++	sdram_choose_low_o  = ((state_q == STATE_INIT ) || (state_q == STATE_DELAY))?1'b1:~inport_addr_i[26];
++end
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-- 
+2.34.1
+

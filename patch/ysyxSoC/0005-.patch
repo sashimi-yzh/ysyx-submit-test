@@ -1,0 +1,800 @@
+From 74b2ef0f27de2372a9c40f60bb1291ad3db77b7b Mon Sep 17 00:00:00 2001
+From: 100014536-Zhou chenxi <213241017@seu.edu.cn>
+Date: Fri, 24 Oct 2025 08:37:26 -0400
+Subject: [PATCH 5/5] =?UTF-8?q?=E8=AE=BF=E5=AD=98=E5=BB=B6=E8=BF=9F?=
+ =?UTF-8?q?=E6=A8=A1=E5=9D=97=E4=BF=AE=E6=94=B9=E4=B8=BA=E5=AE=8F=E6=8E=A7?=
+ =?UTF-8?q?=E5=88=B6=E5=BC=80=E5=90=AF=E5=92=8C=E5=85=B3=E9=97=AD?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/amba/apb_delayer.v  | 213 +++++++--------
+ perip/amba/axi4_delayer.v | 527 +++++++++++++++++++-------------------
+ 2 files changed, 373 insertions(+), 367 deletions(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 10004ebe..396cb80b 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -1,3 +1,5 @@
++`define ysyx_25040129_DEALY_OFF 1'b0
++`ifdef ysyx_25040129_DEALY_OFF
+ module apb_delayer(
+   input         clock,
+   input         reset,
+@@ -37,111 +39,114 @@ module apb_delayer(
+ 
+ endmodule
+ 
+-// module apb_delayer(
+-//   input         clock,
+-//   input         reset,
+-//   input  [31:0] in_paddr,
+-//   input         in_psel,
+-//   input         in_penable,
+-//   input  [2:0]  in_pprot,
+-//   input         in_pwrite,
+-//   input  [31:0] in_pwdata,
+-//   input  [3:0]  in_pstrb,
+-//   output        in_pready,
+-//   output [31:0] in_prdata,
+-//   output        in_pslverr,
++`else
++module apb_delayer(
++  input         clock,
++  input         reset,
++  input  [31:0] in_paddr,
++  input         in_psel,
++  input         in_penable,
++  input  [2:0]  in_pprot,
++  input         in_pwrite,
++  input  [31:0] in_pwdata,
++  input  [3:0]  in_pstrb,
++  output        in_pready,
++  output [31:0] in_prdata,
++  output        in_pslverr,
+ 
+-//   output [31:0] out_paddr,
+-//   output        out_psel,
+-//   output        out_penable,
+-//   output [2:0]  out_pprot,
+-//   output        out_pwrite,
+-//   output [31:0] out_pwdata,
+-//   output [3:0]  out_pstrb,
+-//   input         out_pready,
+-//   input  [31:0] out_prdata,
+-//   input         out_pslverr
+-// );
+-// //CPU主频为569.39MHZ//507
+-// //APB时钟为100MHZ
+-// //频率比r = 569.39 / 100 = 5.6939
+-// //APB中的一个周期对应CPU中的5.6939个周期
+-// //此模块负责将APB的时序延迟5.6939个周期
+-// //放大系数s=1024
+-// localparam s = 1024;
+-// localparam DELAY_CYCLE = 6758; // 5.07 * 1024 = 5830.4, 取整为5830
+-// localparam IDLE = 2'b00;
+-// localparam WAIT = 2'b01;
+-// localparam DELAY = 2'b10;
+-// reg [31:0] counter;
+-// reg [21:0] device_counter;
++  output [31:0] out_paddr,
++  output        out_psel,
++  output        out_penable,
++  output [2:0]  out_pprot,
++  output        out_pwrite,
++  output [31:0] out_pwdata,
++  output [3:0]  out_pstrb,
++  input         out_pready,
++  input  [31:0] out_prdata,
++  input         out_pslverr
++);
++//CPU主频为569.39MHZ//507
++//APB时钟为100MHZ
++//频率比r = 569.39 / 100 = 5.6939
++//APB中的一个周期对应CPU中的5.6939个周期
++//此模块负责将APB的时序延迟5.6939个周期
++//放大系数s=1024
++localparam s = 1024;
++localparam DELAY_CYCLE = 6758; // 5.07 * 1024 = 5830.4, 取整为5830
++localparam IDLE = 2'b00;
++localparam WAIT = 2'b01;
++localparam DELAY = 2'b10;
++reg [31:0] counter;
++reg [21:0] device_counter;
+ 
+-// reg [1:0]state;
+-// reg [31:0] prdata_latch;
+-// reg pslverr_latch;
+-// reg delay_done;
+-// always @(posedge clock) begin
+-// 	if(reset)begin
+-// 		state <= IDLE;
+-// 		counter <= 0;
+-// 		device_counter <= 0;
+-// 		prdata_latch <= 0;
+-// 		pslverr_latch <= 0;
+-// 	end
+-// else begin
+-// 	case (state)
+-// 		IDLE: begin
+-// 			delay_done <= 1;
+-// 			if (in_psel && in_penable) begin
+-// 				if(out_pready)begin
+-// 					state <= DELAY;
+-// 				    prdata_latch <= out_prdata;
+-// 					pslverr_latch <= out_pslverr;
+-// 					delay_done <= 0;
+-// 				end
+-// 				else
+-// 					state <= WAIT;
+-// 				counter <= 0;
+-// 				device_counter <= 0;
+-// 			end
+-// 		end
+-// 		WAIT: begin
+-// 			counter <= counter + DELAY_CYCLE;
+-// 			if (out_pready) begin
+-// 				state <= DELAY;
+-// 				device_counter <= 0;
+-// 				prdata_latch <= out_prdata;
+-// 				pslverr_latch <= out_pslverr;
+-// 			end
+-// 		end
+-// 		DELAY: begin
+-// 			device_counter <= device_counter + 1;
+-// 			if(device_counter == counter[31:10]) begin
+-// 				state <= IDLE;
+-// 				device_counter <= 0;
+-// 				delay_done <= 0;
+-// 			end
+-// 		end
+-// 		default: begin
+-// 			state <= IDLE; // 默认状态
+-// 			counter <= 0;
+-// 			device_counter <= 0;
+-// 			prdata_latch <= 0;
+-// 			pslverr_latch <= 0;
+-// 		end
+-// 	endcase
+-// end
+-// end
++reg [1:0]state;
++reg [31:0] prdata_latch;
++reg pslverr_latch;
++reg delay_done;
++always @(posedge clock) begin
++	if(reset)begin
++		state <= IDLE;
++		counter <= 0;
++		device_counter <= 0;
++		prdata_latch <= 0;
++		pslverr_latch <= 0;
++	end
++else begin
++	case (state)
++		IDLE: begin
++			delay_done <= 1;
++			if (in_psel && in_penable) begin
++				if(out_pready)begin
++					state <= DELAY;
++				    prdata_latch <= out_prdata;
++					pslverr_latch <= out_pslverr;
++					delay_done <= 0;
++				end
++				else
++					state <= WAIT;
++				counter <= 0;
++				device_counter <= 0;
++			end
++		end
++		WAIT: begin
++			counter <= counter + DELAY_CYCLE;
++			if (out_pready) begin
++				state <= DELAY;
++				device_counter <= 0;
++				prdata_latch <= out_prdata;
++				pslverr_latch <= out_pslverr;
++			end
++		end
++		DELAY: begin
++			device_counter <= device_counter + 1;
++			if(device_counter == counter[31:10]) begin
++				state <= IDLE;
++				device_counter <= 0;
++				delay_done <= 0;
++			end
++		end
++		default: begin
++			state <= IDLE; // 默认状态
++			counter <= 0;
++			device_counter <= 0;
++			prdata_latch <= 0;
++			pslverr_latch <= 0;
++		end
++	endcase
++end
++end
+   
+-//   assign out_paddr   = in_paddr;
+-//   assign out_psel    = in_psel&&((state != DELAY));
+-//   assign out_penable = in_penable&&(state != DELAY)&&delay_done;
+-//   assign out_pprot   = in_pprot;
+-//   assign out_pwrite  = in_pwrite;
+-//   assign out_pwdata  = in_pwdata;
+-//   assign out_pstrb   = in_pstrb;
+-//   assign in_pready   = (state == DELAY && device_counter == counter[31:10]);
+-//   assign in_prdata   = prdata_latch;
+-//   assign in_pslverr  = pslverr_latch;
++  assign out_paddr   = in_paddr;
++  assign out_psel    = in_psel&&((state != DELAY));
++  assign out_penable = in_penable&&(state != DELAY)&&delay_done;
++  assign out_pprot   = in_pprot;
++  assign out_pwrite  = in_pwrite;
++  assign out_pwdata  = in_pwdata;
++  assign out_pstrb   = in_pstrb;
++  assign in_pready   = (state == DELAY && device_counter == counter[31:10]);
++  assign in_prdata   = prdata_latch;
++  assign in_pslverr  = pslverr_latch;
++
++endmodule
+ 
+-// endmodule
++`endif
+\ No newline at end of file
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 0dc6184b..72fc11b3 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -1,3 +1,5 @@
++`define ysyx_25040129_DEALY_OFF 1'b0
++`ifdef ysyx_25040129_DEALY_OFF
+ module axi4_delayer(
+   input         clock,
+   input         reset,
+@@ -94,278 +96,277 @@ module axi4_delayer(
+   assign in_bresp = out_bresp;
+ 
+ endmodule
++`else
++module axi4_delayer(
++  input         clock,
++  input         reset,
+ 
+-// module axi4_delayer(
+-//   input         clock,
+-//   input         reset,
+-
+-//   output        in_arready,
+-//   input         in_arvalid,
+-//   input  [3:0]  in_arid,
+-//   input  [31:0] in_araddr,
+-//   input  [7:0]  in_arlen,
+-//   input  [2:0]  in_arsize,
+-//   input  [1:0]  in_arburst,
+-//   input         in_rready,
+-//   output        in_rvalid,
+-//   output [3:0]  in_rid,
+-//   output [31:0] in_rdata,
+-//   output [1:0]  in_rresp,
+-//   output        in_rlast,
+-//   output        in_awready,
+-//   input         in_awvalid,
+-//   input  [3:0]  in_awid,
+-//   input  [31:0] in_awaddr,
+-//   input  [7:0]  in_awlen,
+-//   input  [2:0]  in_awsize,
+-//   input  [1:0]  in_awburst,
+-//   output        in_wready,
+-//   input         in_wvalid,
+-//   input  [31:0] in_wdata,
+-//   input  [3:0]  in_wstrb,
+-//   input         in_wlast,
+-//                 in_bready,
+-//   output        in_bvalid,
+-//   output [3:0]  in_bid,
+-//   output [1:0]  in_bresp,
++  output        in_arready,
++  input         in_arvalid,
++  input  [3:0]  in_arid,
++  input  [31:0] in_araddr,
++  input  [7:0]  in_arlen,
++  input  [2:0]  in_arsize,
++  input  [1:0]  in_arburst,
++  input         in_rready,
++  output        in_rvalid,
++  output [3:0]  in_rid,
++  output [31:0] in_rdata,
++  output [1:0]  in_rresp,
++  output        in_rlast,
++  output        in_awready,
++  input         in_awvalid,
++  input  [3:0]  in_awid,
++  input  [31:0] in_awaddr,
++  input  [7:0]  in_awlen,
++  input  [2:0]  in_awsize,
++  input  [1:0]  in_awburst,
++  output        in_wready,
++  input         in_wvalid,
++  input  [31:0] in_wdata,
++  input  [3:0]  in_wstrb,
++  input         in_wlast,
++                in_bready,
++  output        in_bvalid,
++  output [3:0]  in_bid,
++  output [1:0]  in_bresp,
+ 
+-//   input         out_arready,
+-//   output        out_arvalid,
+-//   output [3:0]  out_arid,
+-//   output [31:0] out_araddr,
+-//   output [7:0]  out_arlen,
+-//   output [2:0]  out_arsize,
+-//   output [1:0]  out_arburst,
+-//   output        out_rready,
+-//   input         out_rvalid,
+-//   input  [3:0]  out_rid,
+-//   input  [31:0] out_rdata,
+-//   input  [1:0]  out_rresp,
+-//   input         out_rlast,
+-//   input         out_awready,
+-//   output        out_awvalid,
+-//   output [3:0]  out_awid,
+-//   output [31:0] out_awaddr,
+-//   output [7:0]  out_awlen,
+-//   output [2:0]  out_awsize,
+-//   output [1:0]  out_awburst,
+-//   input         out_wready,
+-//   output        out_wvalid,
+-//   output [31:0] out_wdata,
+-//   output [3:0]  out_wstrb,
+-//   output        out_wlast,
+-//                 out_bready,
+-//   input         out_bvalid,
+-//   input  [3:0]  out_bid,
+-//   input  [1:0]  out_bresp
+-// );
+-//   localparam DELAY_CYCLE = 6758; 
+-//   localparam EXTRA_DELAY = DELAY_CYCLE - 1024; 
+-//   //----------------------写逻辑延迟----------------------
+-//   handshake_delayer u_aw_delayer (
+-// 	.clk(clock),
+-// 	.rst(reset),
+-// 	.in_valid(in_awvalid),
+-// 	.in_ready(in_awready),
+-// 	.out_valid(out_awvalid),
+-// 	.out_ready(out_awready)
+-//   );
+-//   handshake_delayer u_w_delayer (
+-// 	.clk(clock),
+-// 	.rst(reset),
+-// 	.in_valid(in_wvalid),
+-// 	.in_ready(in_wready),
+-// 	.out_valid(out_wvalid),
+-// 	.out_ready(out_wready)
+-//  );
+-//  handshake_delayer_back u_b_delayer (
+-// 	.clk(clock),
+-// 	.rst(reset),
+-// 	.in_rvalid(in_bvalid),
+-// 	.in_rready(in_bready),
+-// 	.in_rdata(),
+-// 	.out_rvalid(out_bvalid),
+-// 	.out_rready(out_bready),
+-// 	.out_rdata(0),
+-// 	.handshaked(in_awready|in_wready)
+-//  );
+-//   //---------------------------------------------------	
+-//   //----------------------读逻辑延迟----------------------
+-//   handshake_delayer u_ar_delayer (
+-// 	.clk(clock),
+-// 	.rst(reset),
+-// 	.in_valid(in_arvalid),
+-// 	.in_ready(in_arready),
+-// 	.out_valid(out_arvalid),
+-// 	.out_ready(out_arready)
+-//   );
++  input         out_arready,
++  output        out_arvalid,
++  output [3:0]  out_arid,
++  output [31:0] out_araddr,
++  output [7:0]  out_arlen,
++  output [2:0]  out_arsize,
++  output [1:0]  out_arburst,
++  output        out_rready,
++  input         out_rvalid,
++  input  [3:0]  out_rid,
++  input  [31:0] out_rdata,
++  input  [1:0]  out_rresp,
++  input         out_rlast,
++  input         out_awready,
++  output        out_awvalid,
++  output [3:0]  out_awid,
++  output [31:0] out_awaddr,
++  output [7:0]  out_awlen,
++  output [2:0]  out_awsize,
++  output [1:0]  out_awburst,
++  input         out_wready,
++  output        out_wvalid,
++  output [31:0] out_wdata,
++  output [3:0]  out_wstrb,
++  output        out_wlast,
++                out_bready,
++  input         out_bvalid,
++  input  [3:0]  out_bid,
++  input  [1:0]  out_bresp
++);
++  localparam DELAY_CYCLE = 6758; 
++  localparam EXTRA_DELAY = DELAY_CYCLE - 1024; 
++  //----------------------写逻辑延迟----------------------
++  handshake_delayer u_aw_delayer (
++	.clk(clock),
++	.rst(reset),
++	.in_valid(in_awvalid),
++	.in_ready(in_awready),
++	.out_valid(out_awvalid),
++	.out_ready(out_awready)
++  );
++  handshake_delayer u_w_delayer (
++	.clk(clock),
++	.rst(reset),
++	.in_valid(in_wvalid),
++	.in_ready(in_wready),
++	.out_valid(out_wvalid),
++	.out_ready(out_wready)
++ );
++ handshake_delayer_back u_b_delayer (
++	.clk(clock),
++	.rst(reset),
++	.in_rvalid(in_bvalid),
++	.in_rready(in_bready),
++	.in_rdata(),
++	.out_rvalid(out_bvalid),
++	.out_rready(out_bready),
++	.out_rdata(0),
++	.handshaked(in_awready|in_wready)
++ );
++  //---------------------------------------------------	
++  //----------------------读逻辑延迟----------------------
++  handshake_delayer u_ar_delayer (
++	.clk(clock),
++	.rst(reset),
++	.in_valid(in_arvalid),
++	.in_ready(in_arready),
++	.out_valid(out_arvalid),
++	.out_ready(out_arready)
++  );
+ 
+-//   handshake_delayer_back u_r_delayer (
+-// 	.clk(clock),
+-// 	.rst(reset),
+-// 	.in_rvalid(in_rvalid),
+-// 	.in_rready(in_rready),
+-// 	.in_rdata({in_rid, in_rdata,in_rresp,in_rlast}),
+-// 	.out_rvalid(out_rvalid),
+-// 	.out_rready(out_rready),
+-// 	.out_rdata({out_rid, out_rdata,out_rresp,out_rlast}),
+-// 	.handshaked(in_arready)
+-// );
++  handshake_delayer_back u_r_delayer (
++	.clk(clock),
++	.rst(reset),
++	.in_rvalid(in_rvalid),
++	.in_rready(in_rready),
++	.in_rdata({in_rid, in_rdata,in_rresp,in_rlast}),
++	.out_rvalid(out_rvalid),
++	.out_rready(out_rready),
++	.out_rdata({out_rid, out_rdata,out_rresp,out_rlast}),
++	.handshaked(in_arready)
++);
+ 
+-//   assign out_arid = in_arid;
+-//   assign out_araddr = in_araddr;
+-//   assign out_arlen = in_arlen;
+-//   assign out_arsize = in_arsize;
+-//   assign out_arburst = in_arburst;
++  assign out_arid = in_arid;
++  assign out_araddr = in_araddr;
++  assign out_arlen = in_arlen;
++  assign out_arsize = in_arsize;
++  assign out_arburst = in_arburst;
+ 
+-//   assign out_awid = in_awid;
+-//   assign out_awaddr = in_awaddr;
+-//   assign out_awlen = in_awlen;
+-//   assign out_awsize = in_awsize;
+-//   assign out_awburst = in_awburst;
++  assign out_awid = in_awid;
++  assign out_awaddr = in_awaddr;
++  assign out_awlen = in_awlen;
++  assign out_awsize = in_awsize;
++  assign out_awburst = in_awburst;
+ 	
+-//   assign out_wdata = in_wdata;
+-//   assign out_wstrb = in_wstrb;
+-//   assign out_wlast = in_wlast;
+-
+-//   assign in_bid = out_bid;
+-//   assign in_bresp = out_bresp;
+-
+-// endmodule
++  assign out_wdata = in_wdata;
++  assign out_wstrb = in_wstrb;
++  assign out_wlast = in_wlast;
+ 
++  assign in_bid = out_bid;
++  assign in_bresp = out_bresp;
+ 
+-// module handshake_delayer (
+-//   input         clk,
+-//   input         rst,
+-//   input 	    in_valid,
+-//   output    in_ready,
+-//   output    out_valid,
+-//   input         out_ready
+-// );
+-//   reg [1:0] state;
+-//   localparam WAIT_VALID = 2'b00;
+-//   localparam WAIT_READY = 2'b01;
+-//   localparam DELAY = 2'b10;
+-//   localparam DONE = 2'b11;
+-//   reg [31:0] counter;
+-//   reg [21:0] device_counter;
+-//   localparam DELAY_CYCLE = 6758; // 延迟周期
+-//   localparam EXTRA_DELAY = DELAY_CYCLE - 1024; // 附加延迟
+-//   always @(posedge clk) begin
+-// 	if(rst) begin
+-// 	  state <= WAIT_VALID;
+-// 	  counter <= 0;
+-// 	  device_counter <= 0;
+-//   end
+-//   else begin
+-// 	case (state)
+-// 	  WAIT_VALID: begin
+-// 		if (in_valid) begin
+-// 		  if (out_ready) begin
+-// 			state <= DONE;
+-// 		  end
+-// 		  else begin
+-// 			state <= WAIT_READY;
+-// 			counter <= 0;
+-// 		  end
+-// 		end
+-// 	end
+-// 	  WAIT_READY: begin
+-// 		counter <= counter + EXTRA_DELAY;
+-// 		if (out_ready) begin
+-// 		  state <= DELAY;
+-// 		  device_counter <= 0;
+-// 		end
+-// 	  end
+-// 	  DELAY: begin
+-// 		device_counter <= device_counter + 1;
+-// 		if (device_counter == counter[31:10]) begin
+-// 		  state <= DONE;
+-// 		end
+-// 	  end
+-// 	  DONE: begin
+-// 		state <= WAIT_VALID; // Reset to wait for next valid input
+-// 	  end
+-// 	endcase
+-//   end
+-// end
+-// assign in_ready = (state == DELAY && device_counter == counter[31:10])|| (state == WAIT_VALID&& in_valid&& out_ready);
+-// assign out_valid = (state == WAIT_VALID || state == WAIT_READY) ? in_valid : 1'b0;
+-// endmodule
++endmodule
+ 
+-// module handshake_delayer_back (
+-//   input         clk,
+-//   input         rst,
+-//   output 	    in_rvalid,
+-//   input    in_rready,
+-//   output reg[38:0] in_rdata,
+-//   input    out_rvalid,
+-//   output         out_rready,
+-//   input  [38:0] out_rdata,
+-//   input 	   handshaked
+-// );
+-//   reg [1:0] state;
+-//   localparam WAIT_VALID = 2'b00;
+-//   localparam WAIT_READY = 2'b01;
+-//   localparam DELAY = 2'b10;
+-//   localparam DONE = 2'b11;
+-//   reg [31:0] counter;
+-//   reg [21:0] device_counter;
+-//   localparam DELAY_CYCLE = 6758; // 延迟周期
+-//   localparam EXTRA_DELAY = DELAY_CYCLE - 1024; // 附加延迟
+ 
+-//   always @(posedge clk) begin
+-// 	if(rst) begin
+-// 	  state <= WAIT_READY;
+-// 	  counter <= 0;
+-// 	  device_counter <= 0;
+-//   end
+-//   else begin
+-// 	if(handshaked && state == DELAY && state == DONE)$error("handshaked should not be true when state is DELAY");
+-// 	if(handshaked)counter<=0;
+-// 	else if(state==DELAY) counter <= counter;
+-// 	else counter <= counter + EXTRA_DELAY;
+-// 	case (state)
+-// 	  WAIT_READY: begin
+-// 		if(in_rready) begin
+-// 		  if (out_rvalid) begin
+-// 			state <=  DELAY;
+-// 			in_rdata <= out_rdata;
+-// 			device_counter <=0;
+-// 		  end
+-// 		  else begin
+-// 			state <= WAIT_VALID;
+-// 		  end
+-// 		end
+-// 	  end
+-// 	  WAIT_VALID: begin
+-// 		if(~in_rready)begin
+-// 			state <= WAIT_READY;
+-// 		end 
+-// 		else
+-// 		 if (out_rvalid) begin
+-// 		  state <= DELAY;
+-// 		  device_counter <= 0;
+-// 		  in_rdata <= out_rdata;
+-// 		end
+-// 	  end
+-// 	  DELAY: begin
+-// 		device_counter <= device_counter + 1;
+-// 		if (device_counter == counter[31:10]) begin
+-// 		  state <= DONE;
+-// 		end
+-// 	  end
+-// 	  DONE: begin
+-// 		if(in_rready) begin
+-// 		  state <= WAIT_READY; 
+-// 		  counter <= 0;
+-// 		end
+-// 	  end
+-// 	endcase
+-//   end
+-// end
+-// assign in_rvalid = (state == DONE);
+-// assign out_rready = (state == WAIT_READY || state == WAIT_VALID) ? in_rready : 1'b0;
+-// endmodule
++module handshake_delayer (
++  input         clk,
++  input         rst,
++  input 	    in_valid,
++  output    in_ready,
++  output    out_valid,
++  input         out_ready
++);
++  reg [1:0] state;
++  localparam WAIT_VALID = 2'b00;
++  localparam WAIT_READY = 2'b01;
++  localparam DELAY = 2'b10;
++  localparam DONE = 2'b11;
++  reg [31:0] counter;
++  reg [21:0] device_counter;
++  localparam DELAY_CYCLE = 6758; // 延迟周期
++  localparam EXTRA_DELAY = DELAY_CYCLE - 1024; // 附加延迟
++  always @(posedge clk) begin
++	if(rst) begin
++	  state <= WAIT_VALID;
++	  counter <= 0;
++	  device_counter <= 0;
++  end
++  else begin
++	case (state)
++	  WAIT_VALID: begin
++		if (in_valid) begin
++		  if (out_ready) begin
++			state <= DONE;
++		  end
++		  else begin
++			state <= WAIT_READY;
++			counter <= 0;
++		  end
++		end
++	end
++	  WAIT_READY: begin
++		counter <= counter + EXTRA_DELAY;
++		if (out_ready) begin
++		  state <= DELAY;
++		  device_counter <= 0;
++		end
++	  end
++	  DELAY: begin
++		device_counter <= device_counter + 1;
++		if (device_counter == counter[31:10]) begin
++		  state <= DONE;
++		end
++	  end
++	  DONE: begin
++		state <= WAIT_VALID; // Reset to wait for next valid input
++	  end
++	endcase
++  end
++end
++assign in_ready = (state == DELAY && device_counter == counter[31:10])|| (state == WAIT_VALID&& in_valid&& out_ready);
++assign out_valid = (state == WAIT_VALID || state == WAIT_READY) ? in_valid : 1'b0;
++endmodule
+ 
++module handshake_delayer_back (
++  input         clk,
++  input         rst,
++  output 	    in_rvalid,
++  input    in_rready,
++  output reg[38:0] in_rdata,
++  input    out_rvalid,
++  output         out_rready,
++  input  [38:0] out_rdata,
++  input 	   handshaked
++);
++  reg [1:0] state;
++  localparam WAIT_VALID = 2'b00;
++  localparam WAIT_READY = 2'b01;
++  localparam DELAY = 2'b10;
++  localparam DONE = 2'b11;
++  reg [31:0] counter;
++  reg [21:0] device_counter;
++  localparam DELAY_CYCLE = 6758; // 延迟周期
++  localparam EXTRA_DELAY = DELAY_CYCLE - 1024; // 附加延迟
+ 
++  always @(posedge clk) begin
++	if(rst) begin
++	  state <= WAIT_READY;
++	  counter <= 0;
++	  device_counter <= 0;
++  end
++  else begin
++	if(handshaked && state == DELAY && state == DONE)$error("handshaked should not be true when state is DELAY");
++	if(handshaked)counter<=0;
++	else if(state==DELAY) counter <= counter;
++	else counter <= counter + EXTRA_DELAY;
++	case (state)
++	  WAIT_READY: begin
++		if(in_rready) begin
++		  if (out_rvalid) begin
++			state <=  DELAY;
++			in_rdata <= out_rdata;
++			device_counter <=0;
++		  end
++		  else begin
++			state <= WAIT_VALID;
++		  end
++		end
++	  end
++	  WAIT_VALID: begin
++		if(~in_rready)begin
++			state <= WAIT_READY;
++		end 
++		else
++		 if (out_rvalid) begin
++		  state <= DELAY;
++		  device_counter <= 0;
++		  in_rdata <= out_rdata;
++		end
++	  end
++	  DELAY: begin
++		device_counter <= device_counter + 1;
++		if (device_counter == counter[31:10]) begin
++		  state <= DONE;
++		end
++	  end
++	  DONE: begin
++		if(in_rready) begin
++		  state <= WAIT_READY; 
++		  counter <= 0;
++		end
++	  end
++	endcase
++  end
++end
++assign in_rvalid = (state == DONE);
++assign out_rready = (state == WAIT_READY || state == WAIT_VALID) ? in_rready : 1'b0;
++endmodule
++`endif
+\ No newline at end of file
+-- 
+2.34.1
+

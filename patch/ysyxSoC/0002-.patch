@@ -1,0 +1,36 @@
+From ad42e13adba3d9f53bbc444b4f77cd92d70af689 Mon Sep 17 00:00:00 2001
+From: 100014536-Zhou chenxi <213241017@seu.edu.cn>
+Date: Sat, 6 Sep 2025 09:40:43 -0400
+Subject: [PATCH 2/5] =?UTF-8?q?=E5=B0=9D=E8=AF=95=E4=BF=AE=E5=A4=8D?=
+ =?UTF-8?q?=E5=8F=8C=E9=87=8D=E8=BE=93=E5=87=BA?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/uart16550/rtl/uart_tfifo.v | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 71329116..dc5f9478 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,7 +211,6 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
+-                $write("%c", data_in);
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -221,7 +220,6 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
+-                $write("%c", data_in);
+                 end
+         default: ;
+         endcase
+-- 
+2.34.1
+

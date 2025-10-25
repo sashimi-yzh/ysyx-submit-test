@@ -1,0 +1,16 @@
+*.log
+log.*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.v
+!*.cc
+!*.cpp
+!.gitignore
+!README.md
+build/
+obj_dir/*
+obj_dir
+top.vcd
+top.fst*

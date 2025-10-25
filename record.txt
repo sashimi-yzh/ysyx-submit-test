@@ -1,0 +1,370 @@
+the debug result now shows that when icache tried to read from flash at 0x3000040,it never gets rlast reply and dead locked here
+答案是,没发last信号导致soc一直认为没写完，同时复位可能也有影响
+(npc) c
+ysyx:25040129
+======= Running MicroBench [input *train*] =======
+[qsort] Quick sort: * Passed.
+  min time: 166108.829 ms [0]
+[queen] Queen placement: * Passed.
+  min time: 618847.240 ms [0]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 238858.773 ms [0]
+[fib] Fibonacci number: * Passed.
+  min time: 2402716.157 ms [0]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 158523.655 ms [0]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 423769.458 ms [0]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 252898.949 ms [0]
+[lzip] Lzip compression: * Passed.
+  min time: 217879.670 ms [0]
+[ssort] Suffix sort: * Passed.
+  min time: 291343.926 ms [0]
+[md5] MD5 digest: * Passed.
+  min time: 394309.692 ms [0]
+==================================================
+MicroBench PASS
+Scored time: 5165256.349 ms
+Total  time: 5621038.040 ms
+HIT GOOD TRAP
+total inst:             195317536, total cycles:        5651711008, per  28.936014 cycles
+fetch act count:        195317536, fetch cycle:         1778148726, per   9.103887 cycles
+execute act count:      195317536, execute cycle:        195317536, per   1.000000 cycles
+load act count:          15620692, load cycle:          2267370952, per 145.151761 cycles
+store act count:          7179103, store cycle:          847720981, per 118.081741 cycles
+calculate count:        115926721, calculate cycle:     1273555273, per  10.985865 cycles
+load/store inst count:   22799795, load/store cycle:    3485729275, per 152.884238 cycles
+branch inst count:       56591018, branch cycle:         892422778, per  15.769689 cycles
+csr inst count:                 2, csr cycle:                   66, per  33.000000 cycles
+icache hit count:       168881394, icache hit cycle:     337762788, per   2.000000 cycles
+icache miss count:       26436142, icache miss cycle:   1245068402, per  47.097205 cycles
+icache aver count:      195317536, icache aver cycle:   1582831190, per   8.103887 cycles
+icache miss rate:      %     13.53
+make[1]: Leaving directory '/home/pglzjz/ysyx-workbench/npc'使用psram作为栈
+pglzjz@pglzjz-virtual-machine:~/ysyx-workbench/am-kernels/benchmarks/microbench$ make run mainargs=train 
+# Building microbench-run [riscv32e-ysyxsoc]
+# Building am-archive [riscv32e-ysyxsoc]
+# Building klib-archive [riscv32e-ysyxsoc]
+# Creating image [riscv32e-ysyxsoc]
++ LD -> build/microbench-riscv32e-ysyxsoc.elf
++ OBJCOPY -> build/microbench-riscv32e-ysyxsoc.bin
+mainargs=train
+make -C /home/pglzjz/ysyx-workbench/npc ISA=riscv32e run ARGS="" IMG=/home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin
+make[1]: Entering directory '/home/pglzjz/ysyx-workbench/npc'
+# DO NOT REMOVE THIS LINE!!!
+verilator --cc --exe --build -j  0 -O3 -Wwarn-LATCH -Wwarn-MULTIDRIVEN --trace --top-module ysyxSoCFull --Mdir build/obj_dir /home/pglzjz/ysyx-workbench/npc/platform/simulation.v /home/pglzjz/ysyx-workbench/npc/vsrc/*.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_top.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_clgen.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_defines.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_shift.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_tfifo.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_receiver.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_transmitter.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_sync_flops.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_rfifo.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/raminfr.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_defines.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_regs.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/gpio/gpio_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/psram.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/efabless/EF_PSRAM_CTRL.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/efabless/EF_PSRAM_CTRL_wb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/psram_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/amba/apb_delayer.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/amba/axi4_delayer.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/ps2/ps2_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/vga/vga_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi_core.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram_top_axi.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/bitrev/bitrev.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/flash/flash.v /home/pglzjz/ysyx-workbench/ysyxSoC/build/*.v /home/pglzjz/ysyx-workbench/npc/csrc/*.cpp /home/pglzjz/ysyx-workbench/npc/csrc/*.c /home/pglzjz/ysyx-workbench/npc/build/auto_bind.cpp /home/pglzjz/ysyx-workbench/nvboard/build/nvboard.a \
+-LDFLAGS -lSDL2 -LDFLAGS -lSDL2_image -LDFLAGS -lSDL2_ttf --LDFLAGS "-lreadline" -CFLAGS -MMD -CFLAGS -O3 -CFLAGS -I/usr/include/SDL2 -CFLAGS -D_REENTRANT --CFLAGS "-I ~/ysyx-workbench/nemu/tools/capstone/repo/include" --CFLAGS "-I /home/pglzjz/ysyx-workbench/nvboard/usr/include" \
+-I/home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl -I/home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl -I/home/pglzjz/ysyx-workbench/npc/vsrc \
+--timescale "1ns/1ns" --no-timing --autoflush
+make[2]: Entering directory '/home/pglzjz/ysyx-workbench/npc/build/obj_dir'
+make[2]: Nothing to be done for 'default'.
+make[2]: Leaving directory '/home/pglzjz/ysyx-workbench/npc/build/obj_dir'
+- V e r i l a t i o n   R e p o r t: Verilator 5.035 devel rev v5.034-24-g27d3eb5b7
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.015 s (elab=0.000, cvt=0.000, bld=0.014); cpu 0.001 s on 4 threads; alloced 18.695 MB
+/home/pglzjz/ysyx-workbench/npc/build/obj_dir/VysyxSoCFull --log=/home/pglzjz/ysyx-workbench/npc/build/npc-log.txt --elf=/home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.elf  /home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin
+bind UART_TX 0x7bdacb0d2128 to 0x7bdacb0d2128
+The image is /home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin, size = 31296
+Welcome to NPC!
+(npc) c
+ysyx:25040129
+======= Running MicroBench [input *train*] =======
+[qsort] Quick sort: * Passed.
+  min time: 124460.795 ms [0]
+[queen] Queen placement: * Passed.
+  min time: 132980.818 ms [0]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 238811.697 ms [0]
+[fib] Fibonacci number: * Passed.
+  min time: 1194845.503 ms [0]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 158075.573 ms [0]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 136849.483 ms [0]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 100354.315 ms [0]
+[lzip] Lzip compression: * Passed.
+  min time: 89394.122 ms [0]
+[ssort] Suffix sort: * Passed.
+  min time: 144283.124 ms [0]
+[md5] MD5 digest: * Passed.
+  min time: 178662.090 ms [0]
+==================================================
+MicroBench PASS
+Scored time: 2498717.520 ms
+Total  time: 2916902.611 ms
+HIT GOOD TRAP
+total inst:             195313907, total cycles:        2947248200, per  15.089802 cycles
+fetch act count:        195313907, fetch cycle:         1739473207, per   8.906039 cycles
+execute act count:      195313907, execute cycle:        195313907, per   1.000000 cycles
+load act count:          15620560, load cycle:           342586313, per  21.931756 cycles
+store act count:          7178976, store cycle:          106732588, per  14.867383 cycles
+calculate count:        115923654, calculate cycle:     1260329902, per  10.872068 cycles
+load/store inst count:   22799536, load/store cycle:     797344997, per  34.971984 cycles
+branch inst count:       56590715, branch cycle:         889569634, per  15.719357 cycles
+csr inst count:                 2, csr cycle:                   51, per  25.500000 cycles
+icache hit count:       168878652, icache hit cycle:     337757304, per   2.000000 cycles
+icache miss count:       26435255, icache miss cycle:   1206401996, per  45.636102 cycles
+icache aver count:      195313907, icache aver cycle:   1544159300, per   7.906039 cycles
+icache miss rate:      %     13.53
+make[1]: Leaving directory '/home/pglzjz/ysyx-workbench/npc'(sram作为栈的性能表现)
+//sdram stack
+Welcome to NPC!
+(npc) c
+ysyx:25040129
+======= Running MicroBench [input *train*] =======
+[qsort] Quick sort: * Passed.
+  min time: 258773.192 ms [0]
+[queen] Queen placement: * Passed.
+  min time: 434175.847 ms [0]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 367367.989 ms [0]
+[fib] Fibonacci number: * Passed.
+  min time: -1993879754.066 ms [0]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 277304.646 ms [0]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 262962.948 ms [0]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 184096.198 ms [0]
+[lzip] Lzip compression: * Passed.
+  min time: 143614.476 ms [0]
+[ssort] Suffix sort: * Passed.
+  min time: 248888.315 ms [0]
+[md5] MD5 digest: * Passed.
+  min time: 225309.663 ms [0]
+==================================================
+MicroBench PASS
+Scored time: -1991477261.340 ms
+Total  time: -1990800731.060 ms
+HIT GOOD TRAP
+total inst:             195325267, total cycles:        6407358604, per  32.803532 cycles
+fetch act count:        260281216, fetch cycle:         6147077388, per  23.617061 cycles
+execute act count:              0, execute cycle:                0, per       -nan cycles
+load act count:          15620943, load cycle:          1095182908, per  70.109910 cycles
+store act count:          7178476, store cycle:          565118359, per  78.724002 cycles
+calculate count:                0, calculate cycle:              0, per       -nan cycles
+load/store inst count:          0, load/store cycle:             0, per       -nan cycles
+branch inst count:              0, branch cycle:                 0, per       -nan cycles
+csr inst count:                 0, csr cycle:                    0, per       -nan cycles
+icache hit count:       187942221, icache hit cycle:     375884442, per   2.000000 cycles
+icache miss count:       72338995, icache miss cycle:   4808690278, per  66.474386 cycles
+icache aver count:      260281216, icache aver cycle:   5184574720, per  19.919127 cycles
+icache miss rate:      %     27.79
+make[1]: Leaving directory '/home/pglzjz/ysyx-workbench/npc'
+//psram stack
+zjz@pglzjz-virtual-machine:~/ysyx-workbench/am-kernels/benchmarks/microbench$ make run mainargs=train
+# Building microbench-run [riscv32e-ysyxsoc]
+# Building am-archive [riscv32e-ysyxsoc]
+# Building klib-archive [riscv32e-ysyxsoc]
+# Creating image [riscv32e-ysyxsoc]
++ LD -> build/microbench-riscv32e-ysyxsoc.elf
++ OBJCOPY -> build/microbench-riscv32e-ysyxsoc.bin
+mainargs=train
+make -C /home/pglzjz/ysyx-workbench/npc ISA=riscv32e run ARGS="" IMG=/home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin
+make[1]: Entering directory '/home/pglzjz/ysyx-workbench/npc'
+# DO NOT REMOVE THIS LINE!!!
+verilator --cc --exe --build -j  0 -O3 -Wwarn-LATCH -Wwarn-MULTIDRIVEN --trace --top-module ysyxSoCFull --Mdir build/obj_dir /home/pglzjz/ysyx-workbench/npc/platform/simulation.v /home/pglzjz/ysyx-workbench/npc/vsrc/*.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_top.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_clgen.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_defines.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_shift.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_tfifo.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_receiver.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_transmitter.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_sync_flops.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_rfifo.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/raminfr.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_defines.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_regs.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/gpio/gpio_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/psram.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/efabless/EF_PSRAM_CTRL.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/efabless/EF_PSRAM_CTRL_wb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/psram_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/amba/apb_delayer.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/amba/axi4_delayer.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/ps2/ps2_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/vga/vga_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi_core.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram_top_axi.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/bitrev/bitrev.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/flash/flash.v /home/pglzjz/ysyx-workbench/ysyxSoC/build/*.v /home/pglzjz/ysyx-workbench/npc/csrc/*.cpp /home/pglzjz/ysyx-workbench/npc/csrc/*.c /home/pglzjz/ysyx-workbench/npc/build/auto_bind.cpp /home/pglzjz/ysyx-workbench/nvboard/build/nvboard.a \
+-LDFLAGS -lSDL2 -LDFLAGS -lSDL2_image -LDFLAGS -lSDL2_ttf --LDFLAGS "-lreadline" -CFLAGS -MMD -CFLAGS -O3 -CFLAGS -I/usr/include/SDL2 -CFLAGS -D_REENTRANT --CFLAGS "-I ~/ysyx-workbench/nemu/tools/capstone/repo/include" --CFLAGS "-I /home/pglzjz/ysyx-workbench/nvboard/usr/include" \
+-I/home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl -I/home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl -I/home/pglzjz/ysyx-workbench/npc/vsrc \
+--timescale "1ns/1ns" --no-timing --autoflush
+make[2]: Entering directory '/home/pglzjz/ysyx-workbench/npc/build/obj_dir'
+ccache g++  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=1 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=1 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -MMD -O3 -I/usr/include/SDL2 -D_REENTRANT -I ~/ysyx-workbench/nemu/tools/capstone/repo/include -I /home/pglzjz/ysyx-workbench/nvboard/usr/include   -Os  -c -o Sdb.o /home/pglzjz/ysyx-workbench/npc/csrc/Sdb.cpp
+ccache g++  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=1 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=1 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -MMD -O3 -I/usr/include/SDL2 -D_REENTRANT -I ~/ysyx-workbench/nemu/tools/capstone/repo/include -I /home/pglzjz/ysyx-workbench/nvboard/usr/include   -Os  -c -o main.o /home/pglzjz/ysyx-workbench/npc/csrc/main.cpp
+ccache g++  -I.  -MMD -I/usr/local/share/verilator/include -I/usr/local/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=1 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=1 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-subobject-linkage -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -MMD -O3 -I/usr/include/SDL2 -D_REENTRANT -I ~/ysyx-workbench/nemu/tools/capstone/repo/include -I /home/pglzjz/ysyx-workbench/nvboard/usr/include   -Os  -c -o paddr.o /home/pglzjz/ysyx-workbench/npc/csrc/paddr.c
+g++ -fuse-ld=mold   auto_bind.o Sdb.o disasm.o main.o paddr.o verilated.o verilated_dpi.o verilated_vcd_c.o verilated_threads.o VysyxSoCFull__ALL.a   /home/pglzjz/ysyx-workbench/nvboard/build/nvboard.a -lSDL2 -lSDL2_image -lSDL2_ttf -lreadline  -pthread -lpthread -latomic   -o VysyxSoCFull
+make[2]: Leaving directory '/home/pglzjz/ysyx-workbench/npc/build/obj_dir'
+- V e r i l a t i o n   R e p o r t: Verilator 5.035 devel rev v5.034-24-g27d3eb5b7
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.082 s (elab=0.000, cvt=0.000, bld=0.081); cpu 0.001 s on 4 threads; alloced 18.695 MB
+/home/pglzjz/ysyx-workbench/npc/build/obj_dir/VysyxSoCFull --log=/home/pglzjz/ysyx-workbench/npc/build/npc-log.txt --elf=/home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.elf  /home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin
+bind UART_TX 0x7ab6bba1d129 to 0x7ab6bba1d129
+The image is /home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin, size = 31296
+Welcome to NPC!
+(npc) c
+ysyx:25040129
+======= Running MicroBench [input *train*] =======
+[qsort] Quick sort: * Passed.
+  min time: 312969.147 ms [0]
+[queen] Queen placement: * Passed.
+  min time: 912013.776 ms [0]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 367427.700 ms [0]
+[fib] Fibonacci number: * Passed.
+  min time: -1992131029.724 ms [0]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 277483.199 ms [0]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 636563.198 ms [0]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 373620.529 ms [0]
+[lzip] Lzip compression: * Passed.
+  min time: -1996842686.373 ms [0]
+[ssort] Suffix sort: * Passed.
+  min time: 460656.577 ms [0]
+[md5] MD5 digest: ·+* Passed.
+  min time: 534411.016 ms [0]
+==================================================
+MicroBench PASS
+Scored time: 309868727.239 ms
+Total  time: 310587321.970 ms
+HIT GOOD TRAP
+total inst:             195329173, total cycles:        9988321766, per  51.135842 cycles
+fetch act count:        260324485, fetch cycle:         9727997281, per  37.368737 cycles
+execute act count:              0, execute cycle:                0, per       -nan cycles
+load act count:          15621068, load cycle:          3886147411, per 248.776038 cycles
+store act count:          3387211, store cycle:          238639172, per  70.452999 cycles
+calculate count:                0, calculate cycle:              0, per       -nan cycles
+load/store inst count:          0, load/store cycle:             0, per       -nan cycles
+branch inst count:              0, branch cycle:                 0, per       -nan cycles
+csr inst count:                 0, csr cycle:                    0, per       -nan cycles
+icache hit count:       187984448, icache hit cycle:     375968896, per   2.000000 cycles
+icache miss count:       72340037, icache miss cycle:   5517332955, per  76.269424 cycles
+icache aver count:      260324485, icache aver cycle:   5893301851, per  22.638293 cycles
+icache miss rate:      %     27.79
+make[1]: Leaving directory '/home/pglzjz/ysyx-workbench/npc'
+ysyx:25040129
+======= Running MicroBench [input *train*] =======
+[qsort] Quick sort: * Passed.
+  min time: 221553.218 ms [0]
+[queen] Queen placement: * Passed.
+  min time: 377051.062 ms [0]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 336996.174 ms [0]
+[fib] Fibonacci number: * Passed.
+  min time: -1993538529.039 ms [0]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 267769.049 ms [0]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 272316.204 ms [0]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 202144.051 ms [0]
+[lzip] Lzip compression: * Passed.
+  min time: 133769.674 ms [0]
+[ssort] Suffix sort: * Passed.
+  min time: 349278.944 ms [0]
+[md5] MD5 digest: * Passed.
+  min time: 234728.601 ms [0]
+==================================================
+MicroBench PASS
+Scored time: -1991142922.016 ms
+Total  time: -1990404342.329 ms
+HIT GOOD TRAP
+total inst:             195324202, total cycles:        6811268530, per  34.871606 cycles
+fetch act count:        151897398, fetch cycle:         6563729883, per  43.211602 cycles
+execute act count:              0, execute cycle:                0, per       -nan cycles
+load act count:          15620904, load cycle:          1384061799, per  88.603182 cycles
+store act count:          7178431, store cycle:          438019100, per  61.018780 cycles
+calculate count:                0, calculate cycle:              0, per       -nan cycles
+load/store inst count:          0, load/store cycle:             0, per       -nan cycles
+branch inst count:              0, branch cycle:                 0, per       -nan cycles
+csr inst count:                 0, csr cycle:                    0, per       -nan cycles
+icache hit count:       105579125, icache hit cycle:     105579125, per   1.000000 cycles
+icache miss count:       46423936, icache miss cycle:   2061919824, per  44.415015 cycles
+icache aver count:      152003061, icache aver cycle:   2167498949, per  14.259574 cycles
+sdram_axi(npc) c
+ysyx:25040129
+======= Running MicroBench [input *train*] =======
+[qsort] Quick sort: * Passed.
+  min time: 279751.892 ms [0]
+[queen] Queen placement: * Passed.
+  min time: 932211.463 ms [0]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 337044.978 ms [0]
+[fib] Fibonacci number: * Passed.
+  min time: -1991829153.417 ms [0]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 268287.173 ms [0]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 646884.577 ms [0]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 381635.033 ms [0]
+[lzip] Lzip compression: * Passed.
+  min time: 314180.931 ms [0]
+[ssort] Suffix sort: * Passed.
+  min time: 561561.516 ms [0]
+[md5] MD5 digest: * Passed.
+  min time: 554734.104 ms [0]
+==================================================
+MicroBench PASS
+Scored time: -1987552861.084 ms
+Total  time: 311036941.300 ms
+HIT GOOD TRAP
+total inst:             195325706, total cycles:        10445456781, per  53.477123 cycles
+fetch act count:        153586420, fetch cycle:         10196957540, per  66.392312 cycles
+execute act count:              0, execute cycle:                0, per       -nan cycles
+load act count:          15620931, load cycle:          4170991516, per 267.012991 cycles
+store act count:          3387207, store cycle:          152743501, per  45.094233 cycles
+calculate count:                0, calculate cycle:              0, per       -nan cycles
+load/store inst count:          0, load/store cycle:             0, per       -nan cycles
+branch inst count:              0, branch cycle:                 0, per       -nan cycles
+csr inst count:                 0, csr cycle:                    0, per       -nan cycles
+icache hit count:       106230474, icache hit cycle:     106230474, per   1.000000 cycles
+icache miss count:       47438131, icache miss cycle:   2420760421, per  51.029844 cycles
+icache aver count:      153668605, icache aver cycle:   2526990895, per  16.444419 cycles
+icache miss rate:      %     30.87psram
+pglzjz@pglzjz-virtual-machine:~/ysyx-workbench/am-kernels/benchmarks/microbench$ make run mainargs=train 
+# Building microbench-run [riscv32e-ysyxsoc]
+# Building am-archive [riscv32e-ysyxsoc]
+# Building klib-archive [riscv32e-ysyxsoc]
++ OBJCOPY -> build/microbench-riscv32e-ysyxsoc.bin
+mainargs=train
+make -C /home/pglzjz/ysyx-workbench/npc ISA=riscv32e run ARGS="" IMG=/home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin
+make[1]: Entering directory '/home/pglzjz/ysyx-workbench/npc'
+# DO NOT REMOVE THIS LINE!!!
+verilator --cc --exe --build -j  0 -O3 -Wwarn-LATCH -Wwarn-MULTIDRIVEN --trace --top-module ysyxSoCFull --Mdir build/obj_dir /home/pglzjz/ysyx-workbench/npc/platform/simulation.v /home/pglzjz/ysyx-workbench/npc/vsrc/*.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_top.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_clgen.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_defines.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl/spi_shift.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_tfifo.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_receiver.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_transmitter.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_sync_flops.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_rfifo.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/raminfr.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_defines.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_regs.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl/uart_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/gpio/gpio_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/psram.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/efabless/EF_PSRAM_CTRL.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/efabless/EF_PSRAM_CTRL_wb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/psram/psram_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/amba/apb_delayer.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/amba/axi4_delayer.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/ps2/ps2_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/vga/vga_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram_top_apb.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi_core.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/core_sdram_axi4/sdram_axi.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/sdram/sdram_top_axi.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/bitrev/bitrev.v /home/pglzjz/ysyx-workbench/ysyxSoC/perip/flash/flash.v /home/pglzjz/ysyx-workbench/ysyxSoC/build/*.v /home/pglzjz/ysyx-workbench/npc/csrc/*.cpp /home/pglzjz/ysyx-workbench/npc/csrc/*.c /home/pglzjz/ysyx-workbench/npc/build/auto_bind.cpp /home/pglzjz/ysyx-workbench/nvboard/build/nvboard.a \
+-LDFLAGS -lSDL2 -LDFLAGS -lSDL2_image -LDFLAGS -lSDL2_ttf --LDFLAGS "-lreadline" -CFLAGS -MMD -CFLAGS -O3 -CFLAGS -I/usr/include/SDL2 -CFLAGS -D_REENTRANT --CFLAGS "-I ~/ysyx-workbench/nemu/tools/capstone/repo/include" --CFLAGS "-I /home/pglzjz/ysyx-workbench/nvboard/usr/include" \
+-I/home/pglzjz/ysyx-workbench/ysyxSoC/perip/uart16550/rtl -I/home/pglzjz/ysyx-workbench/ysyxSoC/perip/spi/rtl -I/home/pglzjz/ysyx-workbench/npc/vsrc \
+--timescale "1ns/1ns" --no-timing --autoflush
+make[2]: Entering directory '/home/pglzjz/ysyx-workbench/npc/build/obj_dir'
+make[2]: Nothing to be done for 'default'.
+make[2]: Leaving directory '/home/pglzjz/ysyx-workbench/npc/build/obj_dir'
+- V e r i l a t i o n   R e p o r t: Verilator 5.035 devel rev v5.034-24-g27d3eb5b7
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.021 s (elab=0.000, cvt=0.000, bld=0.020); cpu 0.001 s on 4 threads; alloced 18.699 MB
+/home/pglzjz/ysyx-workbench/npc/build/obj_dir/VysyxSoCFull --log=/home/pglzjz/ysyx-workbench/npc/build/npc-log.txt --elf=/home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.elf  /home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin
+bind UART_TX 0x7a358b2d9128 to 0x7a358b2d9128
+The image is /home/pglzjz/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32e-ysyxsoc.bin, size = 31296
+Welcome to NPC!
+(npc) c
+ysyx:25040129
+======= Running MicroBench [input *train*] =======
+[qsort] Quick sort: * Passed.
+  min time: 175384.263 ms [0]
+[queen] Queen placement: * Passed.
+  min time: 276880.022 ms [0]
+[bf] Brainf**k interpreter: * Passed.
+  min time: 276894.592 ms [0]
+[fib] Fibonacci number: * Passed.
+  min time: 2459003.863 ms [0]
+[sieve] Eratosthenes sieve: * Passed.
+  min time: 209350.867 ms [0]
+[15pz] A* 15-puzzle search: * Passed.
+  min time: 197808.384 ms [0]
+[dinic] Dinic's maxflow algorithm: * Passed.
+  min time: 138626.599 ms [0]
+[lzip] Lzip compression: * Passed.
+  min time: 103944.947 ms [0]
+[ssort] Suffix sort: * Passed.
+  min time: -1996919371.369 ms [0]
+[md5] MD5 digest: * Passed.
+  min time: 175440.525 ms [0]
+==================================================
+MicroBench PASS
+Scored time: -1992906037.431 ms
+Total  time: -1992342035.255 ms
+HIT GOOD TRAP
+total inst:             195325425, total cycles:        4858159282, per  24.872130 cycles
+fetch act count:         92900881, fetch cycle:         4580446263, per  49.304659 cycles
+execute act count:              0, execute cycle:                0, per       -nan cycles
+load act count:          15620964, load cycle:           927465643, per  59.373137 cycles
+store act count:          7178497, store cycle:          281370518, per  39.196299 cycles
+calculate count:                0, calculate cycle:              0, per       -nan cycles
+load/store inst count:          0, load/store cycle:             0, per       -nan cycles
+branch inst count:              0, branch cycle:                 0, per       -nan cycles
+csr inst count:                 0, csr cycle:                    0, per       -nan cycles
+icache hit count:       123216852, icache hit cycle:     123216852, per   1.000000 cycles
+icache miss count:       43561236, icache miss cycle:   2311438182, per  53.061814 cycles
+icache aver count:      166778088, icache aver cycle:   2434655034, per  14.598171 cycles
+icache miss rate:      %     26.12
