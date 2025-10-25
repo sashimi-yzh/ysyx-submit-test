@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - -I/home/dallous/Documents/ysyx-workbench/npc/build/ysyxSoCFull/
+    - -I/home/dallous/Documents/ysyx-workbench/npc/build/npc/
+    - -I/usr/local/share/verilator/include/
+    - -I/usr/local/share/verilator/include/vltstd/
+    - -I/home/dallous/Documents/ysyx-workbench/npc/csrc/inc
+    - -I/home/dallous/Documents/ysyx-workbench/nemu/tools/capstone/repo/include/
+    - -I/home/dallous/Documents/ysyx-workbench/nvboard/usr/include/
+    - -DRUNSOC=1

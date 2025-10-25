@@ -1,0 +1,12 @@
+CompileFlags:
+  Add:
+    - -I/home/dallous/Documents/ysyx-workbench/abstract-machine/am/include/
+    - -I/home/dallous/Documents/ysyx-workbench/abstract-machine/am/src/platform/nemu/include/
+    - -I/home/dallous/Documents/ysyx-workbench/abstract-machine/klib/include/
+    - -I/home/dallous/Documents/ysyx-workbench/abstract-machine/am/src/
+    - -D ISA_H="riscv/riscv.h"
+    - -D ARCH_H="arch/riscv.h"
+    - -D __riscv
+    - -D  __riscv_xlen=32
+    - -D MAINARGS_MAX_LEN=64
+    - -D MAINARGS_PLACEHOLDER={}

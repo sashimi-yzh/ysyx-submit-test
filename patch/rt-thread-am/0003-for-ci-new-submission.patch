@@ -1,0 +1,51 @@
+From 03cc20e37ef2b95600b9bf4762458c02bee6d2bf Mon Sep 17 00:00:00 2001
+From: huhao <huhao1226968736@outlook.com>
+Date: Fri, 24 Oct 2025 21:24:55 +0800
+Subject: [PATCH 3/3] for ci new submission
+
+---
+ bsp/abstract-machine/Makefile   |  4 ++++
+ bsp/abstract-machine/src/uart.c | 12 ++++++++----
+ 2 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index e7a74c4b0..0d01d4d2d 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -11,6 +11,10 @@ CFLAGS += -Wno-nonnull-compare
+ 
+ ifeq ($(ARCH),riscv32e-npc)
+ LDFLAGS += -T extra_.ld
++CFLAGS += -DNPC_NEMU
++else ifeq ($(ARCH),riscv32e-nemu)
++LDFLAGS += -T extra_.ld
++CFLAGS += -DNPC_NEMU
+ else ifeq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
+ endif
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index ea76e96f9..f3f7ccf47 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -39,10 +39,14 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   // static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  char ch = io_read(AM_UART_RX).data;
+-  if (ch == (char)-1) return -1;
+-  if (ch != 8) putch(ch);
+-  return ch;
++  #ifdef NPC_NEMU
++    return getch();
++  #else
++    char ch = io_read(AM_UART_RX).data;
++    if (ch == (char)-1) return -1;
++    if (ch != 8) putch(ch);
++    return ch;
++  #endif
+   // return (*p != '\0' ? *(p ++) : -1);
+ }
+ 
+-- 
+2.34.1
+

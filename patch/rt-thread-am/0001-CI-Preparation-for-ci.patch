@@ -1,0 +1,341 @@
+From 433c3c2e6b293d60b3d502a7236cc8aa04c83804 Mon Sep 17 00:00:00 2001
+From: huhao <huhao1226968736@outlook.com>
+Date: Tue, 21 Oct 2025 21:44:44 +0800
+Subject: [PATCH] CI Preparation for ci
+
+---
+ .clangd                            |  9 ++++
+ bsp/abstract-machine/Makefile      |  6 +++
+ bsp/abstract-machine/extra.ld      | 35 +------------
+ bsp/abstract-machine/extra_.ld     | 45 +++++++++++++++++
+ bsp/abstract-machine/src/context.c | 80 +++++++++++++++++++++++++++---
+ bsp/abstract-machine/src/hello.c   |  3 +-
+ bsp/abstract-machine/src/init.c    |  4 +-
+ bsp/abstract-machine/src/uart.c    |  5 ++
+ components/finsh/shell.c           |  8 +--
+ 9 files changed, 145 insertions(+), 50 deletions(-)
+ create mode 100644 .clangd
+ create mode 100644 bsp/abstract-machine/extra_.ld
+
+diff --git a/.clangd b/.clangd
+new file mode 100644
+index 000000000..6199c50ca
+--- /dev/null
++++ b/.clangd
+@@ -0,0 +1,9 @@
++CompileFlags:
++  Add:
++    - -I/home/dallous/Documents/ysyx-workbench/abstract-machine/am/include/
++    - -I/home/dallous/Documents/ysyx-workbench/abstract-machine/klib/include/
++    - -I/home/dallous/Documents/rt-thread-am/include/
++    - -I/home/dallous/Documents/rt-thread-am/bsp/abstract-machine
++    - -I/home/dallous/Documents/rt-thread-am/bsp/abstract-machine/include/
++    - -D ISA_H="riscv/riscv.h"
++    - -D ARCH_H="arch/riscv.h"
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..e7a74c4b0 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,13 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
++
++ifeq ($(ARCH),riscv32e-npc)
++LDFLAGS += -T extra_.ld
++else ifeq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
++endif
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..ca1e43392 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,36 +1,3 @@
+-SECTIONS {
+-  .data.extra : {
+-    /* section information for finsh shell */
+-    __fsymtab_start = .;
+-    KEEP(*(FSymTab))
+-    __fsymtab_end = .;
+-    . = ALIGN(8);
+-    __vsymtab_start = .;
+-    KEEP(*(VSymTab))
+-    __vsymtab_end = .;
+-    . = ALIGN(8);
+-
+-    /* section information for initial. */
+-    . = ALIGN(8);
+-    __rt_init_start = .;
+-    KEEP(*(SORT(.rti_fn*)))
+-    __rt_init_end = .;
+-    . = ALIGN(8);
+-
+-    __rt_utest_tc_tab_start = .;
+-    KEEP(*(UtestTcTab))
+-    __rt_utest_tc_tab_end = .;
+-
+-    . = ALIGN(8);
+-    __am_apps_data_start = .;
+-    *(__am_apps.data*)
+-    *(__am_apps.sdata*)
+-    __am_apps_data_end = .;
+-    . = ALIGN(8);
+-  }
+-}
+-INSERT BEFORE .data;
+-
+ SECTIONS {
+   .bss.extra : {
+     . = ALIGN(8);
+@@ -40,6 +7,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/extra_.ld b/bsp/abstract-machine/extra_.ld
+new file mode 100644
+index 000000000..5cdc65670
+--- /dev/null
++++ b/bsp/abstract-machine/extra_.ld
+@@ -0,0 +1,45 @@
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  }
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  }
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..11e1e8b0b 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -1,31 +1,95 @@
++#include "rtdef.h"
+ #include <am.h>
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++typedef struct {
++  rt_ubase_t to;
++  rt_ubase_t from;
++} deliver;
++
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD: {
++      deliver* tf = (deliver*)(rt_thread_self()->user_data);
++      if (tf->from != 0) *((void**)tf->from) = c;
++      Context* p = *((void**)tf->to);
++      // printf("hd 3: %08x\n", (uintptr_t)p);
++      return p;
++    }
++    case EVENT_IRQ_TIMER: return c;
++    case EVENT_IRQ_IODEV: return c;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+ 
++
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++
++void rt_hw_context_switch_to(rt_ubase_t to)
++{
++  rt_thread_t curr = rt_thread_self();
++  rt_ubase_t tmp_data = curr->user_data;
++  deliver tf = {to, 0};
++  curr->user_data = (rt_ubase_t)&tf;
++  yield();
++  curr->user_data = tmp_data;
+ }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to)
++{
++  rt_thread_t curr = rt_thread_self();
++  rt_ubase_t tmp_data = curr->user_data;
++  deliver tf = {to, from};
++  curr->user_data = (rt_ubase_t)&tf;
++  yield();
++  curr->user_data = tmp_data;
+ }
+ 
+-void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
++
++void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) 
++{
+   assert(0);
+ }
+ 
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++
++typedef struct {
++  void (*tentry)(void*);
++  void* parameter;
++  void (*texit)(void);
++} entpkg;
++
++
++static void entry_package(void* arg)
++{
++  entpkg* pkg = (entpkg*)arg;
++
++  if (pkg->tentry) 
++  {
++    pkg->tentry(pkg->parameter);
++    pkg->texit();
++    rt_free(pkg);
++  }
++}
++
++
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) 
++{
++  // 指针对齐到 uintptr_t (riscv32 4 字节对齐)
++  uintptr_t aligned = ((uintptr_t)stack_addr) & ~(sizeof(uintptr_t) - 1);
++  rt_uint8_t *sp = (rt_uint8_t *)aligned;
++  
++  entpkg* pkg = (entpkg*)rt_malloc(sizeof(entpkg));
++  pkg->tentry = tentry;
++  pkg->parameter = parameter;
++  pkg->texit = texit;
++  
++  sp = (rt_uint8_t*)kcontext((Area){(void*)0, (void*)sp}, entry_package, pkg);
++  return sp;
+ }
+diff --git a/bsp/abstract-machine/src/hello.c b/bsp/abstract-machine/src/hello.c
+index cda4015f7..4b5eee660 100644
+--- a/bsp/abstract-machine/src/hello.c
++++ b/bsp/abstract-machine/src/hello.c
+@@ -1,8 +1,7 @@
+-#include <klib.h>
+ #include <rtthread.h>
+ 
+ static int hello() {
+-  printf("Hello RISC-V!\n");
++  rt_kprintf("Hello RISC-V!\n");
+   return 0;
+ }
+ INIT_ENV_EXPORT(hello);
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index 93e271154..e1d543e47 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -28,8 +28,8 @@ void rt_hw_board_init() {
+   extern char __am_apps_bss_start, __am_apps_bss_end;
+   am_apps_data = RANGE(&__am_apps_data_start, &__am_apps_data_end);
+   am_apps_bss  = RANGE(&__am_apps_bss_start,  &__am_apps_bss_end);
+-  printf("am-apps.data.size = %ld, am-apps.bss.size = %ld\n",
+-      am_apps_data.end - am_apps_data.start, am_apps_bss.end - am_apps_bss.start);
++  printf("am-apps.data.size = %d, am-apps.bss.size = %d\n",
++      (int)(am_apps_data.end - am_apps_data.start), (int)(am_apps_bss.end - am_apps_bss.start));
+ 
+   uint32_t data_size = am_apps_data.end - am_apps_data.start;
+   if (data_size != 0) {
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..46e115a5e 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,6 +39,10 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  // char ch = io_read(AM_UART_RX).data;
++  // if (ch == (char)-1) return -1;
++  // if (ch != 8) putch(ch);
++  // return ch;
+   return (*p != '\0' ? *(p ++) : -1);
+ }
+ 
+diff --git a/components/finsh/shell.c b/components/finsh/shell.c
+index 6b9405a2a..b9ec26aab 100644
+--- a/components/finsh/shell.c
++++ b/components/finsh/shell.c
+@@ -637,8 +637,8 @@ void finsh_thread_entry(void *parameter)
+ #ifdef FINSH_USING_HISTORY
+             shell_push_history(shell);
+ #endif
+-            if (shell->echo_mode)
+-                rt_kprintf("\n");
++            // dallous print cmd
++            // if (shell->echo_mode) rt_kprintf("\n");
+             msh_exec(shell->line, shell->line_position);
+ 
+             rt_kprintf(FINSH_PROMPT);
+@@ -670,8 +670,8 @@ void finsh_thread_entry(void *parameter)
+         else
+         {
+             shell->line[shell->line_position] = ch;
+-            if (shell->echo_mode)
+-                rt_kprintf("%c", ch);
++            // dallous print cmd
++            // if (shell->echo_mode) rt_kprintf("%c", ch);
+         }
+ 
+         ch = 0;
+-- 
+2.34.1
+

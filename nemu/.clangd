@@ -1,0 +1,10 @@
+CompileFlags:
+  Add:
+    - -I/home/dallous/Documents/ysyx-workbench/nemu/include
+    - -I/home/dallous/Documents/ysyx-workbench/nemu/src/isa/riscv32/include
+    - -I/home/dallous/Documents/ysyx-workbench/nemu/tools/capstone/repo/include/
+    - -D__GUEST_ISA__=riscv32
+    - -DITRACE_COND=true
+    - -DCONFIG_MTRACE=1
+    - -DCONFIG_FTRACE=1
+    - -DCONFIG_DIFFTEST
