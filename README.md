@@ -9,3 +9,9 @@ bash init.sh subproject-name
 [lecture note]: https://ysyx.oscc.cc/docs/
 
 # 这个repo是我的远程代码托管
+
+STUID - ysyx_25040129
+
+Original repo - https://github.com/PingGuoLiZiJvZi/ysyx-workbench3.git
+
+Original branch - master
