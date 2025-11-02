@@ -1,0 +1,505 @@
+modify @ 2025.10.14:
+
+Decode结构体定义于: include/cpu/decode.h
+typedef struct Decode {
+  vaddr_t pc;	//current pc
+  vaddr_t snpc; // static next pc
+  vaddr_t dnpc; // dynamic next pc
+  ISADecodeInfo isa;
+  IFDEF(CONFIG_ITRACE, char logbuf[128]);
+} Decode;
+
+ISADecodeInfo结构体定义于:src/isa/riscv32/include/isa-def.h
+typedef struct {
+  union {
+    uint32_t val;
+  } inst;
+} MUXDEF(CONFIG_RV64, riscv64_ISADecodeInfo, riscv32_ISADecodeInfo);
+
+CPU_state结构体定义于:src/isa/riscv32/include/isa-def.h
+typedef struct {
+  word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
+  vaddr_t pc;
+} MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
+
+
+CONFIG_ITRACE_COND和CONFIG_ITRACE
+log理论上会被同时写入stdout和log_file，但是如果没有开启Trace则有log_enable = 0,此时只写stdout
+但是指令解码0x8000e57c: fe d7 0c e3 beq	a4, a3, 0x8000e574只有在开启itrace之后才会有
+
+
+
+******有关cpu执行指令******
+cpu_exec(n) -> execute(n) -> exec_once() -> isa_exec_once() ->  decode_exec()(底层解码函数) -> **有关解码**
+                            trace_and_difftest()                inst_fetch()(更新snpc)
+
+
+在decode_exec()中可能执行Mr/Mw,二者分别对应vaddr_read(即paddr_read)和vaddr_write(即paddr_write) -> **有关访存**
+
+
+
+
+******有关解码******
+INSTPAT in include/cpu/decode.h:
+    #define INSTPAT(pattern, ...) do { \
+        uint64_t key, mask, shift; \
+        pattern_decode(pattern, STRLEN(pattern), &key, &mask, &shift); \
+        if ((((uint64_t)INSTPAT_INST(s) >> shift) & mask) == key) { \
+            INSTPAT_MATCH(s, ##__VA_ARGS__); \
+            goto *(__instpat_end); \
+        } \
+    } while (0)
+    pattern_decode defined in include/cpu/decode.h, key与str同长,1标注了str中所有=1的位置
+                                                    mask与str同长,1标注了str中所有!=?的位置
+                                                    shift代表尾部?位数
+        关键步骤:INSTPAT_INST(s) >> shift) & mask) == key
+
+
+底层解码函数decode_exec in src/isa/riscv32/inst.c的调用流程:
+decode_exec() -> INSTPAT_START() -> INSTPAT() -> pattern_decode(获取key, mask, shift) -> 
+INSTPAT_INST(判断inst是否与pattern匹配) -> INSTPAT_MATCH() -> 
+decode_operands(获取src1, src2, imm等) -> INSTPAT_END()
+
+
+
+
+******有关访存******
+paddr_read ->   (1) pmem_read -> host_read -> guest_to_host(转化为pmem地址 + 偏移) -> 读pmem
+                (2) mmio_read -> map_read -> fetch_mmio_map -> map_read ->
+                invoke_callback(将data放入*_base,注意keyboard也是依赖update_device利用SDL库将data放入*_base的) -> 
+				host_read(直接为map->space + 偏移) -> 读*_base
+
+
+paddr_write ->  (1) pmem_write -> host_write -> guest_to_host(转化为pmem地址 + 偏移) -> 写pmem
+				(2) mmio_write -> map_write -> fetch_mmio_map -> map_write -> 
+				host_write(直接为map->space + 偏移) -> 写*_base -> invoke_callback(通常为NULL,后续统一由update_device
+				基于*_base的数据利用SDL库进行显示更新/或者直接printf)
+
+
+
+
+
+
+
+1.modification in file nemu/monitor/sdb/sdb.c, include<memory/paddr.h> to call function "read_paddr". Of course it's unnecessary to include such a file; only the declaration of this function is enough. 
+
+2.the dependency between .c files (.h is not necessary)
+reference: main.c & func1.c & func2.c
+
+
+CPU_state is short for (aka, redefined as) riscv32_CPU_state, which is defined in src/isa/
+riscv32/include/isa-def.h
+CPU_state consists of a word_t type array gpr[32] and pc
+gpr[0] is reset to be 0, and pc is reset to RESET_VECTOR;
+gpr[i] can be changed through executing instructions, with the macro function gpr defined in
+src/riscv32/local-include/reg.h
+
+
+
+MAP(c,f) is defined to be c(f) in nemu/include/macro.h
+
+
+
+2.note on Makefiles:
+
+
+
+3.logic in nemu_main.c:
+init_monitor() or am_init_monitor() in file src/monitor/monitor.c
+	
+	parse_args() in file src/monitor/monitor.c
+	//process the args passed to init_monitor() from main() (command line args)
+	//load the .bin file produced by AM
+
+	init_mem() in file src/memory/paddr.c
+		malloc(pmem)
+	*init_device() in file src/device/device.c
+		*ioe_init() in file am/src/platform/nemu/ioe/ioe.c
+		init_map() in file file src/device/io/map.c
+		*init_serial() in file src/device/serial.c
+		*init_timer() in file src/device/timer.c
+		......
+	init_isa() in file src/isa/riscv32/init.c
+		memcpy() from img to guest_to_host(RESET_VECTOR) (related to mem)
+		//load built-in memory
+		cpu.pc = RESET_VECTOR; cpu.gpr[0] = 0; 
+		(cpu defined in src/isa/risv32/include/isa-def.h)
+	
+	load_img() in src/monitor/monitor.c
+		rewrite memory if possible
+		//if .bin file(derived from .c files via AM) exists, then rewrite 
+		//the contents at RESET_VECOTR(inst will be updated)
+
+	init_difftest() in file src/cpu/difftest/dut.c
+
+	init_sdb() in file src/monitor/sdb/sdb.c
+		init_regex() in file src/monitor/sdb/expr.c
+		init_wp_pool() in file src/monitor/sdb/watchpoint.c
+	......
+engine_start() in file src/engine/interpreter/init.c
+	//cpu_exec in file src/cpu/cpu.c
+	sdb_mainloop() in file src/monitor/sdb/sdb.c
+		step 1: extracting the command
+		step 2: comparing the command with command list and executing
+			cmd_x() in file src/monitor/sdb/sdb.c
+				expr() in file src/monitor/sdb/expr.c
+					make_token() in file src/monitor/sdb/expr.c
+			cmd_info()
+				isa_reg_display() in file src/isa/risv32/reg.c  (info r)
+				isa_reg_str2val() in file src/isa/risv32/reg.c  (info [name])
+
+			cmd_si() ...
+				cpu_exec() in file src/cpu/cpu_exec.c
+			......
+
+
+
+
+4.the main process in function cpu_exec():
+cpu_exec(n) in src/cpu/cpu_exec.c
+	execute(n) in src/cpu/cpu_exec.c
+		(loops for n times:)
+		exec_once(&s, cpu.pc) in src/cpu/cpu_exec.c
+			s->pc = cpu.pc;
+			s->snpc = cpu.pc;
+			isa_exec_once(s) in src/isa/riscv32/inst.c
+				//current inst is saved in s->isa.inst.val
+				inst_fetch(&s->snpc, 4) in include/cpu/ifetch.h
+					vaddr_ifetch(addr, len)
+						paddr_read(addr, len)
+					s->snpc += 4
+				decode_exec(s) in src/isa/riscv32/inst.c
+					s->dnpc = s->snpc
+					decode_operand() in src/isa/riscv32/inst.c
+					// type U: writing an immediate number (4B) to some reg
+					// type I: copying some memory (1B) to some reg
+					// type S: copying some reg (1B) to some memory 
+					// type N(ebreak): stop the engine
+					// type N(inv): invalid inst
+			cpu.pc = s->dnpc // cpu.pc is updated
+		
+		trace_and_difftest(s->pc, cpu.pc) in src/cpu/cpu_exec.c
+			//the info of current inst is printed
+			difftest_step() in src/cpu/difftest/dut.c
+				ref_difftest_exec(1), aka difftest_exec(1) in tools/spike-diff/difftest.cc
+				ref_difftest_regcpy(), aka difftest_regcpy() in tools/spike-diff/difftest.cc
+				checkregs(&ref_r, s->pc) in src/cpu/difftest/dut.c
+					//at this time ref_r -> pc should equal to cpu.pc
+					//and ref_r -> gpr[i] should equal to cpu.gpr[i]
+					isa_difftest_checkregs(ref_r, s->pc) in src/isa/riscv32/difftest/dut.c
+			//scan the state of each watchpoint
+		device_update() in src/device/device.c
+			send_key() in src/device/keyboard.c
+
+
+
+
+5.logic in paddr_read:
+paddr_read(addr, len) in nemu/src/memory/paddr.c
+	if it's physical address:
+		pmem_read(addr, len)
+			host_read(pmem + addr - BASE, len)
+	if device is on:
+		mmio_read(addr, len) in nemu/src/device/io/mmio.c
+			fetch_mmio_map(addr) in nemu/src/device/io/mmio.c
+				find_mapid_by_addr() in nemu/include/device/map.h
+			map_read(addr, len, fetch_mmio_map(addr)) in nemu/src/device/io/map.c
+				//the ret of temp = fetch_mmio_map() is *IOMap-type or NULL
+				//for instance: 
+				//temp->low = 0xa000_038f, temp->high = 0xa000_03ff
+				//temp->space = ...(real addr malloc), temp->callback = serial_io_handler;
+				check_bound(map,addr)
+				offset = addr - temp->low = 2, for instance
+				temp->callback(offset, len, is_write = false)
+				ret = host_read(map->space + offset, len)
+				(note that map->space and pmem stand alone)
+
+paddr_write() is the same
+
+
+
+ab-m/am/include/amdev.h
+
+
+
+6. input and output:
+6.1 Serial:
+init_device() in nemu/src/device/device.c
+	if serial exists:
+	init_serial() in nemu/src/device/serial.c
+		serial_base = new_space(8) //new_space is defined in nemu/src/device/io/map.c
+		//serial_base = p_space + 8, p_space malloc in init_map() and updated as
+		//soon as a new device is enabled
+		add_mmio_map() in src/device/io/mmio.c
+			//a new map is created, and the global array maps gets longer
+			//args in: paddr_t low = 0xa000_03f8;
+			//			paddr_t high = 0xa000_03ff
+			//			void *space = serial_base //real physical address
+			//			io_callback_t callback = serial_io_handler in nemu/src/device/serial.c
+
+serial_io_handler(offset, len, is_write)
+	assert(len == 1)
+		if(is_write)
+			serial_putc(serial_base[0])
+				putc(ch, stderr);
+	
+
+
+6.2 timer
+init_device() in nemu/src/device/device.c
+	if timer exists:
+	init_timer() in nemu/src/device/timer.c
+		rtc_port_base = new_space(8) //new_space is defined in nemu/src/device/io/map.c
+		add_mmio_map() in src/device/io/mmio.c
+			//a new map is created, and the global array maps gets longer
+			//args in: paddr_t low = 0xa000_0048
+			//			paddr_t high = 0xa000_004f
+			//			void *space = rtc_port_base
+			//			io_callback_t callback = rtc_io_handler in nemu/src/device/timer.c
+
+rtc_io_handler(offset, len, is_write)
+	assert(offset == 0 or 4)
+	if(is_write == 0 && offset == 4)
+			uint64_t us = get_time() in nemu/src/util/timer.c
+			rtc_port_base[0] = (uint32_t)us
+			rtc_port_base[1] = us >> 32
+
+
+
+
+6.3 Keyboard
+init_device() in nemu/src/device/device.c
+	if keyboard exists:
+	init_i8042() in nemu/src/device/keyboard.c
+		i8042_data_port_base = new_space(4)
+		add_mmio_map() in src/device/io/mmio.c
+			//a new map is created, and the global array maps gets longer
+			//args in: paddr_t low = 0xa000_0060
+			//			paddr_t high = 0xa000_0063
+			//			void *space = i8042_data_port_base
+			//			io_callback_t callback = i8042_data_io_handler in nemu/src/device/keyboard.c
+
+i8042_data_io_handler(offset, len, is_write)
+	assert(offset == 0)
+	assert(is_write == 0)
+	i8042_data_port_base[0] = key_dequeue()
+
+
+
+
+6.4 VGA
+init_device() in nemu/src/device/device.c
+	if VGA exists:
+	init_vga() in nemu/src/device/vga.c
+		vgactl_port_base = new_space(8)// 8个32bit
+		add_mmio_map(CONFIG_VGA_CTL_MMIO) in src/device/io/mmio.c
+			low = 0xa000_0100, high = 0xa000_0107, callback = NULL
+		add_mmio_map(CONFIG_FB_ADDR) in src/device/io/mmio.c
+            low = 0xa000_0000, high = 0xa000_00ff, callback = NULL
+
+
+
+
+
+
+
+7.1 from printf() in am-kernels/tests/cpu-tests/tests/hello-str.c to inst:
+
+/************************************** from c code to inst via AM *********************************/
+printf() in ab-m/klib/stdio.c
+	putch() in ab-m/am/src/platform/nemu/trm.c
+		outb(SERIAL_PORT, ch) in ab-m/src/riscv/riscv.h
+
+		then outb() will be translated into inst, which will be executed by NEMU
+/***************************************************************************************************/
+		
+
+/************************************* inst executing via NEMU *************************************/
+		paddr_write(SERIAL_PORT, 1, ch) in nemu/src/memory/paddr.c
+			mmio_write(SERIAL_PORT, 1, ch) in nemu/src/device/io/mmio.c
+				fetch_mmio_map(addr) in nemu/src/device/io/mmio.c
+					find_mapid_by_addr() in nemu/include/device/map.h
+				map_write(SERIAL_PORT, 1, ch, fetch_mmio_map(addr)) in nemu/src/device/io/map.c
+					//the ret of temp = fetch_mmio_map() is *IOMap-type or NULL
+                    //temp->low = 0xa000_03f8, temp->high = 0xa000_03ff
+                    //temp->space = ...(real addr malloc), temp->callback = serial_io_handler;
+					check_bound(map,addr)
+                    offset = addr - temp->low = 0, len = 1
+                    temp->callback(0, 1, true) // aka serial_io_handler(0, 1, true)
+                    host_write(map->space + offset, len)
+                    (note that map->space and pmem stand alone)
+/***************************************************************************************************/
+
+
+
+
+7.2 from io_read() in am-kernels/tests/am-tests/src/tests/rtc.c to inst:
+
+/************************************* from c code to inst via AM **********************************/
+io_read(AM_TIMER_UPTIME) in ab-m/klib/include/klib-macro.h
+AM_TIMER_UPTIME is defined to be 6 in ab-m/include/amdev.h
+AM_TIMER_UPTIME_T is defined in ab-m/am/include/amdev.h
+	ioe_read(AM_TIMER_UPTIME, (AM_TIMER_UPTIME_T) __io_param) //return __io_param;
+	in ab-m/am/src/platform/nemu/ioe/ioe.c
+		__am_timer_uptime(__io_param) in ab-m/am/src/platform/nemu/ioe/timer.c
+			us_high = inl(RTC_ADDR + 4) in ab-m/src/riscv/riscv.h
+			us_low = inl(RTC_ADDR)
+			//RTC_ADDR defined in ab-m/am/src/platform/nemu/include/nemu.h
+			__io_param = ((uint64_t)us_high) << 32 | us_low 视为io_read()的返回值
+
+			then inl() will be translated into inst, which will be executed by NEMU
+/***************************************************************************************************/
+
+
+
+/************************************** inst executing via NEMU ************************************/
+			paddr_read(RTC_ADDR + 4, 4) in nemu/src/memory/paddr.c
+				mmio_read(RTC_ADDR + 4, 4) in nemu/src/device/io/mmio.c
+            		fetch_mmio_map(addr) in nemu/src/device/io/mmio.c
+                		find_mapid_by_addr() in nemu/include/device/map.h
+            		map_read(RTC_ADDR + 4, 4, fetch_mmio_map(addr)) in nemu/src/device/io/map.c
+                		//the ret of temp = fetch_mmio_map() is *IOMap-type or NULL
+                		//temp->low = 0xa000_0048, temp->high = 0xa000_004f
+                		//temp->space = ...(real addr malloc), temp->callback = rtc_io_handler;
+                		check_bound(map,addr)
+                		offset = addr - temp->low = 4, len = 4
+                		temp->callback(4, 4, false) // aka rtc_io_handler(4, 4, false)
+                		ret = host_read(map->space + offset, len)
+						//first write write rtc_port_base, then read rtc_port_base, ultimately 
+						//return the result of get_time() in rtc_io_handler
+                		(note that map->space and pmem stand alone)
+/***************************************************************************************************/
+
+
+
+
+7.2 from io_read() in am-kernels/tests/am-tests/src/tests/keyboard.c to inst:
+AM_INPUT_KEYBOARD_T ev = io_read(AM_INPUT_KEYBRD)
+	......
+	__am_input_keybrd() in ab-m/am/src/platform/nemu/ioe/input.c
+		inl(KBD_ADDR)
+			该函数会被翻译成汇编指令进行虚拟内存访问，最终调用：
+				i8402_data_io_handler() in nemu/src/device/keyboard.c
+				该函数向虚拟内存地址(i8042_data_port_base)中写入了 0x80?? 或者 0x80??
+				其中??表示键码，例如键盘按下escape键，则?? = NEMU_KEY_ESCAPE
+
+			然后inl函数返回虚拟内存i8042_data_port_base中的数据，亦即键码，记为scancode
+		
+		ev.keydown = 0/1;
+		ev.keycode = scancode[7:0]/AM_KEY_NONE 	(注意scancode本身为16位，最高位为掩码，1代表按下)
+
+继续分析键码，进行结果显示...
+
+
+
+
+
+8.
+heap is defined in ab-m/am/src/platform/nemu/trm.c
+	Area is defined in am/include/am.h
+	_heap_start is defined in am-b/scripts/linker.ld
+	PMEM_END is defined in ab-m/am/src/platform/nemu/include/nemu.h
+		_pmem_start is defined in ab-m/scripts/platform/nemu.mk
+		PMEM_SIZE is defined in ab-m/am/src/platform/nemu/include/nemu.h
+
+through test(hello-str.c), heap.start = 0x8000_9000 and heap.end = 0x8800_0000
+
+
+----------------------------------------------------------------------------
+short notes:
+(1) obxxx is enabled in GNU c
+
+(2) ":" in struct is used for bit separation
+
+(3) how to refer to an array defined in some other .c file:
+	//in a.c:
+	int a[] = {1,2,3,4};
+	//in b.c
+	extern int a[];
+	a[2] = 0;	
+
+(4) initialization of a pointer/array:
+int *a = {}; //incorrect
+int a[3] = {};//correct
+
+
+(5) outside of function:
+int a = 1; //correct, a as global variable
+int b = a; //incorrect, initializer element is not constant
+
+------------------------------------------------------------------------------
+
+10.exception and exit of NEMU:
+
+when inst ebreak is executed, the nemu state will be updated to NEMU_STOP;
+macro NEMU_TRAP and INV are defined //in include/cpu/cpu.h
+NEMUTRAP(s->pc, R(10)) //in src/isa/riscv32/inst.c
+	set_nemu_state(NEMU_END, s->pc, R(10)) //in src/engine/interpreter/hostcall.c
+		nemu_state.state = NEMU_END
+		nemu_state.halt_pc = s->pc
+		nemu_state.halt_ret = R(10)
+
+
+how NEMU deals with invalid code //in src/engine/interpreter/hostcall.c
+meanwhile the nemu state will be updated to NEMU_ABORT
+
+
+how NEMU deals with memory-out-of-boundary //in src/memory/paddr.c
+panic()  in include/debug.h
+	Assert() in include/debug.h
+		assert_fail_msg() in src/cpu/cpu-exec.c
+			//print data in all of the regs
+			statistics() in src/cpu/cpu-exec.c
+		assert(0) //exit the program
+
+
+
+11.the implementation of mtrace:
+a. define struct mtrace in include/memory/paddr.h
+b. define mtrace m_tracer[50] in src/memory/paddr.c
+c. modify Kconfig to add mtrace option
+
+
+
+
+12.Event is defined in $AM_HOME/am/include/am.h
+ Context is defined in $AM_HOME/am/include/arch/riscv.h
+
+how hello-intr is implemented:
+CASE('i', hello_intr, IOE, CTE(simple_trap)) in $KERNEL_HOME/tests/am-tests/src/main.c
+macro CASE, IOE and CTE is defined in $KERNEL_HOME/tests/am-tests/include/amtest.h
+equal to:{
+	void hello_intr();//defined in $KERNEL_HOME/tests/am-tests/src/tests/intr.c
+	entry = hello_intr;//entry is defined as void (*entry)();
+	ioe_init();
+	Context* simple_trap(Event, Context*);//defined in intr.c
+	cte_init(simple_trap);//defined in $AM_HOME/am/src/riscv/nemu/cte.c
+		asm volatile("csrw mtvec, %0" : : "r"(__am_asm_trap));//defined in trap.S
+			内联汇编指令展开后会涉及到__am_irq_handle;//defined in cte.c
+			其中涉及到user_handler
+		user_handler = simple_trap;
+
+	hello_intr();
+		while(1){
+			io_read();//to get the keycode
+			yield();//defined in $AM_HOME/am/src/riscv/nemu/cte.c
+				asm volatile("li a5, -1; ecall");
+		}
+}
+
+
+
+cte_init()作用：将__am_asm_trap的起始地址放入mtvec寄存器
+	__am_asm_trap的功能：
+	将所有寄存器的值存入内存
+	读取mcause、mstatus、mepc寄存器的值存入t0-t2寄存器
+	跳转执行__am_irq_handler函数内容
+	将t0-t2寄存器的值写入mcause、mstatus、mepc寄存器
+	从内存中读取所有寄存器的值
+
+yield()函数作用：
+	调用isa_raise_intr函数，defined in $NEMU_HOME/src/isa/riscv32/system/intr.c
+		sr[mcause] = NO;
+		sr[epc] = epc;
+	执行ecall指令，跳转到mtvec寄存器所存地址处
+

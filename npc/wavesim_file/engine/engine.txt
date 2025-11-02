@@ -1,0 +1,107 @@
+#include "engine.h"
+
+
+extern bool is_simulating;
+
+
+void init_engine(Vysyx_23060229_top* top, VerilatedVcdC* m_trace, uint64_t* sim_time){
+    printf("-------------------------init_engine-------------------------\n");
+    printf("Engine resetting ...\n");
+	top -> clk = 0; top -> rst = 1;
+
+    while(*sim_time <= 7){
+        //printf("sim_time: %d\n",sim_time);
+        top -> clk = !top -> clk;
+        if(*sim_time == 7)
+            top -> rst = 0;
+        //after the posedge has come
+        if(top -> clk){
+
+            top -> eval();//very important and indispensable;
+                          //to simulate the combinational circuit of mem-reading
+            //step1: fetch instruction
+            top -> inst = pmem_read(top -> pc, 4);
+            printf("pc: %#8.8x  inst: %#8.8x\n", top->pc,top->inst);
+            //top -> eval();
+
+
+            top -> eval();//very important and indispensable
+                          //to simulate the combinational circuit of mem-reading
+            //step2: read mem
+            if(top -> mem_rd_quest){
+                top -> data_from_mem = pmem_read(top -> src1 + top -> imm, top -> mem_rd_quest);
+                printf("data_from_mem: %#8.8x\n", top->data_from_mem);
+            }
+
+            //step3: write mem
+            if(top -> mem_wr_quest){
+                pmem_write(top -> src1 + top -> imm, top -> mem_wr_quest, top -> data_to_mem);
+                printf("data_to_mem: %#8.8x\n", top->data_to_mem);
+            }
+
+        }
+
+        top -> eval();
+        m_trace -> dump(*sim_time);
+        (*sim_time)++;
+    }
+	update_reg(top);
+    printf("-------------------------init_engine-------------------------\n");
+}
+
+
+
+
+
+void exec_once(Vysyx_23060229_top* top, VerilatedVcdC* m_trace, uint64_t* sim_time){
+
+	if(!is_simulating){
+		printf("Simulation has ended...\n");
+		return;
+	}
+    //print the previous inst having been decoded
+    printf("pc: %#8.8x  inst: %#8.8x\n", top->pc,top->inst);
+
+    top -> clk = 1;
+    top -> eval();//very important and indispensable;
+                  //to simulate the combinational circuit of mem-reading
+
+    //step1: fetch new inst
+    top -> inst = pmem_read(top -> pc, 4);
+
+
+    top -> eval();//very important and indispensable
+                  //to simulate the combinational circuit of mem-reading
+    //step2: read mem according to the new inst
+    if(top -> mem_rd_quest){
+        top -> data_from_mem = pmem_read(top -> src1 + top -> imm, top -> mem_rd_quest);
+        //printf("data_from_mem: %#8.8x\n", top->data_from_mem);
+    }
+
+
+    //step3: write mem according to the last inst
+    if(top -> mem_wr_quest){
+        pmem_write(top -> src1 + top -> imm, top -> mem_wr_quest, top -> data_to_mem);
+        //printf("data_to_mem: %#8.8x\n", top->data_to_mem);
+    }
+
+    top -> eval(); m_trace -> dump(*sim_time); (*sim_time)++;
+    top -> clk = 0;
+    top -> eval(); m_trace -> dump(*sim_time); (*sim_time)++;
+	update_reg(top);
+}
+
+
+
+
+void exec_engine(Vysyx_23060229_top* top, VerilatedVcdC* m_trace, uint64_t* sim_time, uint32_t no_inst){
+	for(uint32_t i = 0; i < no_inst; i++){
+		if(is_simulating)
+			exec_once(top, m_trace, sim_time);
+		else{
+			printf("Simulation has ended... \n");
+			break;
+		}
+	}
+}
+

@@ -1,0 +1,41 @@
+/*top -> clk = 0; top -> rst = 1;
+    
+    while(sim_time < MAX_SIM_TIME){
+        printf("sim_time: %d\n",sim_time);
+        top -> clk = !top -> clk;
+        if(sim_time == 7)
+            top -> rst = 0;
+        //after the posedge has come
+        if(top -> clk){
+            
+            top -> eval();//very important and indispensable;
+                          //to simulate the combinational circuit of mem-reading
+            //step1: fetch instruction
+            top -> inst = pmem_read(top -> pc, 4);
+            printf("pc: %#8.8x  inst: %#8.8x\n", top->pc,top->inst);
+            //top -> eval();
+
+            
+            top -> eval();//very important and indispensable
+                          //to simulate the combinational circuit of mem-reading
+            //step2: read mem
+            if(top -> mem_rd_quest){
+                top -> data_from_mem = pmem_read(top -> src1 + top -> imm, top -> mem_rd_quest);
+                printf("data_from_mem: %#8.8x\n", top->data_from_mem);
+            }
+            
+            //step3: write mem
+            if(top -> mem_wr_quest == 0b01)//write 1 byte to mem
+                pmem_write(top -> src1 + top -> imm, 1, top -> data_to_mem);
+            else if(top -> mem_wr_quest == 0b10)//write 2 bytes to mem
+                pmem_write(top -> src1 + top -> imm, 2, top -> data_to_mem);
+            else if(top -> mem_wr_quest == 0b11){//write 4 bytes to mem
+                printf("aaa:%x, %x\n", top -> src1, top -> imm);
+			}
+        }
+
+        top -> eval();
+        m_trace -> dump(sim_time);
+        ++ sim_time;
+    }*/
+

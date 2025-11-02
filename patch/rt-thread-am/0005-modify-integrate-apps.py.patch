@@ -1,0 +1,24 @@
+From 4e9f042bf98b91684000d8c941388c5b2251f48d Mon Sep 17 00:00:00 2001
+From: NJU_Yang Jiaxin <2098543558@qq.com>
+Date: Mon, 20 Oct 2025 17:12:22 +0800
+Subject: [PATCH 5/5] modify integrate-apps.py
+
+---
+ bsp/abstract-machine/integrate-am-apps.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 16b1d626b..44e76cd98 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -13,6 +13,7 @@ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+   AM_KERNELS_HOME / "kernels" / "demo",
++  AM_KERNELS_HOME / "kernels" / "litenes",
+   #AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+-- 
+2.34.1
+

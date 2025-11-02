@@ -1,0 +1,36 @@
+From b2f33c2c514b604e15cc159c757e4a00582ad5db Mon Sep 17 00:00:00 2001
+From: NJU_Yang Jiaxin <2098543558@qq.com>
+Date: Thu, 2 Oct 2025 10:37:08 +0800
+Subject: [PATCH 2/5] modify rtt/uart.c such that if \0 is encountered, prog
+ will exit
+
+---
+ bsp/abstract-machine/src/uart.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 9082f484c..718980e7f 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  if(*p == '\0') halt(0);
++  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  //return (*p != '\0' ? *(p ++) : -1);
+   //return (int)getch();
+ }
+ 
+-- 
+2.34.1
+

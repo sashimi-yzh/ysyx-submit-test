@@ -1,0 +1,395 @@
+expression: 4
+result 1: 4
+result 2: 4
+test no. 1 passed
+
+expression: 3
+result 1: 3
+result 2: 3
+test no. 2 passed
+
+expression: 2
+result 1: 2
+result 2: 2
+test no. 3 passed
+
+expression: 8
+result 1: 8
+result 2: 8
+test no. 4 passed
+
+expression: 4+9
+result 1: 13
+result 2: 13
+test no. 5 passed
+
+expression: (7+(3))+0-0-(5)+3
+result 1: 8
+result 2: 8
+test no. 6 passed
+
+expression: 0
+result 1: 0
+result 2: 0
+test no. 7 passed
+
+expression: 1
+result 1: 1
+result 2: 1
+test no. 8 passed
+
+expression: (5)
+result 1: 5
+result 2: 5
+test no. 9 passed
+
+expression: (3*3)
+result 1: 9
+result 2: 9
+test no. 10 passed
+
+expression: (0)+(5)
+result 1: 5
+result 2: 5
+test no. 11 passed
+
+expression: ((3))
+result 1: 3
+result 2: 3
+test no. 12 passed
+
+expression: 2
+result 1: 2
+result 2: 2
+test no. 13 passed
+
+expression: 0
+result 1: 0
+result 2: 0
+test no. 14 passed
+
+expression: 9
+result 1: 9
+result 2: 9
+test no. 15 passed
+
+expression: ((1))
+result 1: 1
+result 2: 1
+test no. 16 passed
+
+expression: 0+(3/1)
+result 1: 3
+result 2: 3
+test no. 17 passed
+
+expression: (7-6+((7))*6*(5))
+result 1: 211
+result 2: 211
+test no. 18 passed
+
+expression: (7)
+result 1: 7
+result 2: 7
+test no. 19 passed
+
+expression: 0+1
+result 1: 1
+result 2: 1
+test no. 20 passed
+
+expression: 9
+result 1: 9
+result 2: 9
+test no. 21 passed
+
+expression: ((0))
+result 1: 0
+result 2: 0
+test no. 22 passed
+
+expression: (8-(3))-2
+result 1: 3
+result 2: 3
+test no. 23 passed
+
+expression: 8
+result 1: 8
+result 2: 8
+test no. 24 passed
+
+expression: (2*3)
+result 1: 6
+result 2: 6
+test no. 25 passed
+
+expression: (((7*0*9/9-3-2-2/(7))))
+result 1: 4294967291
+result 2: 4294967291
+test no. 26 passed
+
+expression: 1/7
+result 1: 0
+result 2: 0
+test no. 27 passed
+
+expression: 2
+result 1: 2
+result 2: 2
+test no. 28 passed
+
+expression: 8
+result 1: 8
+result 2: 8
+test no. 29 passed
+
+expression: 4
+result 1: 4
+result 2: 4
+test no. 30 passed
+
+expression: (2)-(2)
+result 1: 0
+result 2: 0
+test no. 31 passed
+
+expression: 1+((((8))/7))
+result 1: 2
+result 2: 2
+test no. 32 passed
+
+expression: 8
+result 1: 8
+result 2: 8
+test no. 33 passed
+
+expression: (7/1/6+9)
+result 1: 10
+result 2: 10
+test no. 34 passed
+
+expression: (0)-(6)
+result 1: 4294967290
+result 2: 4294967290
+test no. 35 passed
+
+expression: 1
+result 1: 1
+result 2: 1
+test no. 36 passed
+
+expression: 0
+result 1: 0
+result 2: 0
+test no. 37 passed
+
+expression: (6)+((4))-7
+result 1: 3
+result 2: 3
+test no. 38 passed
+
+expression: (8+3+3-(3))
+result 1: 11
+result 2: 11
+test no. 39 passed
+
+expression: 0
+result 1: 0
+result 2: 0
+test no. 40 passed
+
+expression: 4+9
+result 1: 13
+result 2: 13
+test no. 41 passed
+
+expression: 9
+result 1: 9
+result 2: 9
+test no. 42 passed
+
+expression: 1
+result 1: 1
+result 2: 1
+test no. 43 passed
+
+expression: 6/((4))/6
+result 1: 0
+result 2: 0
+test no. 44 passed
+
+expression: ((0-9)-4-(3)-5-((0))*8)-7+5*5
+result 1: 4294967293
+result 2: 4294967293
+test no. 45 passed
+
+expression: 1/5+0
+result 1: 0
+result 2: 0
+test no. 46 passed
+
+expression: (3)-6*6-4
+result 1: 4294967259
+result 2: 4294967259
+test no. 47 passed
+
+expression: (4-4-7)
+result 1: 4294967289
+result 2: 4294967289
+test no. 48 passed
+
+expression: (7)*(3)
+result 1: 21
+result 2: 21
+test no. 49 passed
+
+expression: (1)
+result 1: 1
+result 2: 1
+test no. 50 passed
+
+expression: 3-2
+result 1: 1
+result 2: 1
+test no. 51 passed
+
+expression: ((9-3/((2))))
+result 1: 8
+result 2: 8
+test no. 52 passed
+
+expression: 5
+result 1: 5
+result 2: 5
+test no. 53 passed
+
+expression: 7/6+8*6*9
+result 1: 433
+result 2: 433
+test no. 54 passed
+
+expression: (9)
+result 1: 9
+result 2: 9
+test no. 55 passed
+
+expression: 5
+result 1: 5
+result 2: 5
+test no. 56 passed
+
+expression: 8
+result 1: 8
+result 2: 8
+test no. 57 passed
+
+expression: 5
+result 1: 5
+result 2: 5
+test no. 58 passed
+
+expression: (4)
+result 1: 4
+result 2: 4
+test no. 59 passed
+
+expression: 2
+result 1: 2
+result 2: 2
+test no. 60 passed
+
+expression: 5
+result 1: 5
+result 2: 5
+test no. 61 passed
+
+expression: 4
+result 1: 4
+result 2: 4
+test no. 62 passed
+
+expression: 3
+result 1: 3
+result 2: 3
+test no. 63 passed
+
+expression: 8
+result 1: 8
+result 2: 8
+test no. 64 passed
+
+expression: 0
+result 1: 0
+result 2: 0
+test no. 65 passed
+
+expression: (2*(3)-((8*5+2*(5)/(4)+6)))*4
+result 1: 4294967128
+result 2: 4294967128
+test no. 66 passed
+
+expression: (6*6)
+result 1: 36
+result 2: 36
+test no. 67 passed
+
+expression: 0
+result 1: 0
+result 2: 0
+test no. 68 passed
+
+expression: 6
+result 1: 6
+result 2: 6
+test no. 69 passed
+
+expression: 1
+result 1: 1
+result 2: 1
+test no. 70 passed
+
+expression: 6*0-3-6*0
+result 1: 4294967293
+result 2: 4294967293
+test no. 71 passed
+
+expression: 8
+result 1: 8
+result 2: 8
+test no. 72 passed
+
+expression: 6
+result 1: 6
+result 2: 6
+test no. 73 passed
+
+expression: 6
+result 1: 6
+result 2: 6
+test no. 74 passed
+
+expression: 2-3
+result 1: 4294967295
+result 2: 4294967295
+test no. 75 passed
+
+expression: 8-5
+result 1: 3
+result 2: 3
+test no. 76 passed
+
+expression: (8)/9-2*6
+result 1: 4294967284
+result 2: 4294967284
+test no. 77 passed
+
+expression: 6/(9)
+result 1: 0
+result 2: 0
+test no. 78 passed
+
+expression: (8)
+result 1: 8
+result 2: 8
+test no. 79 passed
+

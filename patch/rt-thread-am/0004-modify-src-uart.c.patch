@@ -1,0 +1,26 @@
+From df25cabe6f59fedb1dfa132ca0235c12a7dc6356 Mon Sep 17 00:00:00 2001
+From: NJU_Yang Jiaxin <2098543558@qq.com>
+Date: Mon, 20 Oct 2025 16:07:04 +0800
+Subject: [PATCH 4/5] modify src/uart.c
+
+---
+ bsp/abstract-machine/src/uart.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 7cabe5aa4..c4eee2a47 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -40,7 +40,8 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   //if(*p == '\0') halt(0);
+-  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  //return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  return (*p != '\0' ? *(p ++) : getch());//避免nemu没有定义串口
+   //return (*p != '\0' ? *(p ++) : -1);
+   //return (int)getch();
+   //return io_read(AM_UART_RX).data;
+-- 
+2.34.1
+

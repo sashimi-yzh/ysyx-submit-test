@@ -1,0 +1,192 @@
+mainmenu "ysyxSOC Configuration Menu"
+
+choice
+	prompt "Select ROM Type"
+	default FLASH if FLASH_AVAILABLE
+	default MROM if MROM_AVAILABLE
+	config FLASH
+		bool "Flash: 0x30000000 - 0x3fffffff"
+		help
+			Flash: 	Total Storage: 		0x3000_0000 - 0x3fff_ffff, 256MB
+					Available Storage:	0x3000_0000 - 0x30ff_ffff, 16MB
+			Note: Modify $AM_HOME/am/src/riscv/ysyxsoc/linker.ld to apply Flash!
+	config MROM
+		bool "MROM:  0x20000000 - 0x20000fff"
+		help
+			MROM:  	Total Storage:      0x2000_0000 - 0x2000_0fff, 4KB
+					Available Storage:  0x2000_0000 - 0x2000_0fff, 4KB
+			Note: Modify $AM_HOME/am/src/riscv/ysyxsoc/linker.ld to apply MROM!
+
+endchoice
+
+config FLASH_AVAILABLE
+	bool
+	default y
+config MROM_AVAILABLE
+	bool
+	default n
+
+choice
+	prompt "Flash Access Mode"
+	depends on FLASH
+	default XIP if XIP_AVAILABLE
+	default FAST_FLASH if FAST_FLASH_AVAILABLE
+	config XIP
+		bool "eXecute In Place(SPI)"
+	config FAST_FLASH
+		bool "Fast Access(non-SPI)"
+endchoice
+
+config XIP_AVAILABLE
+	bool
+	default y
+config FAST_FLASH_AVAILABLE
+	bool
+	default n
+
+choice
+	prompt "Select RAM Type"
+	#default SRAM if SRAM_AVAILABLE
+	default PSRAM if PSRAM_AVAILABLE
+	default SDRAM if SDRAM_AVAILABLE
+	#config SRAM
+		#bool "SRAM:  0x0f000000 - 0x0f001fff"
+		#help
+		#	SRAM:  	Total Storage:      0x0f00_0000 - 0x0f00_1fff, 8KB
+		#			Available Storage:  0x0f00_0000 - 0x0f00_1fff, 8KB
+		#	Note: Modify $AM_HOME/am/src/riscv/ysyxsoc/linker.ld to apply SRAM!
+	config PSRAM
+		bool "PSRAM: 0x80000000 - 0x803fffff"
+		help
+			PSRAM:  Total Storage:      0x8000_0000 - 0x9fff_ffff, 512MB
+					Available Storage:  0x8000_0000 - 0x803f_ffff, 4MB
+			Note: Modify $AM_HOME/am/src/riscv/ysyxsoc/linker.ld to apply PSRAM!
+	config SDRAM
+		bool "SDRAM: 0xa0000000 - 0xa1ffffff"
+		help
+			SDRAM:  Total Storage:      0xa000_0000 - 0xbfff_ffff, 512MB
+					Available Storage:  0xa000_0000 - 0xa1ff_ffff, 32MB
+			Note: Modify $AM_HOME/am/src/riscv/ysyxsoc/linker.ld to apply SDRAM!
+endchoice
+
+
+#config SRAM_AVAILABLE
+#	bool
+#	default n
+config PSRAM_AVAILABLE
+	bool 
+	default y
+config SDRAM_AVAILABLE
+	bool
+	default n
+
+
+
+config ICACHE
+    bool "Icache Configuration"
+    default y
+	help
+      This option enables the ICache configuration menu.
+ 
+ 
+config N
+   	int "ICache Parameter N (block num = 2^N)"
+   	range 1 10
+   	default 3
+   	depends on ICACHE
+	help
+		Bit width for index(num of blocks). Valid values are 2, 3, 4, and 5.
+ 
+config M
+    int "ICache Parameter M (block size = 2^M)"
+    range 2 10
+    default 4
+    depends on ICACHE
+	help
+		Bit width for offset(block size). Valid values are 2, 3, 4, and 5.
+
+
+
+
+#config DEVICES
+#	bool "Devices"
+#	default y
+
+#if DEVICES
+#menu "Device Configuration"
+
+#config SERIAL
+#	bool "Serial"
+#	default y
+#	depends on DEVICES
+#config TIMER
+#	bool "Timer"
+#	default y
+#	depends on DEVICES
+#config KEYBOARD
+#	bool "Keyboard"
+#	default y
+#	depends on DEVICES
+#config GPU
+#	bool "GPU"
+#	default y
+#	depends on DEVICES
+
+#endmenu
+#endif
+
+
+config CALIB_AXI4
+	bool "Calibration of Memory Access(AXI4)"
+	default y
+
+config CALIB_APB
+    bool "Calibration of Memory Access(APB)"
+    default y
+
+config STAT
+    bool "Enable Statistics"
+    default y
+
+config WAVEREC
+	bool "Enable Wave Record"
+	default y
+
+config NVBOARD
+	bool "Enable Nvboard"
+	default y
+
+config SDB
+	bool "Enable SDB"
+	default y
+
+config PRINT_INST
+	bool "Print instructions"
+	default y
+	depends on SDB
+config MAX_NO_INST
+	int "Max number of inst to print"
+	range 5 50
+	default 10
+	depends on PRINT_INST
+
+config ITRACE
+	bool "Enable Itrace"
+	default y
+config MTRACE
+	bool "Enable Mtrace"
+	default y
+config DTRACE
+	bool "Enable Dtrace"
+	default y
+config FTRACE
+	bool "Enable Ftrace"
+	default y
+config ETRACE
+	bool "Enable Etrace"
+	default y
+	
+config WP
+	bool "Enable Watchpoint"
+	default y
+

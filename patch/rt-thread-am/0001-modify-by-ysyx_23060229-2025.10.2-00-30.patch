@@ -1,0 +1,244 @@
+From ad906feb144b6ece91f13259a37eacf5edcde6a7 Mon Sep 17 00:00:00 2001
+From: NJU_Yang Jiaxin <2098543558@qq.com>
+Date: Thu, 2 Oct 2025 00:30:02 +0800
+Subject: [PATCH 1/5] modify by ysyx_23060229 @ 2025.10.2 00:30
+
+---
+ bsp/abstract-machine/Makefile             |   4 +
+ bsp/abstract-machine/extra.ld             |   2 +
+ bsp/abstract-machine/integrate-am-apps.py |   4 +-
+ bsp/abstract-machine/src/context.c        | 139 ++++++++++++++++++++--
+ bsp/abstract-machine/src/uart.c           |   1 +
+ 5 files changed, 140 insertions(+), 10 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..4a93ee611 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,11 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
++
++ifneq ($(ARCH), riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
++endif
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..39550b2cf 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,3 +1,4 @@
++
+ SECTIONS {
+   .data.extra : {
+     /* section information for finsh shell */
+@@ -31,6 +32,7 @@ SECTIONS {
+ }
+ INSERT BEFORE .data;
+ 
++
+ SECTIONS {
+   .bss.extra : {
+     . = ALIGN(8);
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df387..16b1d626b 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -8,10 +8,12 @@ AM_HOME = Path(os.environ["AM_HOME"])
+ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
++  AM_KERNELS_HOME / "tests" / "am-tests",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++  AM_KERNELS_HOME / "kernels" / "demo",
++  #AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..22a484bdc 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,30 +2,151 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++//rt_ubase_t global_from = 0;
++//rt_ubase_t global_to = 0;
++
++
++typedef struct to_from{
++	rt_ubase_t to;
++	rt_ubase_t from;
++} TF;
++
++
+ static Context* ev_handler(Event e, Context *c) {
+-  switch (e.event) {
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+-  }
+-  return c;
++	Context* Cpret = NULL;
++	switch (e.event) {
++		case EVENT_YIELD: {
++			//Cpret = *((Context**)global_to);//global_to二级指针解引用为一级指针
++			
++			//首先从user_data中获取数据，这是一个TF*类型数据，于是从中获得to的数值，
++			//而to是一个Context类型的二级指针，因而将它解引用，并将其内容赋值给Cpret
++			Cpret = *((Context**)(((TF*)(rt_thread_self() -> user_data)) -> to));
++
++
++			//同上，只不过需要先检查from是否为0(NULL)
++			if(((TF*)(rt_thread_self() -> user_data)) -> from)
++				*((Context**)(((TF*)(rt_thread_self() -> user_data)) -> from)) = c;
++
++			//if(global_from)
++			//	*((Context**)global_from) = c;//global_from若不为空则解引用为一级指针
++			
++			break;
++		}
++		case EVENT_IRQ_TIMER: return c;
++    	default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++  	}
++  	return Cpret;
+ }
+ 
++
+ void __am_cte_init() {
+-  cte_init(ev_handler);
++	cte_init(ev_handler);
+ }
+ 
++
++
++
++
++//切换到to线程，但要保证当前线程不被破坏
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++	//global_to = to;
++	rt_thread_t pcb = rt_thread_self();
++	rt_ubase_t tmp = pcb -> user_data;
++	
++	//在当前线程的栈上创建临时变量
++	TF tf_data = {.to = to, .from = 0};
++	pcb -> user_data = (rt_ubase_t)(&tf_data);
++	
++	yield();
++	
++	pcb -> user_data = tmp;
+ }
+ 
++
++
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++	//printf("------------from 1  %x--------------\n",from);
++	//global_from = from;
++	//global_to = to;
++	rt_thread_t pcb = rt_thread_self();
++	rt_ubase_t tmp = pcb -> user_data;
++	
++	//在当前线程的栈上创建临时变量
++	TF tf_data = {.to = to, .from = from};
++	pcb -> user_data = (rt_ubase_t)(&tf_data);
++	
++	yield();
++	
++	pcb -> user_data = tmp;
+ }
+ 
++
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++
++//void twrap(void* tentry, void* parameter, void* texit){
++	//void(*tmp1)(void*) = (void(*)(void*))tentry;
++	//tmp1(parameter);
++	//void(*tmp2)(void) = (void(*)(void))texit;
++	//tmp2();
++	//( (void(*)(void*)) tentry) (parameter);
++	//( (void(*)(void)) texit) ();
++//}
++
++
++typedef struct arg{
++	//void (*func1) (void*);
++	void* func1;
++	void* arg1;
++	void* func2;
++	//void (*func2) (void);
++} Arg;
++
++
++
++//传入的为arg地址
++void twrap(void* myarg){
++	Arg* arg = (Arg*)myarg;
++	void(*tentry)(void*) = arg -> func1;
++	void* parameter = arg -> arg1;
++	void(*texit)(void) = arg -> func2;
++	//printf("the addr of myarg: %x\n",arg);
++	//printf("#####: %x\n",*arg);
++	//printf("the addr of myarg.func1: %x   myarg.func1: %x\n",&(arg -> func1), arg -> func1);
++    //printf("the addr of myarg.arg1: %x   myarg.arg1: %x\n",&(arg -> arg1), arg -> arg1);
++    //printf("the addr of myarg.func2: %x   myarg.func2: %x\n",&(arg -> func2), arg -> func2);
++	
++	tentry(parameter);
++	texit();
++	
++	//必须先将arg的成员变量单独取出然后存起来，不可使用下面这种语句直接调用函数，否则在函数
++	//执行过程中可能导致堆栈破坏（如执行arg->func1的时候把arg->func2给破坏了）
++	//( (void(*)(void*)) arg -> func1) (arg -> arg1);
++    //( (void(*)(void)) arg -> func2) ();
++
++
++}
++
++
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  
++	//将输入的stack_addr向下四字节对齐(由于stack_addr为栈底高地址)
++	stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr / sizeof(uintptr_t) * sizeof(uintptr_t));
++ 	
++	Arg* arg = (Arg*)((uintptr_t)stack_addr - sizeof(Context) - sizeof(Arg));
++	arg -> func1 = tentry; arg -> arg1 = parameter; arg -> func2 = texit;
++
++	Context* Cptr = kcontext((Area){0, stack_addr}, twrap, (void*)arg);
++	
++	//printf("the addr of Cptr: %x\n",Cptr);
++	//printf("the addr of &arg: %x\n",arg);
++	//printf("the addr of arg.func1: %x   arg.func1: %x\n",&(arg -> func1), arg -> func1);
++	//printf("the addr of arg.arg1: %x   arg.arg1: %x\n",&(arg -> arg1), arg -> arg1);
++	//printf("the addr of arg.func2: %x   arg.func2: %x\n",&(arg -> func2), arg -> func2);
++
++	return (rt_uint8_t*)Cptr;
++	//实际上，出栈后紧接着就通过mret去执行Cptr->mepc,因而立刻取到a0-a2三个参数
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..9082f484c 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -39,6 +39,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   return (*p != '\0' ? *(p ++) : -1);
++  //return (int)getch();
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+
