@@ -1,0 +1,345 @@
+From de6ab62722fb53ed607a2d90750d66d72643d6dd Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Sun, 13 Jul 2025 16:46:32 +0800
+Subject: [PATCH 16/21] =?UTF-8?q?=E6=A0=A1=E5=87=86axi=E5=BB=B6=E8=BF=9F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .metals/metals.lock.db    |   6 +-
+ .metals/metals.log        |   5 ++
+ .metals/metals.mv.db      | Bin 57344 -> 57344 bytes
+ perip/amba/axi4_delayer.v | 148 +++++++++++++++++++++++++++++---------
+ 4 files changed, 123 insertions(+), 36 deletions(-)
+
+diff --git a/.metals/metals.lock.db b/.metals/metals.lock.db
+index bce088a..f875d69 100644
+--- a/.metals/metals.lock.db
++++ b/.metals/metals.lock.db
+@@ -1,6 +1,6 @@
+ #FileLock
+-#Wed Jul 09 11:38:35 CST 2025
+-server=localhost\:42973
++#Sun Jul 13 15:49:48 CST 2025
++server=localhost\:46155
+ hostName=localhost
+ method=file
+-id=197ed438a2a9babbc914b60f0c1975f3585ad73b3a1
++id=19802c2f874f4f856815081c4336fdc3c767360998f
+diff --git a/.metals/metals.log b/.metals/metals.log
+index 8fa4c3f..574582a 100644
+--- a/.metals/metals.log
++++ b/.metals/metals.log
+@@ -1631,3 +1631,8 @@ org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequ
+ 2025.07.09 11:38:34 INFO  Started: Metals version 1.6.0 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
+ Jul 09, 2025 5:01:21 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
+ INFO: Unsupported notification method: $/setTrace
++2025.07.12 22:29:01 INFO  Started: Metals version 1.6.0 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++2025.07.13 14:16:34 INFO  Shutting down server
++2025.07.13 14:16:34 INFO  shutting down Metals
++2025.07.13 14:16:34 INFO  Exiting server
++2025.07.13 15:49:46 INFO  Started: Metals version 1.6.0 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
+diff --git a/.metals/metals.mv.db b/.metals/metals.mv.db
+index 76688ad576b7485aaa03a7f103e6a240d4e6f082..6c0b8c402a5a391382617adecff222b66018a605 100644
+GIT binary patch
+delta 6281
+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
+RzXdmhmT$!}nx&Fd{2x`=DkuN|
+
+delta 6003
+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
+C%fFNW
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803..4af883a 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -2,6 +2,7 @@ module axi4_delayer(
+   input         clock,
+   input         reset,
+ 
++  // 上游接口 (CPU侧)
+   output        in_arready,
+   input         in_arvalid,
+   input  [3:0]  in_arid,
+@@ -9,12 +10,14 @@ module axi4_delayer(
+   input  [7:0]  in_arlen,
+   input  [2:0]  in_arsize,
+   input  [1:0]  in_arburst,
++  
+   input         in_rready,
+   output        in_rvalid,
+   output [3:0]  in_rid,
+   output [31:0] in_rdata,
+   output [1:0]  in_rresp,
+   output        in_rlast,
++  
+   output        in_awready,
+   input         in_awvalid,
+   input  [3:0]  in_awid,
+@@ -22,16 +25,19 @@ module axi4_delayer(
+   input  [7:0]  in_awlen,
+   input  [2:0]  in_awsize,
+   input  [1:0]  in_awburst,
++  
+   output        in_wready,
+   input         in_wvalid,
+   input  [31:0] in_wdata,
+   input  [3:0]  in_wstrb,
+   input         in_wlast,
+-                in_bready,
++  
++  input         in_bready,
+   output        in_bvalid,
+   output [3:0]  in_bid,
+   output [1:0]  in_bresp,
+ 
++  // 下游接口 (设备侧)
+   input         out_arready,
+   output        out_arvalid,
+   output [3:0]  out_arid,
+@@ -39,12 +45,14 @@ module axi4_delayer(
+   output [7:0]  out_arlen,
+   output [2:0]  out_arsize,
+   output [1:0]  out_arburst,
++  
+   output        out_rready,
+   input         out_rvalid,
+   input  [3:0]  out_rid,
+   input  [31:0] out_rdata,
+   input  [1:0]  out_rresp,
+   input         out_rlast,
++  
+   input         out_awready,
+   output        out_awvalid,
+   output [3:0]  out_awid,
+@@ -52,45 +60,119 @@ module axi4_delayer(
+   output [7:0]  out_awlen,
+   output [2:0]  out_awsize,
+   output [1:0]  out_awburst,
++  
+   input         out_wready,
+   output        out_wvalid,
+   output [31:0] out_wdata,
+   output [3:0]  out_wstrb,
+   output        out_wlast,
+-                out_bready,
++  
++  output        out_bready,
+   input         out_bvalid,
+   input  [3:0]  out_bid,
+   input  [1:0]  out_bresp
+ );
+ 
+-  assign in_arready = out_arready;
+-  assign out_arvalid = in_arvalid;
+-  assign out_arid = in_arid;
+-  assign out_araddr = in_araddr;
+-  assign out_arlen = in_arlen;
+-  assign out_arsize = in_arsize;
+-  assign out_arburst = in_arburst;
+-  assign out_rready = in_rready;
+-  assign in_rvalid = out_rvalid;
+-  assign in_rid = out_rid;
+-  assign in_rdata = out_rdata;
+-  assign in_rresp = out_rresp;
+-  assign in_rlast = out_rlast;
+-  assign in_awready = out_awready;
+-  assign out_awvalid = in_awvalid;
+-  assign out_awid = in_awid;
+-  assign out_awaddr = in_awaddr;
+-  assign out_awlen = in_awlen;
+-  assign out_awsize = in_awsize;
+-  assign out_awburst = in_awburst;
+-  assign in_wready = out_wready;
+-  assign out_wvalid = in_wvalid;
+-  assign out_wdata = in_wdata;
+-  assign out_wstrb = in_wstrb;
+-  assign out_wlast = in_wlast;
+-  assign out_bready = in_bready;
+-  assign in_bvalid = out_bvalid;
+-  assign in_bid = out_bid;
+-  assign in_bresp = out_bresp;
+-
+-endmodule
++// 延迟参数 (可配置)
++parameter R = 3;
++
++//--------------------------------------------------------------------------
++// AR通道 (直接透传)
++//--------------------------------------------------------------------------
++assign out_arvalid = in_arvalid;
++assign out_arid    = in_arid;
++assign out_araddr  = in_araddr;
++assign out_arlen   = in_arlen;
++assign out_arsize  = in_arsize;
++assign out_arburst = in_arburst;
++assign in_arready  = out_arready;
++
++//--------------------------------------------------------------------------
++// AW通道 (直接透传)
++//--------------------------------------------------------------------------
++assign out_awvalid = in_awvalid;
++assign out_awid    = in_awid;
++assign out_awaddr  = in_awaddr;
++assign out_awlen   = in_awlen;
++assign out_awsize  = in_awsize;
++assign out_awburst = in_awburst;
++assign in_awready  = out_awready;
++
++//--------------------------------------------------------------------------
++// W通道 (直接透传)
++//--------------------------------------------------------------------------
++assign out_wvalid = in_wvalid;
++assign out_wdata  = in_wdata;
++assign out_wstrb  = in_wstrb;
++assign out_wlast  = in_wlast;
++assign in_wready  = out_wready;
++
++//--------------------------------------------------------------------------
++// R通道延迟逻辑 (3级流水线)
++//--------------------------------------------------------------------------
++reg [2:0]  r_stage_valid;
++reg [2:0][3:0]  r_stage_id;
++reg [2:0][31:0] r_stage_data;
++reg [2:0][1:0]  r_stage_resp;
++reg [2:0]       r_stage_last;
++
++// 流水线控制信号
++wire r_shift = in_rready || !r_stage_valid[2];
++
++always @(posedge clock) begin
++  if (reset) begin
++    r_stage_valid <= 3'b0;
++  end else begin
++    if (r_shift) begin
++      // 数据在流水线中移动
++      r_stage_valid <= {r_stage_valid[1:0], out_rvalid && out_rready};
++      r_stage_id    <= {r_stage_id[1:0],    out_rid};
++      r_stage_data  <= {r_stage_data[1:0],  out_rdata};
++      r_stage_resp  <= {r_stage_resp[1:0],  out_rresp};
++      r_stage_last  <= {r_stage_last[1:0],  out_rlast};
++    end
++  end
++end
++
++// 输出到上游
++assign in_rvalid = r_stage_valid[2];
++assign in_rid    = r_stage_id[2];
++assign in_rdata  = r_stage_data[2];
++assign in_rresp  = r_stage_resp[2];
++assign in_rlast  = r_stage_last[2];
++
++// 输出到下游
++assign out_rready = !r_stage_valid[0] || r_shift;
++
++//--------------------------------------------------------------------------
++// B通道延迟逻辑 (3级流水线)
++//--------------------------------------------------------------------------
++reg [2:0]       b_stage_valid;
++reg [2:0][3:0]  b_stage_id;
++reg [2:0][1:0]  b_stage_resp;
++
++// 流水线控制信号
++wire b_shift = in_bready || !b_stage_valid[2];
++
++always @(posedge clock) begin
++  if (reset) begin
++    b_stage_valid <= 3'b0;
++  end else begin
++    if (b_shift) begin
++      // 数据在流水线中移动
++      b_stage_valid <= {b_stage_valid[1:0], out_bvalid && out_bready};
++      b_stage_id    <= {b_stage_id[1:0],    out_bid};
++      b_stage_resp  <= {b_stage_resp[1:0],  out_bresp};
++    end
++  end
++end
++
++// 输出到上游
++assign in_bvalid = b_stage_valid[2];
++assign in_bid    = b_stage_id[2];
++assign in_bresp  = b_stage_resp[2];
++
++// 输出到下游
++assign out_bready = !b_stage_valid[0] || b_shift;
++
++endmodule
+\ No newline at end of file
+-- 
+2.34.1
+

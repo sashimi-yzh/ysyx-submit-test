@@ -1,0 +1,2308 @@
+From 835e335673d54ffadbdb143802353aba58ff0088 Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Mon, 17 Mar 2025 15:33:58 +0800
+Subject: [PATCH 02/21] ysyxsoc commit
+
+---
+ .../r_empty-definition_14-16-25-945.md        |  230 ++++
+ .metals/metals.lock.db                        |    6 +
+ .metals/metals.log                            | 1188 +++++++++++++++++
+ .metals/metals.mv.db                          |  Bin 36864 -> 122880 bytes
+ perip/bitrev/bitrev.v                         |   44 +-
+ perip/spi/rtl/spi_top_apb.v                   |  286 +++-
+ rocket-chip                                   |    2 +-
+ 7 files changed, 1743 insertions(+), 13 deletions(-)
+ create mode 100644 .metals/.reports/metals-full/2025-03-11/r_empty-definition_14-16-25-945.md
+ create mode 100644 .metals/metals.lock.db
+
+diff --git a/.metals/.reports/metals-full/2025-03-11/r_empty-definition_14-16-25-945.md b/.metals/.reports/metals-full/2025-03-11/r_empty-definition_14-16-25-945.md
+new file mode 100644
+index 0000000..9cf34cc
+--- /dev/null
++++ b/.metals/.reports/metals-full/2025-03-11/r_empty-definition_14-16-25-945.md
+@@ -0,0 +1,230 @@
++error id: freechips/rocketchip/util/
++file://<WORKSPACE>/rocket-chip/src/main/scala/util/SynchronizerReg.scala
++empty definition using pc, found symbol in pc: freechips/rocketchip/util/
++semanticdb not found
++|empty definition using fallback
++non-local guesses:
++	 -
++
++Document text:
++
++```scala
++// See LICENSE.SiFive for license details.
++
++package freechips.rocketchip.util
++
++import chisel3._
++import chisel3.util.{RegEnable, Cat}
++
++/**  These wrap behavioral
++  *  shift and next registers into specific modules to allow for
++  *  backend flows to replace or constrain
++  *  them properly when used for CDC synchronization,
++  *  rather than buffering.
++  *  
++  *  
++  *  These are built up of *ResetSynchronizerPrimitiveShiftReg,
++  *  intended to be replaced by the integrator's metastable flops chains or replaced
++  *  at this level if they have a multi-bit wide synchronizer primitive.
++  *  The different types vary in their reset behavior:
++  *  NonSyncResetSynchronizerShiftReg    -- Register array which does not have a reset pin
++  *  AsyncResetSynchronizerShiftReg      -- Asynchronously reset register array, constructed from W instantiations of D deep
++  *                                       1-bit-wide shift registers.
++  *  SyncResetSynchronizerShiftReg       -- Synchronously reset register array, constructed similarly to AsyncResetSynchronizerShiftReg
++  *    
++  *  [Inferred]ResetSynchronizerShiftReg -- TBD reset type by chisel3 reset inference.
++  *  
++  *  ClockCrossingReg                    -- Not made up of SynchronizerPrimitiveShiftReg. This is for single-deep flops which cross
++  *                                         Clock Domains.
++*/
++
++object SynchronizerResetType extends Enumeration {
++  val NonSync, Inferred, Sync, Async = Value
++}
++
++
++// Note: this should not be used directly.
++// Use the companion object to generate this with the correct reset type mixin.
++private class SynchronizerPrimitiveShiftReg(
++  sync: Int,
++  init: Boolean,
++  resetType: SynchronizerResetType.Value)
++    extends AbstractPipelineReg(1) {
++
++  val initInt = if (init) 1 else 0
++  val initPostfix = resetType match {
++    case SynchronizerResetType.NonSync => ""
++    case _ => s"_i${initInt}"
++  }
++  override def desiredName = s"${resetType.toString}ResetSynchronizerPrimitiveShiftReg_d${sync}${initPostfix}"
++
++  val chain = List.tabulate(sync) { i =>
++    val reg = if (resetType == SynchronizerResetType.NonSync) Reg(Bool()) else RegInit(init.B)
++    reg.suggestName(s"sync_$i")
++  }
++  chain.last := io.d.asBool
++
++  (chain.init zip chain.tail).foreach { case (sink, source) =>
++    sink := source
++  }
++  io.q := chain.head.asUInt
++}
++
++private object SynchronizerPrimitiveShiftReg {
++  def apply (in: Bool, sync: Int, init: Boolean, resetType: SynchronizerResetType.Value): Bool = {
++    val gen: () => SynchronizerPrimitiveShiftReg = resetType match {
++      case SynchronizerResetType.NonSync =>
++        () => new SynchronizerPrimitiveShiftReg(sync, init, resetType)
++      case SynchronizerResetType.Async =>
++        () => new SynchronizerPrimitiveShiftReg(sync, init, resetType) with RequireAsyncReset
++      case SynchronizerResetType.Sync =>
++        () => new SynchronizerPrimitiveShiftReg(sync, init, resetType) with RequireSyncReset
++      case SynchronizerResetType.Inferred =>
++        () => new  SynchronizerPrimitiveShiftReg(sync, init, resetType)
++    }
++    AbstractPipelineReg(gen(), in)
++  }
++}
++
++// Note: This module may end up with a non-AsyncReset type reset.
++// But the Primitives within will always have AsyncReset type.
++class AsyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int)
++    extends AbstractPipelineReg(w) {
++  require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
++  override def desiredName = s"AsyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
++  val output = Seq.tabulate(w) { i =>
++    val initBit = ((init >> i) & 1) > 0
++    withReset(reset.asAsyncReset){
++      SynchronizerPrimitiveShiftReg(io.d(i), sync, initBit,  SynchronizerResetType.Async)
++    }
++  }
++  io.q := Cat(output.reverse)
++}
++
++object AsyncResetSynchronizerShiftReg {
++  def apply [T <: Data](in: T, sync: Int, init: Int, name: Option[String] = None): T =
++    AbstractPipelineReg(new AsyncResetSynchronizerShiftReg(in.getWidth, sync, init), in, name)
++
++  def apply [T <: Data](in: T, sync: Int, name: Option[String]): T =
++    apply (in, sync, 0, name)
++
++  def apply [T <: Data](in: T, sync: Int): T =
++    apply (in, sync, 0, None)
++
++  def apply [T <: Data](in: T, sync: Int, init: T, name: Option[String]): T =
++    apply(in, sync, init.litValue.toInt, name)
++
++  def apply [T <: Data](in: T, sync: Int, init: T): T =
++    apply (in, sync, init.litValue.toInt, None)
++}
++
++// Note: This module may end up with a non-Bool type reset.
++// But the Primitives within will always have Bool reset type.
++@deprecated("SyncResetSynchronizerShiftReg is unecessary with Chisel3 inferred resets. Use ResetSynchronizerShiftReg which will use the inferred reset type.", "rocket-chip 1.2")
++class SyncResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int) extends AbstractPipelineReg(w) {
++  require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
++  override def desiredName = s"SyncResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
++  val output = Seq.tabulate(w) { i =>
++    val initBit = ((init >> i) & 1) > 0
++    withReset(reset.asBool){
++      SynchronizerPrimitiveShiftReg(io.d(i), sync, initBit, SynchronizerResetType.Sync)
++    }
++  }
++  io.q := Cat(output.reverse)
++}
++
++object SyncResetSynchronizerShiftReg {
++  def apply [T <: Data](in: T, sync: Int, init: Int, name: Option[String] = None): T =
++    if (sync == 0) in else AbstractPipelineReg(new SyncResetSynchronizerShiftReg(in.getWidth, sync, init), in, name)
++
++  def apply [T <: Data](in: T, sync: Int, name: Option[String]): T =
++    apply (in, sync, 0, name)
++
++  def apply [T <: Data](in: T, sync: Int): T =
++    apply (in, sync, 0, None)
++
++  def apply [T <: Data](in: T, sync: Int, init: T, name: Option[String]): T =
++    apply(in, sync, init.litValue.toInt, name)
++
++  def apply [T <: Data](in: T, sync: Int, init: T): T =
++    apply (in, sync, init.litValue.toInt, None)
++}
++
++class ResetSynchronizerShiftReg(w: Int = 1, sync: Int, init: Int) extends AbstractPipelineReg(w) {
++  require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
++  override def desiredName = s"ResetSynchronizerShiftReg_w${w}_d${sync}_i${init}"
++  val output = Seq.tabulate(w) { i =>
++    val initBit = ((init >> i) & 1) > 0
++    SynchronizerPrimitiveShiftReg(io.d(i), sync, initBit, SynchronizerResetType.Inferred)
++  }
++  io.q := Cat(output.reverse)
++}
++
++object ResetSynchronizerShiftReg {
++  def apply [T <: Data](in: T, sync: Int, init: Int, name: Option[String] = None): T =
++    AbstractPipelineReg(new ResetSynchronizerShiftReg(in.getWidth, sync, init), in, name)
++
++  def apply [T <: Data](in: T, sync: Int, name: Option[String]): T =
++      apply (in, sync, 0, name)
++
++  def apply [T <: Data](in: T, sync: Int): T =
++      apply (in, sync, 0, None)
++
++  def apply [T <: Data](in: T, sync: Int, init: T, name: Option[String]): T =
++    apply(in, sync, init.litValue.toInt, name)
++
++  def apply [T <: Data](in: T, sync: Int, init: T): T =
++    apply (in, sync, init.litValue.toInt, None)
++}
++
++class SynchronizerShiftReg(w: Int = 1, sync: Int = 3) extends AbstractPipelineReg(w) {
++  require(sync > 1, s"Sync must be greater than 1, not ${sync}.")
++  override def desiredName = s"SynchronizerShiftReg_w${w}_d${sync}"
++  val output = Seq.tabulate(w) { i =>
++    SynchronizerPrimitiveShiftReg(io.d(i), sync, false, SynchronizerResetType.NonSync)
++  }
++  io.q := Cat(output.reverse)
++}
++
++object SynchronizerShiftReg {
++  def apply [T <: Data](in: T, sync: Int, name: Option[String] = None): T =
++    if (sync == 0) in else AbstractPipelineReg(new SynchronizerShiftReg(in.getWidth, sync), in, name)
++
++  def apply [T <: Data](in: T, sync: Int): T =
++    apply (in, sync, None)
++
++  def apply [T <: Data](in: T): T =
++    apply (in, 3, None)
++
++
++}
++
++class ClockCrossingReg(w: Int = 1, doInit: Boolean) extends Module {
++
++  override def desiredName = s"ClockCrossingReg_w${w}"
++
++  val io = IO(new Bundle{
++    val d = Input(UInt(w.W))
++    val q = Output(UInt(w.W))
++    val en = Input(Bool())
++  })
++
++  val cdc_reg = if (doInit) RegEnable(io.d, 0.U(w.W), io.en) else RegEnable(io.d, io.en)
++  io.q := cdc_reg
++}
++
++object ClockCrossingReg {
++  def apply [T <: Data](in: T, en: Bool, doInit: Boolean, name: Option[String] = None): T = {
++    val cdc_reg = Module(new ClockCrossingReg(in.getWidth, doInit))
++    name.foreach{ cdc_reg.suggestName(_) }
++    cdc_reg.io.d := in.asUInt
++    cdc_reg.io.en := en
++    cdc_reg.io.q.asTypeOf(in)
++  }
++}
++
++```
++
++#### Short summary: 
++
++empty definition using pc, found symbol in pc: freechips/rocketchip/util/
+\ No newline at end of file
+diff --git a/.metals/metals.lock.db b/.metals/metals.lock.db
+new file mode 100644
+index 0000000..2c3d1ea
+--- /dev/null
++++ b/.metals/metals.lock.db
+@@ -0,0 +1,6 @@
++#FileLock
++#Sat Mar 15 23:46:19 CST 2025
++server=localhost\:43687
++hostName=localhost
++method=file
++id=1959a7c18f8dd2b6c47d2a97b6047b04e0bb6ab5bf2
+diff --git a/.metals/metals.log b/.metals/metals.log
+index 942bf1e..ea2e736 100644
+--- a/.metals/metals.log
++++ b/.metals/metals.log
+@@ -159,3 +159,1191 @@ WARNING: Unsupported notification method: metals/windowStateDidChange
+ 2025.03.10 22:48:29 INFO  Shutting down server
+ 2025.03.10 22:48:29 INFO  shutting down Metals
+ 2025.03.10 22:48:29 INFO  Exiting server
++2025.03.10 23:51:12 INFO  Started: Metals version 1.5.1 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++Mar 11, 2025 10:15:09 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:17:14 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:17:17 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:17:53 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Mar 11, 2025 10:18:15 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Mar 11, 2025 10:18:15 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Mar 11, 2025 10:18:16 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Mar 11, 2025 10:19:20 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:19:57 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:21:14 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:21:19 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:22:29 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:23:01 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:23:23 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:23:42 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:26:52 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:29:46 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:30:56 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:31:54 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:32:39 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:32:59 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:33:25 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:33:29 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:33:31 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 10:34:13 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 11:29:24 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 11:29:24 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 11:29:28 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 11:30:34 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 11:48:48 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 11:48:51 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:02:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:02:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:03:00 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:03:14 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:04:19 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:07:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:07:53 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:07:53 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:07:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:08:09 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:09:03 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:09:04 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:09:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:09:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:10:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:10:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.11 14:14:18 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:22 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:22 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 2:14:22 PM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
++WARNING: Unmatched cancel notification for request id 8
++2025.03.11 14:14:45 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:45 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:45 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:45 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:46 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:46 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:48 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:14:48 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:15:07 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:15:07 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:15:08 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 2:16:09 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:16:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.11 14:16:16 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:16 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:16 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:17 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:16 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:17 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:18 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:18 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:18 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:21 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:22 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:22 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:22 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:22 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:24 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:24 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:24 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:24 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:16:24 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 2:16:25 PM scala.meta.internal.metals.StdReporter $anonfun$create$1
++SEVERE: empty definition using pc, found symbol in pc: freechips/rocketchip/util/ (full report at: /home/plutoisy/ysyx-workbench/ysyxSoC/.metals/.reports/metals-full/2025-03-11/r_empty-definition_14-16-25-945.md)
++Mar 11, 2025 2:16:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:17:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:18:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:18:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:19:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:19:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:19:50 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:20:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:33:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:33:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.11 14:33:26 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:33:26 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:33:27 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 2:33:27 PM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
++WARNING: Unmatched cancel notification for request id 57
++2025.03.11 14:33:26 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:33:28 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:33:28 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 2:33:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:34:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:34:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:34:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:34:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:34:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:34:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:35:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:37:36 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:37:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:39:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:39:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:40:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:40:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:41:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:41:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:46:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:46:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:46:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:47:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:49:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:50:57 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:51:18 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:51:18 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:52:36 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:53:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:54:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:54:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.11 14:55:32 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:32 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 2:55:33 PM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
++WARNING: Unmatched cancel notification for request id 71
++2025.03.11 14:55:32 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:39 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:39 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:39 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:41 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:41 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:41 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:42 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:43 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:43 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:45 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:47 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:48 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:48 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:49 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:49 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:50 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:50 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:50 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:50 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:54 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:55:57 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:56:06 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 14:56:10 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 2:56:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 2:57:40 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:01:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:01:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:02:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:03:09 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:03:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:03:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:03:51 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:04:04 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:05:03 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:05:15 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:06:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:06:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:07:07 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:07:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:07:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:08:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:08:06 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:08:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:08:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:08:31 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:08:35 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:08:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:09:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:10:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:11:07 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:11:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:13:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:14:00 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:14:57 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:15:40 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:16:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:16:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:16:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:17:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:18:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:18:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:18:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:19:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:19:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:20:36 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:23:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:23:19 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:24:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:25:34 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:25:40 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:25:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:25:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:25:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:26:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:26:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:27:25 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:28:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:28:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:28:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:29:50 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:29:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:31:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:31:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:31:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:31:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:31:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:31:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:32:00 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:33:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:33:51 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:34:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:34:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:35:06 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:35:31 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:36:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:38:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 3:38:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 4:11:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 4:11:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.11 16:11:53 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/amba/AXI4Delayer.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 16:11:54 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/amba/AXI4Delayer.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 16:11:53 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/amba/AXI4Delayer.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 16:11:53 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/amba/AXI4Delayer.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.11 16:11:57 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/amba/AXI4Delayer.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 11, 2025 4:12:07 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 4:12:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 4:13:17 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 4:13:17 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 4:13:19 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 4:14:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 5:12:42 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 5:12:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 5:24:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 5:24:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 8:15:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 8:15:18 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 8:15:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 8:15:24 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 11, 2025 8:25:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.11 20:25:16 INFO  Shutting down server
++2025.03.11 20:25:16 INFO  shutting down Metals
++2025.03.11 20:25:16 INFO  Exiting server
++2025.03.14 17:56:16 INFO  Started: Metals version 1.5.1 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++2025.03.14 17:56:22 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/PSRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 17:56:25 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/PSRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 14, 2025 5:57:50 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 5:59:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 6:10:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.14 18:10:46 INFO  Shutting down server
++2025.03.14 18:10:46 INFO  shutting down Metals
++2025.03.14 18:10:46 INFO  Exiting server
++2025.03.14 18:47:44 INFO  Started: Metals version 1.5.1 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++2025.03.14 18:47:45 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/PSRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 18:47:46 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/PSRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 18:48:34 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/SRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 18:48:34 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/SRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 18:48:39 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/SRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 18:48:45 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/SRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 18:49:07 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/SRAM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 18:49:23 INFO  Shutting down server
++2025.03.14 18:49:23 INFO  shutting down Metals
++2025.03.14 18:49:23 INFO  Exiting server
++2025.03.14 18:49:24 ERROR Unexpected error initializing server: 
++org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequest failed with message: Canceled
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleResponse(RemoteEndpoint.java:220)
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:204)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:185)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
++	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:114)
++	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
++	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
++	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
++	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
++	at java.lang.Thread.run(Thread.java:840)
++
++2025.03.14 20:00:25 INFO  Started: Metals version 1.5.1 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++Mar 14, 2025 8:01:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:01:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:04:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:04:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:05:44 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:06:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:22:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:22:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:24:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:24:15 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:25:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:30:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:32:53 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:33:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:33:19 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:33:19 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.14 20:33:19 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 20:33:21 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.14 20:33:21 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/device/MROM.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 14, 2025 8:34:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:35:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:35:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:35:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:35:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 8:36:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:26:31 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:26:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:26:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:27:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:28:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:28:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:33:24 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:33:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:35:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:35:36 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:58:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:58:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:58:42 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 14, 2025 10:59:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.15 13:12:02 INFO  Shutting down server
++2025.03.15 13:12:02 INFO  shutting down Metals
++2025.03.15 13:12:02 INFO  Exiting server
++2025.03.15 20:52:52 INFO  Started: Metals version 1.5.1 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++2025.03.15 20:52:57 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++2025.03.15 20:53:00 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Mar 15, 2025 8:53:00 PM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
++WARNING: Unmatched cancel notification for request id 7
++2025.03.15 20:53:00 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/util/SynchronizerReg.scala. Using presentation compiler with project's scala-library version: 3.3.4
++Exception in thread "pool-4-thread-1" java.lang.InterruptedException
++	at scala.meta.internal.metals.FutureCancelToken.checkCanceled(FutureCancelToken.scala:29)
++	at scala.meta.internal.pc.CompilerAccess.onCompilerJobQueue$$anonfun$1(CompilerAccess.scala:244)
++	at scala.meta.internal.pc.CompilerJobQueue$Job.run(CompilerJobQueue.scala:153)
++	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
++	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
++	at java.base/java.lang.Thread.run(Thread.java:840)
++Mar 15, 2025 8:54:53 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 8:58:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 8:59:42 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:00:09 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:02:17 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:02:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:03:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:03:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:03:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:04:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:15:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:16:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:16:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:17:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:51:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:51:31 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:51:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:52:41 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 9:53:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 10:02:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 10:10:24 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 10:10:25 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 10:12:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 10:37:19 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 10:38:50 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 10:39:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:25:44 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:25:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:30:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:30:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:33:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:33:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:35:04 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:35:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:36:35 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.15 23:36:36 INFO  Shutting down server
++2025.03.15 23:36:36 INFO  shutting down Metals
++2025.03.15 23:36:36 INFO  Exiting server
++2025.03.15 23:46:17 INFO  Started: Metals version 1.5.1 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++Mar 15, 2025 11:46:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:46:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:47:18 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:48:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:51:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:51:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:51:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:51:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:51:57 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:52:21 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:53:24 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:53:25 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:54:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:54:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:54:53 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:55:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:55:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 15, 2025 11:56:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:58:49 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:58:51 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:00:01 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:00:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:01:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:09:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:11:36 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:14:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:15:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:30:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:31:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:32:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:38:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:38:51 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:42:06 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:46:17 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:46:19 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:46:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:51:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 12:51:41 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:55:06 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:56:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:57:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:58:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:58:41 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:58:44 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:58:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 1:59:04 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:01:46 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:01:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:02:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:02:34 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:04:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:09:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:10:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:25:51 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:31:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:31:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:32:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:34:00 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:41:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:42:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:42:42 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 2:43:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:02:07 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:02:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:03:18 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:04:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:06:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:07:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:07:25 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:07:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:12:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:14:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:14:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:14:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:15:01 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:15:01 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:15:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:15:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:30:31 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:33:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:34:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:34:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:34:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:35:01 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:35:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:35:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:47:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:47:50 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:51:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:51:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:53:18 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:53:21 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:53:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 3:53:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 4:09:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 4:09:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 4:55:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 4:55:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 4:55:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 4:55:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:17:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:17:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:17:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:17:14 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:19:24 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:19:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:23:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:23:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:37:15 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:37:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:47:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:47:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:48:57 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:48:59 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:53:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:53:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:59:41 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 6:59:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 7:03:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 7:03:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 7:14:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 7:14:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 7:15:40 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:47:17 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:47:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:47:22 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:50:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:50:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:50:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:50:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:50:51 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:50:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:51:15 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:51:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:52:35 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:54:35 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:56:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:56:14 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:56:53 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:57:03 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:57:06 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:57:31 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 9:58:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:18:44 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:19:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:25:41 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:26:51 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:27:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:29:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:29:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:31:06 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 10:34:17 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:36:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:36:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:37:43 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:47:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:50:42 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:50:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:51:57 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:52:00 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:53:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:53:13 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:54:53 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:55:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:56:20 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 16, 2025 11:57:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:01:40 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:02:09 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:02:20 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:02:20 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:02:24 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:02:54 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:03:21 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:03:35 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:03:36 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:03:57 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:03:59 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:04:00 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:04:02 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:04:03 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:04:05 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:04:12 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:05:13 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:07:08 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:10:25 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:10:33 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:11:27 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:12:07 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:13:07 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:13:20 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:17:17 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:17:43 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:19:55 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:20:00 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:21:40 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:22:34 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:24:14 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:24:52 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:29:02 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:29:32 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:38:12 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:40:14 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:29:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:29:42 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:31:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:32:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:32:41 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:32:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:33:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:33:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:33:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:34:07 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:34:14 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:34:21 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:39:03 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:41:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:42:48 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:44:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:46:17 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:47:30 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:57:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:58:23 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:59:33 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 12:59:34 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:03:14 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:03:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:05:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:05:29 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:08:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:09:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:15:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:16:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:16:11 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:16:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:16:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:17:01 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:17:12 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:17:21 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:17:47 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:18:32 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:18:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:18:58 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:23:14 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:23:39 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:24:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:26:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:27:14 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:27:42 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:27:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:28:15 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:29:08 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:29:21 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:29:44 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:29:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:29:51 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:30:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:33:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:33:45 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:34:55 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:35:44 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:36:25 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:36:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:37:03 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:37:15 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:37:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:37:28 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:38:50 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:38:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:39:07 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:39:24 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:41:00 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:42:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:43:07 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 17, 2025 1:43:09 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
+diff --git a/.metals/metals.mv.db b/.metals/metals.mv.db
+index 08263b6eb8978884dda3a5e198aed47762279727..65b520db4d953396f401ce8b09e05cac40619490 100644
+GIT binary patch
+literal 122880
+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
+
+delta 3900
+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
+G(Z2y8bYpJ-
+
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+index f1c3b36..41b3a64 100644
+--- a/perip/bitrev/bitrev.v
++++ b/perip/bitrev/bitrev.v
+@@ -2,7 +2,47 @@ module bitrev (
+   input  sck,
+   input  ss,
+   input  mosi,
+-  output miso
++  output reg miso
+ );
+-  assign miso = 1'b1;
++  // assign miso = 1'b1;
++  reg[7:0] data;
++  reg[7:0] bit_cnt;
++  initial begin
++    data     = 0;
++    bit_cnt = 0;
++    miso    = 1'b1;
++  end
++
++  always @(posedge sck ) begin
++    if(!ss)begin
++      if(bit_cnt <= 7)begin
++        data <= {data[6:0],mosi};
++        bit_cnt <= bit_cnt + 1;
++      end
++      else if(bit_cnt <=15)begin
++        data <= data;
++        bit_cnt <= bit_cnt + 1;
++      end
++    end
++    else begin
++      bit_cnt <= 0;
++      data <= 0;
++    end
++  end
++
++  always @(negedge sck) begin
++    case(bit_cnt)
++      8'd8:   miso <= data[0];
++      8'd9:   miso <= data[1];
++      8'd10:  miso <= data[2];
++      8'd11:  miso <= data[3];
++      8'd12:  miso <= data[4];
++      8'd13:  miso <= data[5];
++      8'd14:  miso <= data[6];
++      8'd15:  miso <= data[7];
++      default miso <= 1'b1;
++        
++    endcase
++  end
++
+ endmodule
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d3751..c287e3c 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -48,19 +48,285 @@ assign in_prdata  = data[31:0];
+ 
+ `else
+ 
++parameter ysyx_24120011_SPITOPAPB_IDLE         = 4'd0;
++parameter ysyx_24120011_SPITOPAPB_SPI          = 4'd1;
++parameter ysyx_24120011_SPITOPAPB_FLASH_DIV    = 4'd2;
++parameter ysyx_24120011_SPITOPAPB_FLASH_TXREG0 = 4'd3;
++parameter ysyx_24120011_SPITOPAPB_FLASH_TXREG1 = 4'd4;
++parameter ysyx_24120011_SPITOPAPB_FLASH_SS1    = 4'd5;
++parameter ysyx_24120011_SPITOPAPB_FLASH_CTRL   = 4'd6;
++parameter ysyx_24120011_SPITOPAPB_FLASH_WAIT   = 4'd7;
++parameter ysyx_24120011_SPITOPAPB_FLASH_SS0    = 4'd8;
++parameter ysyx_24120011_SPITOPAPB_FLASH_RECV   = 4'd9;
++
++reg [3:0] spi_top_apb_state;
++reg [3:0] spi_top_apb_nextstate;
++
++//in
++reg [31:0] reg_in_paddr;
++reg [31:0] reg_in_pwdata;
++reg [3:0]  reg_in_pstrb;
++reg reg_in_pwrite;
++reg reg_in_psel;
++reg reg_in_penable;
++//out
++reg [31:0] reg_in_prdata;
++reg reg_in_pready;
++reg reg_in_pslverr;
++reg reg_spi_irq_out;
++
++assign in_pslverr = reg_in_pslverr;
++assign spi_irq_out = reg_spi_irq_out;
++assign in_pready = (spi_top_apb_state == ysyx_24120011_SPITOPAPB_SPI || spi_top_apb_state == ysyx_24120011_SPITOPAPB_FLASH_RECV) ? reg_in_pready : 'd0;
++assign in_prdata = (spi_top_apb_state == ysyx_24120011_SPITOPAPB_SPI) ? reg_in_prdata : (spi_top_apb_state == ysyx_24120011_SPITOPAPB_FLASH_RECV) ? {reg_in_prdata[7:0],reg_in_prdata[15:8],reg_in_prdata[23:16],reg_in_prdata[31:24]}:'d0;
++
++always@(*) begin
++  case(spi_top_apb_state)
++    ysyx_24120011_SPITOPAPB_IDLE  : begin
++      if(in_psel & (in_paddr[31:28] == 4'h1))begin
++        reg_in_paddr   = 'd0;
++        reg_in_pwdata  = 'd0;
++        reg_in_pstrb   = 'd0;
++        reg_in_pwrite  = 'd0;
++        reg_in_psel    = 'd0;
++        reg_in_penable = 'd0;
++				spi_top_apb_nextstate	= ysyx_24120011_SPITOPAPB_SPI;
++			end
++			else if(in_psel & (in_paddr[31:28] == 4'h3))begin
++        reg_in_paddr   = 'd0;
++        reg_in_pwdata  = 'd0;
++        reg_in_pstrb   = 'd0;
++        reg_in_pwrite  = 'd0;
++        reg_in_psel    = 'd0;
++        reg_in_penable = 'd0;
++				spi_top_apb_nextstate	= ysyx_24120011_SPITOPAPB_FLASH_DIV;
++			end
++      else begin
++        reg_in_paddr   = 'd0;
++        reg_in_pwdata  = 'd0;
++        reg_in_pstrb   = 'd0;
++        reg_in_pwrite  = 'd0;
++        reg_in_psel    = 'd0;
++        reg_in_penable = 'd0;
++        spi_top_apb_nextstate	= ysyx_24120011_SPITOPAPB_IDLE;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_SPI   : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   = in_paddr   ;
++        reg_in_pwdata  = in_pwdata  ;
++        reg_in_pstrb   = in_pstrb   ;
++        reg_in_pwrite  = in_pwrite  ;
++        reg_in_psel    = in_psel    ;
++        reg_in_penable = in_penable ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_IDLE;
++      end
++      else begin
++        reg_in_paddr   = in_paddr   ;
++        reg_in_pwdata  = in_pwdata  ;
++        reg_in_pstrb   = in_pstrb   ;
++        reg_in_pwrite  = in_pwrite  ;
++        reg_in_psel    = in_psel    ;
++        reg_in_penable = in_penable ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_SPI;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_DIV : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   =  32'h00000014   ;
++        reg_in_pwdata  =  32'h0000000f   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_TXREG0;
++      end
++      else begin
++        reg_in_paddr   =  32'h00000014   ;
++        reg_in_pwdata  =  32'h0000000f   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd1             ;
++        reg_in_psel    = 'd1             ;
++        reg_in_penable = 'd1             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_DIV;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_TXREG0 : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   =  32'h00000000   ;
++        reg_in_pwdata  =  32'h00000000   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_TXREG1;
++      end
++      else begin
++        reg_in_paddr   =  32'h00000000   ;
++        reg_in_pwdata  =  32'h00000000   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd1             ;
++        reg_in_psel    = 'd1             ;
++        reg_in_penable = 'd1             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_TXREG0;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_TXREG1 : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   =  32'h00000004   ;
++        reg_in_pwdata  =  {8'h03,in_paddr[23:0]};
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_SS1;
++      end
++      else begin
++        reg_in_paddr   =  32'h00000004   ;
++        reg_in_pwdata  =  {8'h03,in_paddr[23:0]};
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd1             ;
++        reg_in_psel    = 'd1             ;
++        reg_in_penable = 'd1             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_TXREG1;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_SS1 : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   =  32'h00000018   ;
++        reg_in_pwdata  =  32'h00000001   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_CTRL;
++      end
++      else begin
++        reg_in_paddr   =  32'h00000018   ;
++        reg_in_pwdata  =  32'h00000001   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd1             ;
++        reg_in_psel    = 'd1             ;
++        reg_in_penable = 'd1             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_SS1;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_CTRL : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   =  32'h00000010   ;
++        reg_in_pwdata  =  32'h00001140   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_WAIT;
++      end
++      else begin
++        reg_in_paddr   =  32'h00000010   ;
++        reg_in_pwdata  =  32'h00001140   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd1             ;
++        reg_in_psel    = 'd1             ;
++        reg_in_penable = 'd1             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_CTRL;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_WAIT : begin
++      if(reg_spi_irq_out) begin
++        reg_in_paddr   = 'd0             ;
++        reg_in_pwdata  = 'd0             ;
++        reg_in_pstrb   = 'd0             ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_SS0;
++      end
++      else begin
++        reg_in_paddr   = 'd0             ;
++        reg_in_pwdata  = 'd0             ;
++        reg_in_pstrb   = 'd0             ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_WAIT;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_SS0 : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   =  32'h00000018   ;
++        reg_in_pwdata  =  32'h00000000   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_RECV;
++      end
++      else begin
++        reg_in_paddr   =  32'h00000018   ;
++        reg_in_pwdata  =  32'h00000000   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd1             ;
++        reg_in_psel    = 'd1             ;
++        reg_in_penable = 'd1             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_SS0;
++      end
++    end
++    ysyx_24120011_SPITOPAPB_FLASH_RECV : begin
++      if(reg_in_pready) begin
++        reg_in_paddr   =  32'h00000000   ;
++        reg_in_pwdata  =  32'h00000000   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd0             ;
++        reg_in_penable = 'd0             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_IDLE;
++      end
++      else begin
++        reg_in_paddr   =  32'h00000000   ;
++        reg_in_pwdata  =  32'h00000000   ;
++        reg_in_pstrb   =  4'hf           ;
++        reg_in_pwrite  = 'd0             ;
++        reg_in_psel    = 'd1             ;
++        reg_in_penable = 'd1             ;
++        spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_FLASH_RECV;
++      end
++    end
++    default: begin
++      reg_in_paddr   = 'd0;
++      reg_in_pwdata  = 'd0;
++      reg_in_pstrb   = 'd0;
++      reg_in_pwrite  = 'd0;
++      reg_in_psel    = 'd0;
++      reg_in_penable = 'd0;
++      spi_top_apb_nextstate = ysyx_24120011_SPITOPAPB_IDLE;
++    end
++  endcase
++end
++
++
++
++always@(posedge clock) begin
++  if(reset) begin
++    spi_top_apb_state <= ysyx_24120011_SPITOPAPB_IDLE;
++  end
++  else begin
++    spi_top_apb_state <= spi_top_apb_nextstate;
++  end
++end
++
+ spi_top u0_spi_top (
+   .wb_clk_i(clock),
+   .wb_rst_i(reset),
+-  .wb_adr_i(in_paddr[4:0]),
+-  .wb_dat_i(in_pwdata),
+-  .wb_dat_o(in_prdata),
+-  .wb_sel_i(in_pstrb),
+-  .wb_we_i (in_pwrite),
+-  .wb_stb_i(in_psel),
+-  .wb_cyc_i(in_penable),
+-  .wb_ack_o(in_pready),
+-  .wb_err_o(in_pslverr),
+-  .wb_int_o(spi_irq_out),
++  .wb_adr_i(reg_in_paddr[4:0]),
++  .wb_dat_i(reg_in_pwdata),
++  .wb_dat_o(reg_in_prdata),
++  .wb_sel_i(reg_in_pstrb),
++  .wb_we_i (reg_in_pwrite),
++  .wb_stb_i(reg_in_psel),
++  .wb_cyc_i(reg_in_penable),
++  .wb_ack_o(reg_in_pready),
++  .wb_err_o(reg_in_pslverr),
++  .wb_int_o(reg_spi_irq_out),
+ 
+   .ss_pad_o(spi_ss),
+   .sclk_pad_o(spi_sck),
+diff --git a/rocket-chip b/rocket-chip
+index d0c6b50..aa71218 160000
+--- a/rocket-chip
++++ b/rocket-chip
+@@ -1 +1 @@
+-Subproject commit d0c6b50fdefcdbe121e9788433ea51f7efaf1d32
++Subproject commit aa71218d9c7e8cfe3023df7d54d736b3e265d6af
+-- 
+2.34.1
+

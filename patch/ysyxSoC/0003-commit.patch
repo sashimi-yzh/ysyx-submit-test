@@ -1,0 +1,31 @@
+From 44407e4cdfd7c40a0ec5119deca44c2475fcf6ee Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Mon, 17 Mar 2025 15:41:18 +0800
+Subject: [PATCH 03/21] commit
+
+---
+ .metals/metals.lock.db | 2 +-
+ rocket-chip            | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/.metals/metals.lock.db b/.metals/metals.lock.db
+index 2c3d1ea..f74f378 100644
+--- a/.metals/metals.lock.db
++++ b/.metals/metals.lock.db
+@@ -1,5 +1,5 @@
+ #FileLock
+-#Sat Mar 15 23:46:19 CST 2025
++#Mon Mar 17 15:40:42 CST 2025
+ server=localhost\:43687
+ hostName=localhost
+ method=file
+diff --git a/rocket-chip b/rocket-chip
+index aa71218..d0c6b50 160000
+--- a/rocket-chip
++++ b/rocket-chip
+@@ -1 +1 @@
+-Subproject commit aa71218d9c7e8cfe3023df7d54d736b3e265d6af
++Subproject commit d0c6b50fdefcdbe121e9788433ea51f7efaf1d32
+-- 
+2.34.1
+

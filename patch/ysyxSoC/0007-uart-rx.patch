@@ -1,0 +1,22 @@
+From e152c51f4f336c7022c64f345161869787c70b6b Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Thu, 27 Mar 2025 14:02:19 +0800
+Subject: [PATCH 07/21] uart rx
+
+---
+ constr/auto_bind.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/constr/auto_bind.cpp b/constr/auto_bind.cpp
+index 293e9c8..ee47b76 100644
+--- a/constr/auto_bind.cpp
++++ b/constr/auto_bind.cpp
+@@ -13,4 +13,5 @@ void nvboard_bind_all_pins(VysyxSoCFull* top) {
+ 	nvboard_bind_pin( &top->externalPins_gpio_seg_6, 8, SEG6A, SEG6B, SEG6C, SEG6D, SEG6E, SEG6F, SEG6G, DEC6P);
+ 	nvboard_bind_pin( &top->externalPins_gpio_seg_7, 8, SEG7A, SEG7B, SEG7C, SEG7D, SEG7E, SEG7F, SEG7G, DEC7P);
+ 	nvboard_bind_pin( &top->externalPins_uart_tx, 1, UART_TX);
++	nvboard_bind_pin( &top->externalPins_uart_rx, 1, UART_RX);
+ }
+-- 
+2.34.1
+
