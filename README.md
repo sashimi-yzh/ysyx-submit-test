@@ -7,3 +7,9 @@ bash init.sh subproject-name
 进行初始化, 具体请参考[实验讲义][lecture note].
 
 [lecture note]: https://ysyx.oscc.cc/docs/
+
+STUID - ysyx_23060246
+
+Original repo - https://github.com/EPTansuo/ysyx_tapeout
+
+Original branch - tapeout_ci
