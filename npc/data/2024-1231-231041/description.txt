@@ -1,0 +1,2 @@
+add icache
+The stastics of AMAT are wrong

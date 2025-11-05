@@ -1,0 +1,31 @@
+`verilator_config
+public -module "ysyx_23060246_Regfile" -var "regs"
+public -module "ysyx_23060246_regs_32x32" -var "Memory"
+public -module "ysyx_23060246_regs_31x32" -var "Memory"
+public -module "ysyx_23060246_regs_16x32" -var "Memory"
+public -module "ysyx_23060246_regs_15x32" -var "Memory"
+public -module "ysyx_23060246_CPU" -var "pc"
+public -module "ysyx_23060246_CSR" -var "mepc"
+public -module "ysyx_23060246_CSR" -var "mstatus"
+public -module "ysyx_23060246_CSR" -var "mcause"
+public -module "ysyx_23060246_CSR" -var "mtvec"
+public -module "ysyx_23060246_WBU" -var "wbu_valid"
+public -module "ysyx_23060246_WBU" -var "*pc"
+public -module "ysyx_23060246_WBU" -var "*inst"
+public -module "ysyx_23060246_IFU" -var "*pc"
+public -module "ysyx_23060246_IFU" -var "io_out_bits_inst"
+public -module "ysyx_23060246_EXU" -var "npc"
+lint_off -rule SYMRSVDWORD
+
+public -module "ysyx_23060246_IFU" -var "*_cnt"
+public -module "ysyx_23060246_IDU" -var "*_cnt"
+public -module "ysyx_23060246_IDU" -var "*state"
+public -module "ysyx_23060246_EXU" -var "*_cnt"
+public -module "ysyx_23060246_LSU" -var "*_cnt"
+public -module "ysyx_23060246_LSU_AREA" -var "*_cnt"
+public -module "ysyx_23060246_LSU" -var "*state"
+public -module "ysyx_23060246_LSU_AREA" -var "*state"
+public -module "ysyx_23060246_WBU" -var "*_cnt"
+public -module "ysyx_23060246_ICache" -var "*_cnt"
+
+lint_off -rule PINMISSING 

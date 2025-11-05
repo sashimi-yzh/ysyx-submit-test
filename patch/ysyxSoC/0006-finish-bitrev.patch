@@ -1,0 +1,53 @@
+From 61176e3ef14eaebedd5829076338b93757b42b44 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Fri, 6 Dec 2024 12:10:55 +0800
+Subject: [PATCH 06/23] finish bitrev
+
+---
+ perip/spi/rtl/spi_top_apb.v |  2 +-
+ src/device/BitRev.scala     | 10 +++++-----
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index a745423c0..92d37516c 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-`define FAST_FLASH
++//`define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+index 189812de0..5fb2a9591 100644
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -12,18 +12,18 @@ class bitrevChisel extends RawModule { // we do not need clock and reset
+   io.miso := true.B
+ 
+   // ss 低电平片选, 没有被片选中时就复位
+-  val bitregs = withClockAndReset(io.sck.asClock, !io.ss.asBool) { RegInit(0.U(8.W)) }
+-  val counter = withClockAndReset(io.sck.asClock, !io.ss.asBool) { RegInit(0.U(3.W)) }
+-  val sending = withClockAndReset(io.sck.asClock, !io.ss.asBool) { RegInit(0.U(1.W))}
++  val bitregs = withClockAndReset(io.sck.asClock, io.ss.asBool) { RegInit(0.U(8.W)) }
++  val counter = withClockAndReset(io.sck.asClock, io.ss.asBool) { RegInit(0.U(3.W)) }
++  val sending = withClockAndReset(io.sck.asClock, io.ss.asBool) { RegInit(0.U(1.W))}
+ 
+   counter := counter + 1.U
+-  bitregs := Cat(bitregs(6,0), io.mosi)
++  bitregs := Mux(!sending, Cat(bitregs(6,0), io.mosi), Cat(io.mosi, bitregs(7,1)))
+ 
+   when(counter === 7.U) {
+     sending := ~sending
+   }
+   
+   when(sending === 1.U) {
+-    io.miso := bitregs(7)
++    io.miso := bitregs(0)
+   }
+ }
+-- 
+2.51.0
+

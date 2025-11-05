@@ -1,0 +1,25 @@
+From ece6964fe33cc676d40d6d9841636df501fe65e9 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Fri, 5 Sep 2025 14:56:45 +0800
+Subject: [PATCH] add -O2
+
+---
+ bsp/abstract-machine/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 642108399a..4cbd3a17d1 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -7,7 +7,7 @@ RTCONFIG_H = rtconfig.h
+ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__  #-I $(RTT_DIR)/components/libc/compilers/common/extension/
+-CFLAGS += -Wno-nonnull-compare -g
++CFLAGS += -Wno-nonnull-compare -O2
+ 
+ ifneq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
+-- 
+2.51.0
+

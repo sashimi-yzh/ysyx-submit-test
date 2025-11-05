@@ -1,0 +1,432 @@
+From 88e8ba60fd30d7b93906febf74c4f38406234fef Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Mon, 16 Dec 2024 16:10:56 +0800
+Subject: [PATCH 15/23] finish SDRAM
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi.v      |   8 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  82 ++++-----
+ perip/sdram/sdram_top_axi.v                  |   8 +-
+ src/device/SDRAM.scala                       | 176 +------------------
+ src/device/VGA.scala                         |   1 +
+ 5 files changed, 49 insertions(+), 226 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f58b..7511da0d0 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -87,7 +87,7 @@ module sdram_axi
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ             = 50;
+ parameter SDRAM_ADDR_W          = 24;
+-parameter SDRAM_COL_W           = 9;
++parameter SDRAM_COL_W           = 10;
+ parameter SDRAM_READ_LATENCY    = 2;
+ 
+ //-----------------------------------------------------------------
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 9531b119f..7c42e5691 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -105,7 +105,7 @@ localparam STATE_ACTIVATE    = 4'd3;
+ localparam STATE_READ        = 4'd4;
+ localparam STATE_READ_WAIT   = 4'd5;
+ localparam STATE_WRITE0      = 4'd6;
+-localparam STATE_WRITE1      = 4'd7;
++// localparam STATE_WRITE1      = 4'd7;
+ localparam STATE_PRECHARGE   = 4'd8;
+ localparam STATE_REFRESH     = 4'd9;
+ 
+@@ -285,28 +285,22 @@ begin
+     STATE_WRITE0 :
+     begin
+         next_state_r = STATE_IDLE;
+-        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
+-        begin
+-            // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+-                next_state_r = STATE_WRITE0;
+-        end
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+     //-----------------------------------------
+-    STATE_WRITE1 :
+-    begin
+-        next_state_r = STATE_IDLE;
+-
+-        // Another pending write request (with no refresh pending)
+-        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
+-        begin
+-            // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+-                next_state_r = STATE_WRITE0;
+-        end
+-    end
++    // STATE_WRITE1 :
++    // begin
++    //     next_state_r = STATE_IDLE;
++    //
++    //     // Another pending write request (with no refresh pending)
++    //     if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
++    //     begin
++    //         // Open row hit
++    //         if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++    //             next_state_r = STATE_WRITE0;
++    //     end
++    // end
+     //-----------------------------------------
+     // STATE_PRECHARGE
+     //-----------------------------------------
+@@ -629,26 +623,26 @@ begin
+ 
+         // Write mask
+         dqm_q           <= ~ram_wr_w;
+-        //dqm_buffer_q    <= ~ram_wr_w;
++        dqm_buffer_q    <= ~ram_wr_w;
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+     //-----------------------------------------
+-    STATE_WRITE1 :
+-    begin
+-        // Burst continuation
+-        command_q   <= CMD_NOP;
+-
+-        data_q      <= data_buffer_q;
+-
+-        // Disable auto precharge (auto close of row)
+-        addr_q[AUTO_PRECHARGE]  <= 1'b0;
+-
+-        // Write mask
+-        dqm_q       <= dqm_buffer_q;
+-    end
++    // STATE_WRITE1 :
++    // begin
++    //     // Burst continuation
++    //     command_q   <= CMD_NOP;
++    //
++    //     data_q      <= data_buffer_q;
++    //
++    //     // Disable auto precharge (auto close of row)
++    //     addr_q[AUTO_PRECHARGE]  <= 1'b0;
++    //
++    //     // Write mask
++    //     dqm_q       <= dqm_buffer_q;
++    // end
+     endcase
+ end
+ 
+@@ -669,13 +663,13 @@ else
+ 
+ // Buffer upper 16-bits of write data so write command can be accepted
+ // in WRITE0. Also buffer lower 16-bits of read data.
+-// always @ (posedge clk_i or posedge rst_i)
+-// if (rst_i)
+-//     data_buffer_q <= 32'b0;
+-// else if (state_q == STATE_WRITE0)
+-//     data_buffer_q <= ram_write_data_w;
+-// else if (rd_q[SDRAM_READ_LATENCY+1])
+-//     data_buffer_q <= sample_data_q;
++always @ (posedge clk_i or posedge rst_i)
++if (rst_i)
++    data_buffer_q <= 32'b0;
++else if (state_q == STATE_WRITE0)
++    data_buffer_q <= ram_write_data_w;
++else if (rd_q[SDRAM_READ_LATENCY+1])
++    data_buffer_q <= sample_data_q;
+ 
+ // Read data output
+ assign ram_read_data_w = sample_data_q;
+@@ -690,9 +684,9 @@ if (rst_i)
+     ack_q   <= 1'b0;
+ else
+ begin
+-    if (state_q == STATE_WRITE0 && next_state_r == STATE_WRITE0)
++    if (state_q == STATE_WRITE0)
+         ack_q <= 1'b1;
+-    else if (rd_q[SDRAM_READ_LATENCY])
++    else if (rd_q[SDRAM_READ_LATENCY+1])
+         ack_q <= 1'b1;
+     else
+         ack_q <= 1'b0;
+@@ -701,7 +695,7 @@ end
+ assign ram_ack_w = ack_q;
+ 
+ // Accept command in READ or WRITE0 states
+-assign ram_accept_w = (state_q == STATE_READ || (state_q == STATE_WRITE0 && next_state_r == STATE_WRITE0));
++assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE0);
+ 
+ //-----------------------------------------------------------------
+ // SDRAM I/O
+@@ -736,7 +730,7 @@ begin
+     STATE_READ        : dbg_state = "READ";
+     STATE_READ_WAIT   : dbg_state = "READ_WAIT";
+     STATE_WRITE0      : dbg_state = "WRITE0";
+-    STATE_WRITE1      : dbg_state = "WRITE1";
++    // STATE_WRITE1      : dbg_state = "WRITE1";
+     STATE_PRECHARGE   : dbg_state = "PRECHARGE";
+     STATE_REFRESH     : dbg_state = "REFRESH";
+     default           : dbg_state = "UNKNOWN";
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fdbf..5731f0def 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -39,13 +39,13 @@ module sdram_top_axi(
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index 8c666fe3c..c7c5ce78b 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -46,149 +46,7 @@ class sdram extends BlackBox {
+ }
+ 
+ 
+-class sdramBlock extends BlackBox with HasBlackBoxInline {
+-  val io = IO(new Bundle {
+-    val clk      = Input(Clock())
+-    val bank     = Input(UInt(2.W))
+-    val col      = Input(UInt(9.W))
+-    val row      = Input(UInt(13.W))
+-    val data_in  = Input(UInt(16.W))
+-    val we       = Input(Bool())
+-    val data_out = Output(UInt(16.W))
+-    val dqm      = Input(UInt(2.W))
+-  })
+-  setInline(
+-    "sdramBlock.v",
+-    """
+-      |module sdramBlock(
+-      |    input wire clk,
+-      |    input wire [1:0] bank,
+-      |    input wire [12:0] row,
+-      |    input wire [8:0] col,
+-      |    input wire [15:0] data_in,
+-      |    input wire we,
+-      |    output reg [15:0] data_out,
+-      |    input wire [1:0] dqm
+-      |);
+-      |    reg [15:0] regFile [3:0][8191:0][511:0];
+-      |
+-      |    always @(posedge clk) begin
+-      |           if(we) begin
+-      |            if (dqm[0] == 0) begin
+-      |                regFile[bank][row][col][7:0] <= data_in[7:0];
+-      |            end
+-      |            if (dqm[1] == 0) begin
+-      |                regFile[bank][row][col][15:8] <= data_in[15:8];
+-      |            end
+-      |          end
+-      |        data_out <= regFile[bank][row][col];
+-      |    end
+-      |endmodule
+-    """.stripMargin
+-  )
+-}
+-
+-class sdramChisel extends RawModule {
+-  val io     = IO(Flipped(new SDRAMIO))
+-  val dout   = Wire(UInt(32.W))
+-  val out_en = Wire(Bool())
+-  out_en := false.B //Enable TristateOutPut
+-  val dq = TriStateInBuf(io.dq, dout, out_en) // io
+-// 4-memBlocks
+-  val mem1  = Module(new sdramBlock())
+-  val mem2  = Module(new sdramBlock())
+-  val mem11 = Module(new sdramBlock())
+-  val mem12 = Module(new sdramBlock())
+-//connect_clk
+-  mem1.io.clk  := io.clk.asClock
+-  mem2.io.clk  := io.clk.asClock
+-  mem11.io.clk := io.clk.asClock
+-  mem12.io.clk := io.clk.asClock
+-
+-  val s_idle :: s_read :: s_write :: Nil = Enum(3)
+-//decode sigs
+-  val sig_active     = (!io.cs) && (!io.ras) && io.cas && io.we
+-  val sig_read       = (!io.cs) && io.ras && (!io.cas) && io.we
+-  val sig_write      = (!io.cs) && io.ras && (!io.cas) && (!io.we)
+-  val sig_write_mode = (!io.cs) && (!io.ras) && (!io.cas) && (!io.we)
+-
+-  withClockAndReset(io.clk.asClock, false.B) {
+-    val state   = RegInit(s_idle)
+-    val counter = Reg(UInt(3.W))
+-    val data    = Reg(UInt(32.W))
+-    //好像DRAM控制器只会发送CAS延迟为2,burstL=2的请求
+-    val row          = Reg(Vec(4, UInt(13.W)))
+-    val col          = Reg(UInt(13.W))
+-    val bankid       = Reg(UInt(2.W))
+-    val control_code = Reg(UInt(13.W))
+-//bankid
+-    mem1.io.bank  := bankid
+-    mem2.io.bank  := bankid
+-    mem11.io.bank := bankid
+-    mem12.io.bank := bankid
+-//col
+-    mem1.io.col  := col(8, 0)
+-    mem2.io.col  := col(8, 0)
+-    mem11.io.col := col(8, 0)
+-    mem12.io.col := col(8, 0)
+-//row
+-    mem1.io.row  := row(bankid)
+-    mem2.io.row  := row(bankid)
+-    mem11.io.row := row(bankid)
+-    mem12.io.row := row(bankid)
+-//data
+-    data             := dq
+-    mem1.io.data_in  := data(31, 16)
+-    mem11.io.data_in := data(31, 16)
+-    mem2.io.data_in  := data(15, 0)
+-    mem12.io.data_in := data(15, 0)
+-//dqm
+-    val demdelay = Reg(UInt(4.W))
+-    demdelay     := io.dqm
+-    mem1.io.dqm  := demdelay(3, 2)
+-    mem11.io.dqm := demdelay(3, 2)
+-    mem2.io.dqm  := demdelay(1, 0)
+-    mem12.io.dqm := demdelay(1, 0)
+-//select data_out
+-    dout := Mux(
+-      col(9, 9) === 1.U,
+-      Cat(mem11.io.data_out, mem12.io.data_out),
+-      Cat(mem1.io.data_out, mem2.io.data_out)
+-    )
+-//enable output of tri_state_buf
+-    out_en      := state === s_read
+-    mem1.io.we  := Mux(col(9, 9) === 0.U, state === s_write, false.B)
+-    mem11.io.we := Mux(col(9, 9) === 1.U, state === s_write, false.B)
+-    mem2.io.we  := Mux(col(9, 9) === 0.U, state === s_write, false.B)
+-    mem12.io.we := Mux(col(9, 9) === 1.U, state === s_write, false.B)
+-    state := MuxLookup(state, s_idle)(
+-      List(
+-        s_idle -> Mux(sig_read, s_read, Mux(sig_write, s_write, s_idle)),
+-        s_read -> Mux(counter === 2.U, s_idle, s_read), //延迟一个周期返回
+-        s_write -> s_idle
+-      )
+-    )
+-    when(state === s_read || state === s_write) {
+-      counter := counter + 1.U
+-    }
+-    when(state === s_idle && sig_write_mode) {
+-      control_code := io.a
+-    }
+-    when(state === s_idle && sig_active) {
+-      row(io.ba) := io.a
+-      counter    := 0.U
+-      bankid     := io.ba
+-    }
+-    when((sig_read || sig_write)) {
+-      col     := io.a
+-      counter := 0.U
+-      bankid  := io.ba
+-    }
+-  }
+-}
+-
+-/*
+-class sdramblock extends BlackBox with HasBlackBoxInline {
++class sdramblock extends BlackBox {
+   val io = IO(new Bundle {
+     val clock     = Input(Clock())
+     val bank      = Input(UInt(2.W))
+@@ -200,36 +58,6 @@ class sdramblock extends BlackBox with HasBlackBoxInline {
+     val dqm       = Input(UInt(2.W))
+     val rdata  = Output(UInt(16.W))
+   })
+-  setInline(
+-    "sdramblock.v",
+-    """
+-      |module sdramblock(
+-      |    input wire clock,
+-      |    input wire [1:0] bank,
+-      |    input wire [12:0] row,
+-      |    input wire [8:0] col,
+-      |    input wire [1:0] block_num,
+-      |    input wire we,
+-      |    input wire [15:0] wdata,
+-      |    input wire [1:0] dqm,
+-      |    output reg [15:0] rdata
+-      |);
+-      |     
+-      |   import "DPI-C" function int sdram_read(input byte bank, input int row, input int col, 
+-                                                input byte block_num);
+-      |   import "DPI-C" function void sdram_write(input byte bank, input int row, input int col, 
+-      |                                            input int wdata, input byte wmask, input byte block_num);
+-      |    always @(posedge clock) begin
+-      |           if(we) begin
+-      |                sdram_write({6'b0,bank}, {19'b0,row}, {23'b0,col}, {16'b0,wdata}, {6'b0,~dqm}, {6'b0,block_num});                      
+-      |          end
+-      |    end
+-      |    always @(posedge clock) begin
+-      |           rdata <= sdram_read({6'b0,bank}, {19'b0,row}, {23'b0,col}, {6'b0,block_num})[15:0];
+-      |    end
+-      |endmodule
+-    """.stripMargin
+-  )
+ }
+ 
+ 
+@@ -341,7 +169,7 @@ class sdramChisel extends RawModule {
+   block01.io.we := block00.io.we
+   block10.io.we := col(9) === 1.U && state === s_write
+   block11.io.we := block10.io.we
+-}*/
++}
+ 
+ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val beatBytes = 4
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index 5bea4d647..ff6a824be 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -86,6 +86,7 @@ class vgaChisel extends Module {
+ 
+   when(io.in.psel & io.in.penable & io.in.pwrite){
+     fb(addr) := io.in.pwdata
++    //WARNING: OMIT pstrb, assuming full write
+   }
+ 
+   io.in.pready := true.B
+-- 
+2.51.0
+

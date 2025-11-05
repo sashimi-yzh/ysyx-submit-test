@@ -1,0 +1,53 @@
+From dc3b6d268b4481750965425a88224c14a60f1ca3 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Tue, 17 Dec 2024 14:44:02 +0800
+Subject: [PATCH 7/8] run rtt and am on soc
+
+---
+ bsp/abstract-machine/Makefile             | 1 -
+ bsp/abstract-machine/integrate-am-apps.py | 1 +
+ bsp/abstract-machine/src/uart.c           | 4 ++--
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index d6ff2920f5..642108399a 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -9,7 +9,6 @@ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__  #-I $(RTT_DIR)/components/libc/compilers/common/extension/
+ CFLAGS += -Wno-nonnull-compare -g
+ 
+-# 判断优化级别
+ ifneq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
+ endif
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index a9227ca28b..36768b9054 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -12,6 +12,7 @@ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+   #AM_KERNELS_HOME / ".." / "fceux-am",
++  AM_KERNELS_HOME / "kernels" / "litenes",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 787eea6807..e323dccf71 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -39,8 +39,8 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  //return (*p != '\0' ? *(p ++) : );
+-  static const char *p = "help\nversion\n";
++  //return (*p != '\0' ? *(p ++) : -1);
++  static const char *p = "am_litenes\n";
+   return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+-- 
+2.50.1
+

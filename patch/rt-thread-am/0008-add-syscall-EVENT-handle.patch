@@ -1,0 +1,25 @@
+From 0b385e8de7b8141c43494e32b91dd6f0edde5707 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Mon, 23 Dec 2024 20:03:14 +0800
+Subject: [PATCH 8/8] add syscall EVENT handle
+
+---
+ bsp/abstract-machine/src/context.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index b5f5f5e77c..3b10e41edc 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -8,7 +8,7 @@ static Context *ev_handler(Event ev, Context *c)
+ {
+   switch (ev.event)
+   {
+-    case EVENT_YIELD:
++    case EVENT_YIELD: case EVENT_SYSCALL:
+     {
+       Context **from = (Context **)from_g;
+       Context **to = (Context **)to_g;
+-- 
+2.50.1
+

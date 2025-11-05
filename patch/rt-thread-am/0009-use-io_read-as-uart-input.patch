@@ -1,0 +1,25 @@
+From a9b2c234cae874586b833d7d95e2db7ced752da4 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Wed, 3 Sep 2025 13:17:22 +0800
+Subject: [PATCH 9/9] use io_read as uart input
+
+---
+ bsp/abstract-machine/src/uart.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e323dccf71..e82c7219aa 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -40,7 +40,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ static int _uart_getc(struct rt_serial_device *serial) {
+   //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   //return (*p != '\0' ? *(p ++) : -1);
+-  static const char *p = "am_litenes\n";
++  static const char *p = "";
+   return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+-- 
+2.51.0
+

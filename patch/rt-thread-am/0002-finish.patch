@@ -1,0 +1,157 @@
+From c879b501eabc1134007ed507db895460524c46c8 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Thu, 21 Nov 2024 15:26:38 +0800
+Subject: [PATCH 2/8] finish
+
+---
+ bsp/abstract-machine/src/init.c | 7 +------
+ src/components.c                | 5 +----
+ src/kservice.c                  | 3 ---
+ src/mem.c                       | 5 -----
+ src/object.c                    | 6 ------
+ 5 files changed, 2 insertions(+), 24 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index cfa97db7a8..4ac6b2384d 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -15,19 +15,17 @@ Area am_apps_heap = {}, am_apps_data = {}, am_apps_bss = {};
+ uint8_t * am_apps_data_content = NULL;
+ 
+ void rt_hw_board_init() {
+-  printf("rt_hw_uart_init....\n");
+   int rt_hw_uart_init(void);
+   rt_hw_uart_init();
+ 
+ #ifdef RT_USING_HEAP
+   /* initialize memory system */
+-  printf("rt_system_heap_init....\n");
+   rt_system_heap_init(RT_HW_HEAP_BEGIN, RT_HW_HEAP_END);
+ #endif
+ 
+   uint32_t size = AM_APPS_HEAP_SIZE;
+   void *p = NULL;
+-  for (; p == NULL && size != 0; size /= 2) {printf("rt_malloc....\n"); p = rt_malloc(size); outb_local(0xa00003f8,'^');printf("rt_malloc_finish....\n");}
++  for (; p == NULL && size != 0; size /= 2) {p = rt_malloc(size); outb_local(0xa00003f8,'^');}
+   am_apps_heap = RANGE(p, p + size);
+ 
+   extern char __am_apps_data_start, __am_apps_data_end;
+@@ -59,7 +57,6 @@ void rt_hw_board_init() {
+ }
+ 
+ int main() {
+-  printf("ioe_init...\n");
+   ioe_init();
+ #ifdef __ISA_NATIVE__
+   // trigger the real initialization of IOE to
+@@ -67,10 +64,8 @@ int main() {
+   io_read(AM_TIMER_CONFIG);
+ #endif
+   extern void __am_cte_init();
+-  printf("__am_cte_init...\n");
+   __am_cte_init();
+   extern int entry(void);
+-  printf("entry...\n");
+   entry();
+   return 0;
+ }
+diff --git a/src/components.c b/src/components.c
+index be1d9fc61c..edff0632af 100644
+--- a/src/components.c
++++ b/src/components.c
+@@ -235,19 +235,16 @@ void rt_application_init(void)
+  *
+  * @return Normally never returns. If 0 is returned, the scheduler failed.
+  */
+-#include <klib.h>
+ int rtthread_startup(void)
+-{   printf("rt_hw_interrupt_disable..\n");
++{   
+     rt_hw_interrupt_disable();
+ 
+     /* board level initialization
+      * NOTE: please initialize heap inside board initialization.
+      */
+-    printf("rt_hw_board_init..\n");
+     rt_hw_board_init();
+ 
+     /* show RT-Thread version */
+-    printf("show_version..\n");
+     rt_show_version();
+ 
+     /* timer system initialization */
+diff --git a/src/kservice.c b/src/kservice.c
+index 2d48d23b71..374c889d53 100644
+--- a/src/kservice.c
++++ b/src/kservice.c
+@@ -1673,7 +1673,6 @@ rt_weak void rt_system_heap_init(void *begin_addr, void *end_addr)
+  *
+  * @return the pointer to allocated memory or NULL if no free memory was found.
+  */
+-#include <klib.h>
+ rt_weak void *rt_malloc(rt_size_t size)
+ {
+     rt_base_t level;
+@@ -1682,10 +1681,8 @@ rt_weak void *rt_malloc(rt_size_t size)
+     /* Enter critical zone */
+     level = _heap_lock();
+     /* allocate memory block from system heap */
+-    printf("_MEM_MALLOC...\n");
+     ptr = _MEM_MALLOC(size);
+     /* Exit critical zone */
+-    printf("_heap_unlock...\n");
+     _heap_unlock(level);
+ 
+     /* call 'rt_malloc' hook */
+diff --git a/src/mem.c b/src/mem.c
+index b69d1f5111..43fa8d790c 100644
+--- a/src/mem.c
++++ b/src/mem.c
+@@ -275,7 +275,6 @@ RTM_EXPORT(rt_smem_detach);
+  *
+  * @return the pointer to allocated memory or NULL if no free memory was found.
+  */
+-#include <klib.h>
+ void *rt_smem_alloc(rt_smem_t m, rt_size_t size)
+ {
+     rt_size_t ptr, ptr2;
+@@ -284,13 +283,9 @@ void *rt_smem_alloc(rt_smem_t m, rt_size_t size)
+ 
+     if (size == 0)
+         return RT_NULL;
+-    printf("size=%d\n",size);
+     RT_ASSERT(m != RT_NULL);
+-    printf("m != RT_NULL\n");
+     RT_ASSERT(rt_object_get_type(&m->parent) == RT_Object_Class_Memory);
+-    printf("rt_object_get_type\n");
+     RT_ASSERT(rt_object_is_systemobject(&m->parent));
+-    printf("rt_object_is_systemobject\n");
+     if (size != RT_ALIGN(size, RT_ALIGN_SIZE))
+     {
+         RT_DEBUG_LOG(RT_DEBUG_MEM, ("malloc size %d, but align to %d\n",
+diff --git a/src/object.c b/src/object.c
+index b065cd0f57..a19004210d 100644
+--- a/src/object.c
++++ b/src/object.c
+@@ -559,18 +559,12 @@ void rt_object_delete(rt_object_t object)
+  *
+  * @return RT_TRUE if a system object, RT_FALSE for others.
+  */
+-#include <klib.h>
+ rt_bool_t rt_object_is_systemobject(rt_object_t object)
+ {
+     /* object check */
+     RT_ASSERT(object != RT_NULL);
+-    printf("object != RT_NULL\n");
+-    printf("object->type=0x%x\n",object->type);
+-    printf("RT_Object_Class_Static=0x%x\n",RT_Object_Class_Static);
+-    printf("xx & xx = %s\n", (object->type & RT_Object_Class_Static) ? "RT_TRUE" : "RT_FALSE");
+     if (object->type & RT_Object_Class_Static)
+         return RT_TRUE;
+-    printf("return RT_FALSE\n");
+     return RT_FALSE;
+ }
+ 
+-- 
+2.50.1
+

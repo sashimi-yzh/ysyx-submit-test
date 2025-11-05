@@ -1,0 +1,18 @@
+[submodule "ysyxSoC"]
+	path = ysyxSoC
+	url = https://github.com/EPTansuo/ysyxSoC
+[submodule "nemu/tools/mini-gdbstub"]
+	path = nemu/tools/mini-gdbstub
+	url = https://github.com/EPTansuo/mini-gdbstub
+[submodule "npc/rocket-chip"]
+	path = npc/rocket-chip
+	url = git@github.com:chipsalliance/rocket-chip.git
+[submodule "am-kernels"]
+	path = am-kernels
+	url = https://github.com/EPTansuo/am-kernels
+[submodule "nvboard"]
+	path = nvboard
+	url = git@github.com:NJU-ProjectN/nvboard.git
+[submodule "rt-thread-am"]
+	path = rt-thread-am
+	url = https://github.com/EPTansuo/rt-thread-am

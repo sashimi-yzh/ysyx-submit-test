@@ -1,0 +1,44 @@
+/***************************************************************************************
+* Copyright (c) 2014-2022 Zihao Yu, Nanjing University
+*
+* NEMU is licensed under Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*          http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+*
+* See the Mulan PSL v2 for more details.
+***************************************************************************************/
+
+#include <isa.h>
+#include <memory/paddr.h>
+#include <memory/socmem.h>
+
+
+word_t vaddr_ifetch(vaddr_t addr, int len) {
+#ifndef CONFIG_SOC_DIFFTEST
+  return paddr_read(addr, len);
+#else 
+  return socmem_read(addr, len);
+#endif 
+}
+
+
+word_t vaddr_read(vaddr_t addr, int len) {
+#ifndef CONFIG_SOC_DIFFTEST 
+  return paddr_read(addr, len);
+#else
+  return socmem_read(addr, len);
+#endif 
+}
+
+void vaddr_write(vaddr_t addr, int len, word_t data) {
+#ifndef CONFIG_SOC_DIFFTEST
+  paddr_write(addr, len, data);
+#else
+  socmem_write(addr, len, data);
+#endif 
+}

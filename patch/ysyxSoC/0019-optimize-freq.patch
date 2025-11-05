@@ -1,0 +1,25 @@
+From 405ce159660127389004aebbf796f27e11e5648d Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Wed, 18 Dec 2024 16:32:11 +0800
+Subject: [PATCH 19/23] optimize freq
+
+---
+ src/amba/APBDelayer.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 0c2082f61..ce57cc3a5 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -23,7 +23,7 @@ class apb_delayer extends BlackBox {
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+   //io.out <> io.in
+-  val NPC_FREQ = 530 // 530 MHz
++  val NPC_FREQ = 890 // 890 MHz
+   val DEVICE_FREQ = 100 // 100 MHz
+   val SCALE = 256   // must be 2^n
+   val RATIO = NPC_FREQ.toDouble / DEVICE_FREQ.toDouble 
+-- 
+2.51.0
+

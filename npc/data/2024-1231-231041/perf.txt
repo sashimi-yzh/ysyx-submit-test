@@ -1,0 +1,41 @@
+
+ Performance Counter: 
+
+================================= PERF STATISTIC =================================
+            Total Cycles: 10,512,435,152         #     0.0000 
+             Total Insts:    194,130,058         #     0.0185 IPC
+          Inst Fetch CNT:    194,130,058         #   100.0000 % of inst
+       Compute Insts CNT:    115,156,478         #    59.3192 % of inst
+       Branch  Insts CNT:     51,821,069         #    26.6940 % of inst
+       Jump    Insts CNT:      4,581,560         #     2.3600 % of inst
+       ld/st   Insts CNT:     22,570,952         #    11.6267 % of inst
+       CSR     Insts CNT:              0         #     0.0000 % of inst
+      Compute Cyeles CNT:  2,841,640,555         #    24.6763 cycle per inst
+      Branch  Cyeles CNT:  1,544,356,248         #    29.8017 cycle per inst
+      Jump    Cyeles CNT:  1,915,882,988         #   418.1726 cycle per inst
+      ld/st   Cyeles CNT:  4,210,555,361         #   186.5475 cycle per inst
+      CSR     Cyeles CNT:              0         #     0.0000 cycle per inst
+           Alu Arith CNT:    116,548,789         #    60.0364 % of inst
+           Alu Logic CNT:     23,841,500         #    12.2812 % of inst
+           Alu Shift CNT:     53,336,065         #    27.4744 % of inst
+           Alu Cmp   CNT:          3,101         #     0.0016 % of inst
+           Alu Copy  CNT:        400,604         #     0.2064 % of inst
+                Load CNT:     16,459,020         #    72.9212 % of ld/st inst
+               Store CNT:      6,111,932         #    27.0788 % of ld/st inst
+         Load Cycles CNT:  2,701,580,735         #   164.1398 cycle per load
+        Store Cycles CNT:    566,566,635         #    92.6985 cycle per store
+       ICache IFetch CNT:    194,130,059         #     0.0000 
+       ICache Access CNT:    194,091,275         #     3.1624 AMAT
+          ICache hit CNT:    182,380,782         #    93.9665 % hit rate
+       ICache Bypass CNT:         38,784         #     0.0200 % of ifetch
+  ICache Access Time CNT:    287,775,219         #     1.4827 cycle per hit
+ ICache Miss Penalty CNT:  5,403,343,579         #   461.4104 cycle per miss
+
+ Area Report: 
+   Chip area for top module '\ysyx_23060246': 29671.768000
+
+ Timing Report(Max Freq):  
++----------------------------------------+-------------+------------+------------+---------------+-------+--------+-----------+
+| Endpoint                               | Clock Group | Delay Type | Path Delay | Path Required | CPPR  | Slack  | Freq(MHz) |
++----------------------------------------+-------------+------------+------------+---------------+-------+--------+-----------+
+| cpu_npc/icache/cache_valid_ext/_57_:D  | core_clock  | max        | 1.473f     | 1.084         | 0.000 | -0.389 | 661.445   |

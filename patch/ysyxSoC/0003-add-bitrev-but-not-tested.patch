@@ -1,0 +1,97 @@
+From 1b205c8df116a8ee414b05763d05e1c4df39fb2b Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Wed, 4 Dec 2024 15:06:53 +0800
+Subject: [PATCH 03/23] add bitrev but not tested
+
+---
+ .gitignore                         |  5 +++++
+ perip/spi/rtl/spi_top_apb.v        |  2 +-
+ perip/uart16550/rtl/uart_top_apb.v |  8 +++++++-
+ src/SoC.scala                      |  2 +-
+ src/device/BitRev.scala            | 16 ++++++++++++++++
+ 5 files changed, 30 insertions(+), 3 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 3c0160d04..02e5e55ff 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,7 @@
+ build/
+ out/
++.vscode
++.metals
++.bsp
++target
++project
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d37516c..a745423c0 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-//`define FAST_FLASH
++`define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+diff --git a/perip/uart16550/rtl/uart_top_apb.v b/perip/uart16550/rtl/uart_top_apb.v
+index cd327a038..2c4cfc798 100644
+--- a/perip/uart16550/rtl/uart_top_apb.v
++++ b/perip/uart16550/rtl/uart_top_apb.v
+@@ -36,7 +36,13 @@ module uart_top_apb (
+    assign in_pslverr = 1'b0;
+    assign reg_we  = ~reset & in_psel & ~in_penable &  in_pwrite;
+    assign reg_re  = ~reset & in_psel & ~in_penable & ~in_pwrite;
+-   assign reg_adr = in_paddr[2:0]; //assign adr_o   = in_paddr[2:0];
++
++   wire [2:0] offset;
++   // assign offset = in_pstrb == 4'b0001 ? 3'd0 :
++   //                 in_pstrb == 4'b0010 ? 3'd1 :
++   //                 in_pstrb == 4'b0100 ? 3'd2 :
++   //                 in_pstrb == 4'b1000 ? 3'd3 : 3'd0;
++   assign reg_adr = in_paddr[2:0];// + offset; //assign adr_o   = in_paddr[2:0];
+    assign in_prdata  = (in_psel) ? {4{reg_dat8_r}} : 'h0;
+    always @ (in_paddr[1:0] or in_pwdata) begin
+              case (in_paddr[1:0])
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 4be263598..cdd77745d 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -135,7 +135,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     val flash = Module(new flash)
+     flash.io <> masic.spi
+     flash.io.ss := masic.spi.ss(0)
+-    val bitrev = Module(new bitrev)
++    val bitrev = Module(new bitrevChisel)
+     bitrev.io <> masic.spi
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+index 6bd3d5723..189812de0 100644
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -10,4 +10,20 @@ class bitrev extends BlackBox {
+ class bitrevChisel extends RawModule { // we do not need clock and reset
+   val io = IO(Flipped(new SPIIO(1)))
+   io.miso := true.B
++
++  // ss 低电平片选, 没有被片选中时就复位
++  val bitregs = withClockAndReset(io.sck.asClock, !io.ss.asBool) { RegInit(0.U(8.W)) }
++  val counter = withClockAndReset(io.sck.asClock, !io.ss.asBool) { RegInit(0.U(3.W)) }
++  val sending = withClockAndReset(io.sck.asClock, !io.ss.asBool) { RegInit(0.U(1.W))}
++
++  counter := counter + 1.U
++  bitregs := Cat(bitregs(6,0), io.mosi)
++
++  when(counter === 7.U) {
++    sending := ~sending
++  }
++  
++  when(sending === 1.U) {
++    io.miso := bitregs(7)
++  }
+ }
+-- 
+2.51.0
+

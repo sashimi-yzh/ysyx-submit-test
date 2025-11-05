@@ -1,0 +1,25 @@
+From d8d496ed1b1d36cbed3e13c73ea3e6c9cb2d6781 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Sun, 16 Mar 2025 12:50:20 +0800
+Subject: [PATCH 23/23] change APBDelayer to 714Mhz
+
+---
+ src/amba/APBDelayer.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index f6bae8f63..90591b6a3 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -23,7 +23,7 @@ class apb_delayer extends BlackBox {
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+   //io.out <> io.in
+-  val NPC_FREQ = 690 // 690 MHz
++  val NPC_FREQ = 714 // MHz
+   val DEVICE_FREQ = 100 // 100 MHz
+   val SCALE = 256   // must be 2^n
+   val RATIO = NPC_FREQ.toDouble / DEVICE_FREQ.toDouble 
+-- 
+2.51.0
+

@@ -1,0 +1,24 @@
+From d397d3a53a44239be4a6aeba6c771a9898346b98 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Thu, 21 Nov 2024 18:45:31 +0800
+Subject: [PATCH 5/8] add new readme
+
+---
+ README.md | 5 +++++
+ 1 file changed, 5 insertions(+)
+ create mode 100644 README.md
+
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000000..5302ccf84e
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,5 @@
++# rt-thread-am
++
++一生一芯使用
++
++在am上运行rt-thread
+-- 
+2.50.1
+

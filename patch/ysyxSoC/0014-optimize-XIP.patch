@@ -1,0 +1,49 @@
+From 52a5362dd223d6ac9346464420cd3138f103002b Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Mon, 16 Dec 2024 13:41:37 +0800
+Subject: [PATCH 14/23] optimize XIP
+
+---
+ perip/spi/rtl/spi_top_apb.v | 2 +-
+ src/device/SPI.scala        | 6 ++++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index a745423c0..92d37516c 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-`define FAST_FLASH
++//`define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index f430639da..dfd38fa50 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -50,7 +50,8 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     spi_bundle <> mspi.io.spi
+ 
+     //val XIP_en = (in.paddr >= 0x30000000.U) && (in.paddr <= 0x3fffffff.U)
+-    val XIP_en = false.B
++    val XIP_en = (in.paddr(29,24) >= 0x30.U) && (in.paddr(29,24) <= 0x3f.U)
++    //val XIP_en = false.B
+     val spi_rw = Module(new APBSPIMasterReadWrite)
+ /*
+     mspi.io.in.psel := 0.U
+@@ -85,7 +86,8 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+ 
+     val SPI_BASE = 0x10001000
+ 
+-    val flash_addr = in.paddr - 0x30000000.U
++    //val flash_addr = in.paddr - 0x30000000.U
++    val flash_addr = in.paddr(23,0)
+ 
+     spi_rw.io.addr := MuxLookup(state, 0.U(32.W))(Seq(
+       s_ss      -> (SPI_BASE + 0x18).U,
+-- 
+2.51.0
+

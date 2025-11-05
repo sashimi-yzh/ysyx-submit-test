@@ -1,0 +1,44 @@
+From add233bc70f15843001697d0c448cacd702ac088 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Fri, 5 Sep 2025 14:38:05 +0800
+Subject: [PATCH 10/10] rm some am apps from rtt
+
+---
+ bsp/abstract-machine/integrate-am-apps.py | 6 +++---
+ bsp/abstract-machine/src/uart.c           | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 36768b9054..c53e8f13ae 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -9,10 +9,10 @@ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+-  AM_KERNELS_HOME / "kernels" / "typing-game",
+-  AM_KERNELS_HOME / "kernels" / "snake",
++  #AM_KERNELS_HOME / "kernels" / "typing-game",
++  #AM_KERNELS_HOME / "kernels" / "snake",
+   #AM_KERNELS_HOME / ".." / "fceux-am",
+-  AM_KERNELS_HOME / "kernels" / "litenes",
++  #AM_KERNELS_HOME / "kernels" / "litenes",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e82c7219aa..f09861b198 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -40,7 +40,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ static int _uart_getc(struct rt_serial_device *serial) {
+   //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   //return (*p != '\0' ? *(p ++) : -1);
+-  static const char *p = "";
++  static const char *p = "help\n\n";
+   return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+-- 
+2.51.0
+

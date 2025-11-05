@@ -1,0 +1,64 @@
+From c04682df7d204c0c8c1ec3c96eaf6a767a2b48d2 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Mon, 16 Dec 2024 21:44:26 +0800
+Subject: [PATCH 6/8] support ysyxsoc and add uart-rx
+
+---
+ bsp/abstract-machine/Makefile   | 9 ++++++++-
+ bsp/abstract-machine/src/uart.c | 7 +++++--
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 03e8683fd7..d6ff2920f5 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,14 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__  #-I $(RTT_DIR)/components/libc/compilers/common/extension/
+ CFLAGS += -Wno-nonnull-compare -g
++
++# 判断优化级别
++ifneq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
++endif
++
++
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+@@ -38,5 +45,5 @@ $(AM_APPS_MK): integrate-am-apps.py
+ endif
+ 
+ ITMP: 
+-	gcc /home/han/Disk/Document/PROJECT/ysyx/rt-thread-am/components/libc/compilers/common/include/sys/time.h -E -o ~/tmp/time.i $(CFLAGS)
++	gcc /home/han/Disk/Document/PROJECT/ysyx/ysyx-workbench/rt-thread-am/components/libc/compilers/common/include/sys/time.h -E -o ~/tmp/time.i $(CFLAGS)
+ .PHONY: init menuconfig update
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb866895..787eea6807 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -37,8 +38,10 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  //return (*p != '\0' ? *(p ++) : );
++  static const char *p = "help\nversion\n";
++  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.50.1
+

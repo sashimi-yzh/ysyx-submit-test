@@ -1,0 +1,340 @@
+From 2e3a046ae417b44455f7bd8bc83f6dca03c383a4 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Thu, 12 Dec 2024 21:14:53 +0800
+Subject: [PATCH 11/23] add .nxdc file
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  30 ++--
+ perip/sdram/sdram_top_apb.v                  |   8 +-
+ src/SoC.scala                                |   2 +-
+ src/device/SDRAM.scala                       | 155 ++++++++++++++++++-
+ 4 files changed, 173 insertions(+), 22 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cedbf77b2..59b4454e2 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -42,7 +42,7 @@ module sdram_axi_core
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_accept_o
+@@ -55,10 +55,10 @@ module sdram_axi_core
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -69,14 +69,14 @@ module sdram_axi_core
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ              = 50;
+ parameter SDRAM_ADDR_W           = 24;
+-parameter SDRAM_COL_W            = 9;
++parameter SDRAM_COL_W            = 10;
+ parameter SDRAM_READ_LATENCY     = 2;
+ 
+ //-----------------------------------------------------------------
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+@@ -112,7 +112,7 @@ localparam STATE_REFRESH     = 4'd9;
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -284,7 +284,7 @@ begin
+     //-----------------------------------------
+     STATE_WRITE0 :
+     begin
+-        next_state_r = STATE_WRITE1;
++        next_state_r = STATE_IDLE; //STATE_WRITE1;
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+@@ -483,7 +483,7 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+@@ -616,14 +616,14 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w;
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w;
++        dqm_buffer_q    <= ~ram_wr_w;
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+@@ -665,14 +665,14 @@ else
+ // in WRITE0. Also buffer lower 16-bits of read data.
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+-    data_buffer_q <= 16'b0;
++    data_buffer_q <= 32'b0;
+ else if (state_q == STATE_WRITE0)
+-    data_buffer_q <= ram_write_data_w[31:16];
++    data_buffer_q <= ram_write_data_w;
+ else if (rd_q[SDRAM_READ_LATENCY+1])
+     data_buffer_q <= sample_data_q;
+ 
+ // Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
++assign ram_read_data_w = sample_data_q;// {sample_data_q, data_buffer_q};
+ 
+ //-----------------------------------------------------------------
+ // ACK
+@@ -684,7 +684,7 @@ if (rst_i)
+     ack_q   <= 1'b0;
+ else
+ begin
+-    if (state_q == STATE_WRITE1)
++    if (state_q == STATE_WRITE0)
+         ack_q <= 1'b1;
+     else if (rd_q[SDRAM_READ_LATENCY+1])
+         ack_q <= 1'b1;
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 3bc5b93b7..f127d7143 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -20,13 +20,13 @@ module sdram_top_apb (
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 11ecb860b..ae2a7047b 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -142,7 +142,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+ 
+     val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+-    val sdram = Module(new sdram)
++    val sdram = Module(new sdramChisel)
+     sdram.io <> masic.sdram
+ 
+     val externalPins = IO(new Bundle{
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index a823c718a..5c66cbaba 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -19,8 +19,8 @@ class SDRAMIO extends Bundle {
+   val we  = Output(Bool())
+   val a   = Output(UInt(13.W))
+   val ba  = Output(UInt(2.W))
+-  val dqm = Output(UInt(2.W))
+-  val dq  = Analog(16.W)
++  val dqm = Output(UInt(4.W))
++  val dq  = Analog(32.W)
+ }
+ 
+ class sdram_top_axi extends BlackBox {
+@@ -45,8 +45,159 @@ class sdram extends BlackBox {
+   val io = IO(Flipped(new SDRAMIO))
+ }
+ 
++class sdramblock extends BlackBox with HasBlackBoxInline {
++  val io = IO(new Bundle {
++    val clock     = Input(Clock())
++    val bank      = Input(UInt(2.W))
++    val col       = Input(UInt(9.W))
++    val row       = Input(UInt(13.W))
++    val block_num = Input(UInt(2.W))
++    val we        = Input(Bool())
++    val wdata   = Input(UInt(16.W))
++    val dqm       = Input(UInt(2.W))
++    val rdata  = Output(UInt(16.W))
++  })
++  setInline(
++    "sdramblock.v",
++    """
++      |module sdramblock(
++      |    input wire clock,
++      |    input wire [1:0] bank,
++      |    input wire [12:0] row,
++      |    input wire [8:0] col,
++      |    input wire [1:0] block_num,
++      |    input wire we,
++      |    input wire [15:0] wdata,
++      |    input wire [1:0] dqm,
++      |    output reg [15:0] rdata
++      |);
++      |     
++      |   import "DPI-C" function int sdram_read(input byte bank, input int row, input int col, 
++                                                input byte block_num);
++      |   import "DPI-C" function void sdram_write(input byte bank, input int row, input int col, 
++      |                                            input int wdata, input byte wmask, input byte block_num);
++      |    always @(posedge clock) begin
++      |           if(we) begin
++      |                sdram_write({6'b0,bank}, {19'b0,row}, {23'b0,col}, {16'b0,wdata}, {6'b0,~dqm}, {6'b0,block_num});                      
++      |          end
++      |    end
++      |    always @(posedge clock) begin
++      |           rdata <= sdram_read({6'b0,bank}, {19'b0,row}, {23'b0,col}, {6'b0,block_num})[15:0];
++      |    end
++      |endmodule
++    """.stripMargin
++  )
++}
++
++
+ class sdramChisel extends RawModule {
+   val io = IO(Flipped(new SDRAMIO))
++
++  val dout = Wire(UInt(32.W))
++  val out_en = Wire(Bool())
++  
++  val dq = TriStateInBuf(io.dq, dout, out_en)
++  
++  val block00 = Module(new sdramblock())
++  val block01 = Module(new sdramblock())
++  val block10 = Module(new sdramblock())
++  val block11 = Module(new sdramblock())
++
++  block00.io.block_num := 0.U
++  block01.io.block_num := 1.U
++  block10.io.block_num := 2.U
++  block11.io.block_num := 3.U
++  block00.io.clock := io.clk.asClock
++  block01.io.clock := io.clk.asClock
++  block10.io.clock := io.clk.asClock
++  block11.io.clock := io.clk.asClock
++
++ 
++
++  val cs = io.cs
++  val ras = io.ras
++  val cas = io.cas
++  val we = io.we
++  val is_active     = (!cs) && (!ras) && cas    && we
++  val is_read       = (!cs) && ras    && (!cas) && we
++  val is_write      = (!cs) && ras    && (!cas) && (!we)
++  val is_write_mode = (!cs) && (!ras) && (!cas) && (!we)
++
++  val cnt = withClockAndReset(io.clk.asClock, cs.asBool) { Reg(UInt(3.W)) }
++  
++
++  val s_idle :: s_read :: s_write :: Nil = Enum(3)
++  val state = withClockAndReset(io.clk.asClock, cs.asBool) { RegInit(s_idle) }
++  state := MuxLookup(state, s_idle)(Seq(
++      s_idle -> Mux(is_read, s_read, Mux(is_write, s_write, s_idle)),
++      s_read -> Mux(cnt === 2.U, s_idle, s_read),
++      s_write -> s_idle
++    )
++  )
++
++  when(state === s_read || state === s_write) {
++    cnt:= cnt+ 1.U
++  }                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
++
++  val bankid = withClockAndReset(io.clk.asClock, cs.asBool) { RegInit(0.U(2.W)) }
++  block00.io.bank := bankid
++  block01.io.bank := bankid
++  block10.io.bank := bankid
++  block11.io.bank := bankid
++  
++  val col = withClockAndReset(io.clk.asClock, cs.asBool) { RegInit(0.U(13.W)) }
++  block00.io.col := col(8, 0)
++  block01.io.col := block00.io.col
++  block10.io.col := block00.io.col
++  block11.io.col := block00.io.col
++
++  val row = withClockAndReset(io.clk.asClock, cs.asBool) { RegInit(VecInit(Seq.fill(4)(0.U(13.W)))) }
++  block00.io.row := row(bankid)
++  block01.io.row := block00.io.row
++  block10.io.row := block00.io.row
++  block11.io.row := block00.io.row
++
++  val wdata = withClockAndReset(io.clk.asClock, cs.asBool) { RegInit(0.U) }
++  wdata:= dq
++  block00.io.wdata  := wdata(31, 16)
++  block01.io.wdata  := wdata(15, 0)
++  block10.io.wdata := wdata(31, 16)
++  block11.io.wdata := wdata(15, 0)
++
++
++  val dqm_reg = withClockAndReset(io.clk.asClock, cs.asBool) { RegInit(0.U(4.W)) }
++  dqm_reg := io.dqm
++  block00.io.dqm  := dqm_reg(3, 2)
++  block01.io.dqm  := dqm_reg(1, 0)
++
++  block10.io.dqm := dqm_reg(3, 2)
++  block11.io.dqm := dqm_reg(1, 0)
++
++  dout := Mux( col(9) === 1.U,
++    Cat(block10.io.rdata, block11.io.rdata),
++    Cat(block00.io.rdata, block01.io.rdata)
++  )
++
++    
++  out_en  := state === s_read
++
++  
++  when(state === s_idle && is_active) {
++    row(io.ba) := io.a
++    cnt   := 0.U
++    bankid     := io.ba
++  }
++  when((is_read || is_write)) {
++    col     := io.a
++    cnt:= 0.U
++    bankid  := io.ba
++  }
++
++
++  block00.io.we := col(9) === 0.U && state === s_write
++  block01.io.we := block00.io.we
++  block10.io.we := col(9) === 1.U && state === s_write
++  block11.io.we := block10.io.we
+ }
+ 
+ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-- 
+2.51.0
+

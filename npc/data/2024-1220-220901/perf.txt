@@ -1,0 +1,35 @@
+
+ Performance Counter: 
+
+================================= PERF STATISTIC =================================
+            Total Cycles: 16,130,498,677         #     0.0000 
+             Total Insts:    194,130,030         #     0.0120 IPC
+          Inst Fetch CNT:    194,130,030         #   100.0000 % of inst
+       Compute Insts CNT:    115,155,926         #    59.3190 % of inst
+       Branch  Insts CNT:     51,821,621         #    26.6943 % of inst
+       Jump    Insts CNT:      4,581,572         #     2.3601 % of inst
+       ld/st   Insts CNT:     22,570,912         #    11.6267 % of inst
+       CSR     Insts CNT:              0         #     0.0000 % of inst
+      Compute Cyeles CNT:  7,465,124,949         #    64.8262 cycle per inst
+      Branch  Cyeles CNT:  3,376,260,850         #    65.1516 cycle per inst
+      Jump    Cyeles CNT:    378,407,367         #    82.5933 cycle per inst
+      ld/st   Cyeles CNT:  4,910,705,511         #   217.5679 cycle per inst
+      CSR     Cyeles CNT:              0         #       -nan cycle per inst
+           Alu Arith CNT:    116,548,946         #    60.0365 % of inst
+           Alu Logic CNT:     23,841,288         #    12.2811 % of inst
+           Alu Shift CNT:     53,336,234         #    27.4745 % of inst
+           Alu Cmp   CNT:          2,965         #     0.0015 % of inst
+           Alu Copy  CNT:        400,598         #     0.2064 % of inst
+                Load CNT:     16,458,978         #    72.9212 % of ld/st inst
+               Store CNT:      6,111,934         #    27.0788 % of ld/st inst
+         Load Cycles CNT:  2,715,118,304         #   164.9628 cycle per load
+        Store Cycles CNT:    566,408,310         #    92.6725 cycle per store
+
+ Area Report: 
+   Chip area for top module '\ysyx_23060246': 29694.112000
+
+ Timing Report(Max Freq):  
++----------------------+-------------+------------+------------+---------------+-------+-------+-----------+
+| Endpoint             | Clock Group | Delay Type | Path Delay | Path Required | CPPR  | Slack | Freq(MHz) |
++----------------------+-------------+------------+------------+---------------+-------+-------+-----------+
+| cpu_npc/lsu/_3608_:D | core_clock  | max        | 1.082f     | 1.084         | 0.000 | 0.002 | 891.705   |

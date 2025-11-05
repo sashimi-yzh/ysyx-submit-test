@@ -1,0 +1,23 @@
+From 235a5afecbdbc45f33733e1e48c7496072b15122 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Mon, 16 Dec 2024 20:54:47 +0800
+Subject: [PATCH 17/23] USE Fast FLASH
+
+---
+ perip/spi/rtl/spi_top_apb.v | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index a745423c0..21cfdc486 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,5 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
++// 还需要在src/device/SPI.scala中将XIP_en 设置为false
+ `define FAST_FLASH
+ 
+ module spi_top_apb #(
+-- 
+2.51.0
+

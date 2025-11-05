@@ -1,0 +1,117 @@
+From fc680bdb386b2502eac1e71b1fc8311dbbc717db Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Thu, 21 Nov 2024 17:27:19 +0800
+Subject: [PATCH 3/8] new context code
+
+---
+ bsp/abstract-machine/src/context.c | 61 +++++++++++++++---------------
+ bsp/abstract-machine/src/init.c    |  2 +-
+ 2 files changed, 31 insertions(+), 32 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 113243d264..b5f5f5e77c 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,27 +2,24 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-static Context *ev_handler(Event e, Context *c)
++static rt_ubase_t from_g,to_g;
++
++static Context *ev_handler(Event ev, Context *c)
+ {
+-  switch (e.event)
+-  {
+-  case EVENT_YIELD:
++  switch (ev.event)
+   {
+-    rt_thread_t self = rt_thread_self();
+-    rt_ubase_t *args = (void *)self->user_data;
+-    Context **from = (Context **)args[0], **to = (Context **)args[1];
+-    if (from != NULL)
+-      *from = c;
+-    c = *to;
+-    break;
+-  }
+-  case EVENT_IRQ_TIMER:
+-    break;
+-  case EVENT_IRQ_IODEV:
+-    break;
+-  default:
+-    printf("Unhandled event ID = %d\n", e.event);
+-    assert(0);
++    case EVENT_YIELD:
++    {
++      Context **from = (Context **)from_g;
++      Context **to = (Context **)to_g;
++      if (from != NULL)
++        *from = c;
++      c = *to;
++      break;
++    }
++    default:
++      printf("Unhandled event: ID = %d\n", ev.event);
++      assert(0);
+   }
+   return c;
+ }
+@@ -34,13 +31,10 @@ void __am_cte_init()
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to)
+ {
+-  //assert(0);
+-  rt_thread_t self= rt_thread_self();
+-  rt_ubase_t prev_user_data = self->user_data;
+-  rt_ubase_t user_data[2] = {from, to};
+-  self->user_data = (rt_ubase_t)user_data;
++  from_g = from;
++  to_g = to;
+   yield();
+-  self->user_data = prev_user_data;
++
+ }
+ 
+ 
+@@ -68,14 +62,19 @@ static void tentry_entry(void *parameter) {
+ // 参考：https://riscv-rtthread-programming-manual.readthedocs.io/zh-cn/latest/zh_CN/8.html
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit)
+ {
+-//  assert(0);
+-//  return NULL;
+-  stack_addr = (rt_uint8_t*)((rt_ubase_t)stack_addr & ~0xf);
+-  uintptr_t *args = (void*)(stack_addr-32);
+-  stack_addr-=32;
++  rt_uint8_t         *stk;
++
++  stk  = stack_addr + sizeof(rt_ubase_t);
++  stk  = (rt_uint8_t *)RT_ALIGN_DOWN((rt_ubase_t)stk, sizeof(rt_ubase_t));
++
++  uintptr_t *args = (void*)(stk-3*sizeof(uintptr_t));
++  stk -= 3*sizeof(uintptr_t);
++  
+   args[0]=(uintptr_t)parameter;
+   args[1]=(uintptr_t)tentry;
+   args[2]=(uintptr_t)texit;
+-  Context* c = kcontext((Area){0, stack_addr}, tentry_entry, args);
++  
++  Context* c = kcontext((Area){0, stk}, tentry_entry, args);
++
+   return (rt_uint8_t*)c;
+ }
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index 4ac6b2384d..bbeb400af0 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -25,7 +25,7 @@ void rt_hw_board_init() {
+ 
+   uint32_t size = AM_APPS_HEAP_SIZE;
+   void *p = NULL;
+-  for (; p == NULL && size != 0; size /= 2) {p = rt_malloc(size); outb_local(0xa00003f8,'^');}
++  for (; p == NULL && size != 0; size /= 2) {p = rt_malloc(size);}
+   am_apps_heap = RANGE(p, p + size);
+ 
+   extern char __am_apps_data_start, __am_apps_data_end;
+-- 
+2.50.1
+

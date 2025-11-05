@@ -1,0 +1,16 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.cc
+!.gitignore
+!README.md
+!Kconfig
+include/config
+include/generated
+!.config
+!*.sh
+!tools/gen_icache_label/*
+!scripts/*.xml

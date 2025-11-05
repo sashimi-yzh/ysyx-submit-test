@@ -1,0 +1,56 @@
+From 1db4760feec8521562a6f5eb1c27fcb033ff7f77 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Wed, 19 Feb 2025 11:22:10 +0800
+Subject: [PATCH 21/23] fixed bug for SDRAM: cs signal had been fixed
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 3 ++-
+ perip/sdram/sdram_top_apb.v                  | 4 ++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 7c42e5691..b9494117a 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -84,6 +84,7 @@ localparam SDRAM_START_DELAY     = 100000 / (1000 / SDRAM_MHZ); // 100uS
+ localparam SDRAM_REFRESH_CYCLES  = (64000*SDRAM_MHZ) / SDRAM_REFRESH_CNT-1;
+ 
+ localparam CMD_W             = 4;
++localparam CMD_INHIBIT       = 4'b1000; //如果command_q[3]不被复位成1，会导致片选总是0， sdram内部的信号无法被复位，导致x态
+ localparam CMD_NOP           = 4'b0111;
+ localparam CMD_ACTIVE        = 4'b0011;
+ localparam CMD_READ          = 4'b0101;
+@@ -482,7 +483,7 @@ integer idx;
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+-    command_q       <= CMD_NOP;
++    command_q       <= CMD_INHIBIT;
+     data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index f127d7143..48854dd37 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -31,6 +31,8 @@ module sdram_top_apb (
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+   wire req_accept;
++  wire is_read  = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) && !in_pwrite;
++  wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
+ 
+   always @(posedge clock) begin
+     if (reset) state <= ST_IDLE;
+@@ -43,8 +45,6 @@ module sdram_top_apb (
+       endcase
+   end
+ 
+-  wire is_read  = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) && !in_pwrite;
+-  wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
+   sdram_axi_core #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+-- 
+2.51.0
+

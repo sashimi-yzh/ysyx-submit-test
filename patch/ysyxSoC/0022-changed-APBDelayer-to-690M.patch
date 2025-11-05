@@ -1,0 +1,25 @@
+From 764830178908669a8a900137d98820700219deca Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Sun, 16 Mar 2025 11:52:41 +0800
+Subject: [PATCH 22/23] changed APBDelayer to 690M
+
+---
+ src/amba/APBDelayer.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index ce57cc3a5..f6bae8f63 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -23,7 +23,7 @@ class apb_delayer extends BlackBox {
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+   //io.out <> io.in
+-  val NPC_FREQ = 890 // 890 MHz
++  val NPC_FREQ = 690 // 690 MHz
+   val DEVICE_FREQ = 100 // 100 MHz
+   val SCALE = 256   // must be 2^n
+   val RATIO = NPC_FREQ.toDouble / DEVICE_FREQ.toDouble 
+-- 
+2.51.0
+

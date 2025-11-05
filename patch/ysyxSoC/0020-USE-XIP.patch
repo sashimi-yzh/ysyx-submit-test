@@ -1,0 +1,42 @@
+From fbe330bbedb5dcecbe7c9d331869f5e5a9b37926 Mon Sep 17 00:00:00 2001
+From: EPTansuo <eptansuo@163.com>
+Date: Thu, 19 Dec 2024 15:02:15 +0800
+Subject: [PATCH 20/23] USE XIP
+
+---
+ perip/spi/rtl/spi_top_apb.v | 4 ++--
+ src/device/SPI.scala        | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 21cfdc486..3caf0ea55 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,7 +1,7 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-// 还需要在src/device/SPI.scala中将XIP_en 设置为false
+-`define FAST_FLASH
++// 如果启用FAST_FALSH 还需要在src/device/SPI.scala中将XIP_en 设置为false
++//`define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index b21d28720..dfd38fa50 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -50,8 +50,8 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     spi_bundle <> mspi.io.spi
+ 
+     //val XIP_en = (in.paddr >= 0x30000000.U) && (in.paddr <= 0x3fffffff.U)
+-    //val XIP_en = (in.paddr(29,24) >= 0x30.U) && (in.paddr(29,24) <= 0x3f.U)
+-    val XIP_en = false.B
++    val XIP_en = (in.paddr(29,24) >= 0x30.U) && (in.paddr(29,24) <= 0x3f.U)
++    //val XIP_en = false.B
+     val spi_rw = Module(new APBSPIMasterReadWrite)
+ /*
+     mspi.io.in.psel := 0.U
+-- 
+2.51.0
+

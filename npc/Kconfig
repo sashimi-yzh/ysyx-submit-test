@@ -1,0 +1,230 @@
+mainmenu "NEMU Configuration Menu"
+
+
+
+choice
+  prompt "Base ISA"
+  default ISA_riscv
+config ISA_mips32
+  bool "mips32"
+config ISA_riscv
+  bool "riscv"
+endchoice
+
+config ISA
+  string
+  default "mips32" if ISA_mips32
+  default "riscv32" if ISA_riscv && !RV64
+  default "riscv64" if ISA_riscv &&  RV64
+  default "none"
+
+config ISA64
+  depends on ISA_riscv && RV64
+  bool
+  default y
+
+
+if ISA_riscv
+source "csrc/isa/riscv32/Kconfig"
+endif
+
+
+menu "Configuration for NPC"
+config USE_ICACHE
+  bool "Use ICache"
+  default y
+config USE_BPU
+  bool "Use Branch Prediction"
+  default y
+config PERF_CNT
+  bool "Enable Performance Counter"
+  default y
+
+config USE_REG0
+  bool "Enable Register 0"
+  default y
+
+endmenu
+
+choice
+  prompt "Optimization Level"
+  default CC_O2
+config CC_O0
+  bool "O0"
+config CC_O1
+  bool "O1"
+config CC_O2
+  bool "O2"
+config CC_O3
+  bool "O3"
+endchoice
+
+config CC_OPT
+  string
+  default "-O0" if CC_O0
+  default "-O1" if CC_O1
+  default "-O2" if CC_O2
+  default "-O3" if CC_O3
+  default "none"
+
+menu "Simulation Configuration"
+
+
+config WAVE_DUMP
+	bool "Enable wave dump"
+	default n
+
+config SAMPLE_WAVE_DUMP
+	bool "Sampe wave snapshot"
+	depends on WAVE_DUMP
+	default n
+
+config SAMPLE_NUM
+  depends on SAMPLE_WAVE_DUMP
+  int "Number of Sample snapshots"
+  default 30
+
+config SAMPLE_CYCLES
+  depends on SAMPLE_WAVE_DUMP
+  int "Cycles of each snapshot"
+  default 128
+
+choice
+    prompt "Wave file type"
+    default WAVE_FST if !SAMPLE_WAVE_DUMP
+    depends on WAVE_DUMP
+    help
+      Select the type of wave file to use.
+
+config WAVE_VCD
+    bool "vcd"
+
+config WAVE_FST
+    bool "fst"
+
+endchoice
+
+config WAVE_FILE_TYPE
+    string
+    default "vcd" if SAMPLE_WAVE_DUMP
+    default "fst" if WAVE_FST
+    default "none"
+
+#config USE_SOC
+#  default y
+#  bool "Use SOC for Simulation"
+#
+#config SOC_EN #For Chisel
+#  string 
+#  default "enable" if USE_SOC
+#  default "disable" if !USE_SOC 
+
+
+#config USE_NVBOARD
+#  depends on USE_SOC
+#  default n
+#  bool "USE NVBoard for SOC Simulation"
+
+endmenu
+
+menu "Testing and Debugging"
+
+config PC_TRACE
+  bool "Enable PC Tracer"
+  default y
+config PC_TRACE_BINARY
+  depends on PC_TRACE
+  bool "PC Tracer Use Binary Format"
+  default y
+
+config PC_TRACE_COMPRESS
+  depends on PC_TRACE
+  bool "Enable PC Tracer Compress"
+  default y
+
+config TRACE
+  bool "Enable tracer"
+  default y
+
+config TRACE_START
+  depends on TRACE
+  int "When tracing is enabled (unit: number of instructions)"
+  default 0
+
+config TRACE_END
+  depends on TRACE
+  int "When tracing is disabled (unit: number of instructions)"
+  default 10000
+
+config ITRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable instruction tracer"
+  default y
+
+config ITRACE_COND
+  depends on ITRACE
+  string "Only trace instructions when the condition is true"
+  default "true"
+
+config MTRACE
+  depends on TRACE
+  bool "Enable memory tracer"
+  default y
+
+config MTRACE_RANGE_COND
+  depends on MTRACE
+  bool "Only track the specified range of memory"
+  default y
+
+config MTRACE_RANGE_MIN
+  depends on MTRACE_RANGE_COND
+  hex "Minimum value of the tracked memory address"
+  default "0x80000000"
+
+config MTRACE_RANGE_MAX
+  depends on MTRACE_RANGE_COND
+  hex "Maximum value of  the tracked memory address"
+  default "0x88000000"
+
+config DIFFTEST
+  bool "Enable differential testing"
+  default n
+  help
+    Enable differential testing with a reference design.
+#config RESET_VECTOR
+#  hex "Reset PC Vector"
+#  default 0x80000000 if !USE_SOC
+#  default 0x30000000 if USE_SOC
+choice
+  prompt "Reference design"
+  default DIFFTEST_REF_NEMU if ISA_riscv
+  default DIFFTEST_REF_SPIKE 
+  default DIFFTEST_REF_QEMU
+  depends on DIFFTEST
+
+config DIFFTEST_REF_SPIKE
+  bool "Spike"
+config DIFFTEST_REF_NEMU
+  bool "NEMU"
+config DIFFTEST_REF_QEMU
+  bool "Qemu"
+endchoice
+
+config DIFFTEST_REF_PATH
+  string
+  default "../nemu/tools/qemu-diff" if DIFFTEST_REF_QEMU
+  default "../nemu/tools/spike-diff" if DIFFTEST_REF_SPIKE
+  default "../nemu/build" if DIFFTEST_REF_NEMU
+  default "none"
+
+config DIFFTEST_REF_NAME
+  string
+  default "nemu" if DIFFTEST_REF_NEMU
+  default "spike" if DIFFTEST_REF_SPIKE
+  default "none"
+endmenu
+
+
+
+source "csrc/memory/Kconfig"
+source "csrc/device/Kconfig"
