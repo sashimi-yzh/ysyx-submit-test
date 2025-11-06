@@ -1,0 +1,99 @@
+From b4438766ab9750de57e4a554b00221f5684ba425 Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Thu, 11 Sep 2025 20:37:25 +0800
+Subject: [PATCH 09/12] =?UTF-8?q?=E4=BF=AE=E6=94=B9=E4=BA=86=E4=B9=8B?=
+ =?UTF-8?q?=E5=89=8D=E9=81=97=E7=95=99=E7=9A=84=E5=85=B3=E4=BA=8Esdram?=
+ =?UTF-8?q?=E6=8E=A7=E5=88=B6=E5=99=A8=E7=9A=84bug?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 15 ++++++++-------
+ perip/sdram/sdram_32mX16.v                   |  2 +-
+ perip/sdram/sdram_top_axi.v                  |  2 +-
+ 3 files changed, 10 insertions(+), 9 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 18750f0..e945231 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -562,7 +562,7 @@ begin
+         else if (refresh_timer_q == 10)
+         begin
+             command_q <= CMD_LOAD_MODE;
+-            addr_q    <= MODE_REG;
++            addr_q    <= {1'b0, MODE_REG};
+         end
+         // Other cycles during init - just NOP
+         else
+@@ -624,7 +624,7 @@ begin
+     STATE_READ :
+     begin
+         command_q   <= CMD_READ;
+-        addr_q      <= addr_col_w;
++        addr_q      <= {ram_addr_w[25],addr_col_w[12:0]};
+         bank_q      <= addr_bank_w;
+ 
+         // Disable auto precharge (auto close of row)
+@@ -639,7 +639,7 @@ begin
+     STATE_WRITE0 :
+     begin
+         command_q       <= CMD_WRITE;
+-        addr_q          <= addr_col_w;
++        addr_q          <= {ram_addr_w[25],addr_col_w[12:0]};
+         bank_q          <= addr_bank_w;
+         // data_q          <= ram_write_data_w[15:0];
+         data_q          <= ram_write_data_w;
+@@ -731,7 +731,7 @@ assign ram_ack_w = ack_q;
+ 
+ // Accept command in READ or WRITE0 states
+ // 这个信号表示当信号为高(1)​​：表示 SDRAM 控制器当前可以接受新的请求；​​当信号为低(0)​​：表示控制器当前无法处理新请求
+-assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE0 && next_state_r == STATE_WRITE0);
++assign ram_accept_w = (state_q == STATE_READ || (state_q == STATE_WRITE0 && next_state_r == STATE_WRITE0));
+ 
+ //-----------------------------------------------------------------
+ // SDRAM I/O
+@@ -748,9 +748,10 @@ assign sdram_cas_o  = command_q[1];
+ assign sdram_we_o   = command_q[0];
+ assign sdram_dqm_o  = dqm_q;
+ assign sdram_ba_o   = bank_q;
+-// assign sdram_addr_o = addr_q;
+-assign sdram_addr_o[12:0] = addr_q;
+-assign sdram_addr_o[13] = ram_addr_w[25];
++// TAG: 进行下面的修改的原因是字扩展的时候，按照注释的写法会导致有段时间选中的chip不对，所以需要直接使用所存的地址数据
++assign sdram_addr_o = addr_q;
++// assign sdram_addr_o[12:0] = addr_q;
++// assign sdram_addr_o[13] = ram_addr_w[25];
+ 
+ //-----------------------------------------------------------------
+ // Simulation only
+diff --git a/perip/sdram/sdram_32mX16.v b/perip/sdram/sdram_32mX16.v
+index 7ac8c7c..20e702a 100644
+--- a/perip/sdram/sdram_32mX16.v
++++ b/perip/sdram/sdram_32mX16.v
+@@ -131,7 +131,7 @@ module sdram_32mX16(
+       is_read   <= 1'b0;
+     end else if(cmd == CMD_READ) begin
+       is_read   <= 1'b1;
+-    end else if(burst_cnt == ({1'b0, CAS_Latency} + Length - 'd1))begin
++    end else if(burst_cnt == ({1'b0, CAS_Latency} + Length - 'd2))begin
+       is_read   <= 1'b0;
+     end
+   end
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index 8c68648..26cacac 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -53,7 +53,7 @@ module sdram_top_axi(
+   assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(2)
+   ) u_sdram_axi(
+-- 
+2.34.1
+

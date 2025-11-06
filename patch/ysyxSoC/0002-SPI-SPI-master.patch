@@ -1,0 +1,66 @@
+From 16cc071c5ba00728c8daaf6f46c340da362ac485 Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Wed, 7 May 2025 20:23:33 +0800
+Subject: [PATCH 02/12] =?UTF-8?q?=E5=B0=86SPI=E6=94=B9=E4=B8=BA=E9=80=9A?=
+ =?UTF-8?q?=E8=BF=87=E4=B8=AD=E6=96=AD=E7=AD=89=E5=BE=85SPI=20master?=
+ =?UTF-8?q?=E4=BC=A0=E8=BE=93=E5=AE=8C=E6=88=90?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/spi/rtl/spi_top_apb.v | 30 +++++++++++++++++-------------
+ 1 file changed, 17 insertions(+), 13 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index f43f7b8..fcdd04f 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -172,8 +172,6 @@ spi_top u0_spi_top (
+   localparam WAIT_TRANS   = 4'b0101;
+   localparam READ_DATA    = 4'b0110;
+ 
+-  reg flag = 0;
+-
+   // ------------------- XIP模式状态机 -------------------
+   always @(posedge clock or posedge reset) begin
+     if(reset)begin
+@@ -269,18 +267,24 @@ spi_top u0_spi_top (
+           end
+         end
+ 
+-        // 等待go_busy位被置为0,表示传输完毕，然后重新读取数据
++        
+         WAIT_TRANS: begin
+-          flash_xip_penable     <= 1'b1;
+-          flag <= 1;
+-          if(flash_xip_penable == 1'b1 && apb_pready == 1'b1)begin
+-            flag <= 0;
+-            if(apb_prdata[8] == 1'b0)begin    // ctrl.go_busy == 0
+-              flash_xip_penable <= 1'b0;
+-              flash_xip_state   <= READ_DATA;
+-
+-              flash_xip_paddr   <= (`SPI_RX_0 << 2);    // lower 32 bits
+-            end
++          // 等待go_busy位被置为0,表示传输完毕，然后重新读取数据
++          // flash_xip_penable     <= 1'b1;
++          // if(flash_xip_penable == 1'b1 && apb_pready == 1'b1)begin
++          //   if(apb_prdata[8] == 1'b0)begin    // ctrl.go_busy == 0
++          //     flash_xip_penable <= 1'b0;
++          //     flash_xip_state   <= READ_DATA;
++
++          //     flash_xip_paddr   <= (`SPI_RX_0 << 2);    // lower 32 bits
++          //   end
++          // end
++          // 不使用go_busy位判断是否传输完毕，设置控制寄存器的IE位后，SPI master在传输结束后将会发出中断信号，直接使用中断信号进行判断
++          // spi_irq_out中断信号在读取或者写入任意寄存器之后都会被取消置位
++          if(spi_irq_out)begin
++            flash_xip_state   <= READ_DATA;
++            
++            flash_xip_paddr   <= (`SPI_RX_0 << 2);    // lower 32 bits
+           end
+         end
+ 
+-- 
+2.34.1
+

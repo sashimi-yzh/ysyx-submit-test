@@ -1,0 +1,1094 @@
+From 3acddbfc26055c2b51ea77ffbca9e6c8b12db911 Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Fri, 30 May 2025 17:19:16 +0800
+Subject: [PATCH 05/12] =?UTF-8?q?=E5=AE=9E=E7=8E=B0=E4=BA=86SDRAM=EF=BC=8C?=
+ =?UTF-8?q?=E4=BB=A5=E5=8F=8ASDRAM=E7=9A=84=E4=BD=8D=E6=89=A9=E5=B1=95?=
+ =?UTF-8?q?=E5=92=8C=E5=AD=97=E6=89=A9=E5=B1=95?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi.v      |  12 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 114 +++++---
+ perip/sdram/readme.md                        |  34 +++
+ perip/sdram/sdram.v                          | 281 ++++---------------
+ perip/sdram/sdram_32mX16.v                   | 265 +++++++++++++++++
+ perip/sdram/sdram_32mX32.v                   |  46 +++
+ perip/sdram/sdram_top_apb.v                  |  15 +-
+ perip/sdram/sdram_top_axi.v                  |  15 +-
+ perip/spi/rtl/spi_top_apb.v                  |   1 +
+ 9 files changed, 497 insertions(+), 286 deletions(-)
+ create mode 100644 perip/sdram/readme.md
+ create mode 100644 perip/sdram/sdram_32mX16.v
+ create mode 100644 perip/sdram/sdram_32mX32.v
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f5..a97c9b9 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,8 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    // ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +74,13 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    // ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
++    // ,output [ 12:0]  sdram_addr_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    // ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cedbf77..8f0033f 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -37,28 +37,32 @@ module sdram_axi_core
+     // Inputs
+      input           clk_i
+     ,input           rst_i
+-    ,input  [  3:0]  inport_wr_i
+-    ,input           inport_rd_i
+-    ,input  [  7:0]  inport_len_i
+-    ,input  [ 31:0]  inport_addr_i
+-    ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [  3:0]  inport_wr_i                // in_pstrb：Write strobe，为写操作才会出现，不是写操作就全0
++    ,input           inport_rd_i                // is_read：是否为读操作
++    ,input  [  7:0]  inport_len_i               // 0
++    ,input  [ 31:0]  inport_addr_i              // in_paddr
++    ,input  [ 31:0]  inport_write_data_i        // in_pwdata 
++    // ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i         // READ的数据
+ 
+     // Outputs
+-    ,output          inport_accept_o
+-    ,output          inport_ack_o
+-    ,output          inport_error_o
+-    ,output [ 31:0]  inport_read_data_o
++    ,output          inport_accept_o            // accept
++    ,output          inport_ack_o               // in_pready
++    ,output          inport_error_o             // in_pslverr
++    ,output [ 31:0]  inport_read_data_o         // in_prdata
+     ,output          sdram_clk_o
+     ,output          sdram_cke_o
+     ,output          sdram_cs_o
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    // ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
++    // ,output [ 12:0]  sdram_addr_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    // ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o        // WRITE的数据
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -76,8 +80,10 @@ parameter SDRAM_READ_LATENCY     = 2;
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
+-localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
++// localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
++// localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
++localparam SDRAM_BANKS           = (2 ** SDRAM_BANK_W) * 2;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+ localparam SDRAM_START_DELAY     = 100000 / (1000 / SDRAM_MHZ); // 100uS
+@@ -94,7 +100,9 @@ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+ // Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++// localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++// Mode: Burst Length = 1(single chip), CAS=2
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};          // 不需要使用burst就能读取出来32位数据
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -112,7 +120,8 @@ localparam STATE_REFRESH     = 4'd9;
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++// localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -153,7 +162,7 @@ assign inport_accept_o    = ram_accept_w;
+ 
+ reg [CMD_W-1:0]        command_q;
+ reg [SDRAM_ROW_W-1:0]  addr_q;
+-reg [SDRAM_DATA_W-1:0] data_q;
++reg [SDRAM_DATA_W-1:0] data_q;              // 存放WRITE的数据
+ reg                    data_rd_en_q;
+ reg [SDRAM_DQM_W-1:0]  dqm_q;
+ reg                    cke_q;
+@@ -177,10 +186,15 @@ reg  [STATE_W-1:0]     target_state_q;
+ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
+-wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
++wire [SDRAM_ROW_W-1:0]  addr_col_w  = {
++    {(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0
++};
+ wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+ wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
+ 
++// 字扩展
++wire [SDRAM_BANK_W:0] addr_bank_double = {ram_addr_w[25], addr_bank_w};
++
+ //-----------------------------------------------------------------
+ // SDRAM State Machine
+ //-----------------------------------------------------------------
+@@ -220,7 +234,7 @@ begin
+         else if (ram_req_w)
+         begin
+             // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++            if (row_open_q[addr_bank_double] && addr_row_w == active_row_q[addr_bank_double])
+             begin
+                 if (!ram_rd_w)
+                     next_state_r = STATE_WRITE0;
+@@ -228,7 +242,7 @@ begin
+                     next_state_r = STATE_READ;
+             end
+             // Row miss, close row, open new row
+-            else if (row_open_q[addr_bank_w])
++            else if (row_open_q[addr_bank_double])
+             begin
+                 next_state_r   = STATE_PRECHARGE;
+ 
+@@ -265,7 +279,7 @@ begin
+         next_state_r = STATE_READ_WAIT;
+     end
+     //-----------------------------------------
+-    // STATE_READ_WAIT
++    // STATE_READ_WAIT：这里的WAIT是等待CAS_Latency
+     //-----------------------------------------
+     STATE_READ_WAIT :
+     begin
+@@ -275,7 +289,7 @@ begin
+         if (!refresh_q && ram_req_w && ram_rd_w)
+         begin
+             // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++            if (row_open_q[addr_bank_double] && addr_row_w == active_row_q[addr_bank_double])
+                 next_state_r = STATE_READ;
+         end
+     end
+@@ -284,7 +298,17 @@ begin
+     //-----------------------------------------
+     STATE_WRITE0 :
+     begin
+-        next_state_r = STATE_WRITE1;
++        // next_state_r = STATE_WRITE1;
++
++        next_state_r = STATE_IDLE;
++
++        // Another pending write request (with no refresh pending)
++        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
++        begin
++            // Open row hit
++            if (row_open_q[addr_bank_double] && addr_row_w == active_row_q[addr_bank_double])
++                next_state_r = STATE_WRITE0;
++        end
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+@@ -297,7 +321,7 @@ begin
+         if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
+         begin
+             // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++            if (row_open_q[addr_bank_double] && addr_row_w == active_row_q[addr_bank_double])
+                 next_state_r = STATE_WRITE0;
+         end
+     end
+@@ -364,7 +388,7 @@ begin
+         if (!refresh_q && ram_req_w && ram_rd_w)
+         begin
+             // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++            if (row_open_q[addr_bank_double] && addr_row_w == active_row_q[addr_bank_double])
+                 delay_r = 4'd0;
+         end
+     end
+@@ -483,7 +507,8 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    // data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+@@ -557,8 +582,8 @@ begin
+         addr_q        <= addr_row_w;
+         bank_q        <= addr_bank_w;
+ 
+-        active_row_q[addr_bank_w]  <= addr_row_w;
+-        row_open_q[addr_bank_w]    <= 1'b1;
++        active_row_q[addr_bank_double]  <= addr_row_w;
++        row_open_q[addr_bank_double]    <= 1'b1;
+     end
+     //-----------------------------------------
+     // STATE_PRECHARGE
+@@ -580,7 +605,7 @@ begin
+             addr_q[ALL_BANKS]   <= 1'b0;
+             bank_q              <= addr_bank_w;
+ 
+-            row_open_q[addr_bank_w] <= 1'b0;
++            row_open_q[addr_bank_double] <= 1'b0;
+         end
+     end
+     //-----------------------------------------
+@@ -616,14 +641,16 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        // data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w;
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        // dqm_q           <= ~ram_wr_w[1:0];
++        // dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w;
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+@@ -663,31 +690,38 @@ else
+ 
+ // Buffer upper 16-bits of write data so write command can be accepted
+ // in WRITE0. Also buffer lower 16-bits of read data.
+-always @ (posedge clk_i or posedge rst_i)
++/*always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+     data_buffer_q <= 16'b0;
+ else if (state_q == STATE_WRITE0)
+     data_buffer_q <= ram_write_data_w[31:16];
+ else if (rd_q[SDRAM_READ_LATENCY+1])
+-    data_buffer_q <= sample_data_q;
++    data_buffer_q <= sample_data_q;*/
+ 
+ // Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
++// assign ram_read_data_w = {sample_data_q, data_buffer_q};
++assign ram_read_data_w = sample_data_q;
+ 
+ //-----------------------------------------------------------------
+ // ACK
+ //-----------------------------------------------------------------
+-reg ack_q;
++reg ack_q;      // 表示数据准备好了
+ 
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+     ack_q   <= 1'b0;
+ else
+ begin
+-    if (state_q == STATE_WRITE1)
++    /*if (state_q == STATE_WRITE1)
+         ack_q <= 1'b1;
+     else if (rd_q[SDRAM_READ_LATENCY+1])
+         ack_q <= 1'b1;
++    else
++        ack_q <= 1'b0;*/
++    if (state_q == STATE_WRITE0)
++        ack_q <= 1'b1;
++    else if (rd_q[SDRAM_READ_LATENCY])
++        ack_q <= 1'b1;
+     else
+         ack_q <= 1'b0;
+ end
+@@ -712,7 +746,9 @@ assign sdram_cas_o  = command_q[1];
+ assign sdram_we_o   = command_q[0];
+ assign sdram_dqm_o  = dqm_q;
+ assign sdram_ba_o   = bank_q;
+-assign sdram_addr_o = addr_q;
++// assign sdram_addr_o = addr_q;
++assign sdram_addr_o[12:0] = addr_q;
++assign sdram_addr_o[13] = ram_addr_w[25];
+ 
+ //-----------------------------------------------------------------
+ // Simulation only
+diff --git a/perip/sdram/readme.md b/perip/sdram/readme.md
+new file mode 100644
+index 0000000..a91ede1
+--- /dev/null
++++ b/perip/sdram/readme.md
+@@ -0,0 +1,34 @@
++sdram的设计文档：
++1. 对SDRAM的读写访问是以突发（burst）方式进行的；访问从一个选定的位置开始，并按照预设的顺序持续访问预设数量的地址。访问操作始于发出一个ACTIVE（激活）指令，随后跟随一个READ（读取）或WRITE（写入）指令。与ACTIVE指令同时注册的地址位用于选择要访问的存储库（bank）和行（row）（其中BA0和BA1选择bank，A0–A12选择行）。与READ或WRITE指令同时注册的地址位则用于选择突发访问的起始列地址。
++2. 信号说明：
++* CLK - 时钟信号
++* 时钟使能（CKE）：CKE 高电平时激活 CLK 信号，低电平时禁用 CLK 信号。\
++    禁用时钟可以实现以下操作模式：\
++        预充电省电模式（PRECHARGE POWER-DOWN）：所有 bank 空闲\
++        自刷新模式（SELF REFRESH）：所有 bank 空闲\
++        激活省电模式（ACTIVE POWER-DOWN）：某个 bank 的某一行仍处于激活状态\
++        时钟暂停模式（CLOCK SUSPEND）：突发访问正在进行中\
++    CKE 是同步信号，除非设备进入省电或自刷新模式。在进入这两种模式之后，CKE 变为异步，直到设备退出这些模式为止。在省电和自刷新模式下，包括 CLK 在内的输入缓冲器会被禁用，以降低待机功耗。CKE 信号可以直接拉高保持激活状态。
++* CS#, WE#, CAS#, #RAS - 命令信号
++* BA[1:0] - 存储体地址：BA0和BA1定义了ACTIVE、READ、WRITE或PRECHARGE命令应用于哪个存储体
++* A[12:0] - 地址：地址输入：A0–A12 会在 ACTIVE（激活）指令期间采样（用于行地址 A0–A12），以及在 READ/WRITE（读取/写入）指令期间采样（用于列地址，具体如下：x4 模式使用 A0–A9 和 A11；x8 模式使用 A0–A9；x16 模式使用 A0–A8；其中 A10 用于定义是否自动预充电 auto precharge），以从相应的 bank（存储库）中选出一个内存单元。在 PRECHARGE（预充电）指令期间，会采样 A10 来决定是否对所有 bank 进行预充电（A10 为高电平时）或仅对指定 bank 进行预充电（A10 为低电平时）。地址输入还会在执行 LOAD MODE REGISTER（加载模式寄存器）指令时，提供操作码（op-code）
++* DQ[15:0] - 数据：数据输入/输出：对于 x16 模式，这些引脚用于数据总线；而在 x8 模式下，引脚 4、7、10、13、42、45、48 和 51 是未连接（NC，No Connect）；在 x4 模式下，引脚 2、4、7、8、10、13、42、45、47、48、51 和 53 是未连接（NC）。在本次的颗粒仿真中，是x16的结构，所以是全部使用
++* DQM[1:0] - 数据掩码：DQM是用于写访问的输入掩码信号和用于读访问的输出使能信号，低电平有效
++3. Mode寄存器：模式寄存器位M0–M2指定突发长度，M3指定突发类型（顺序或交错），M4–M6指定CAS延迟，M7和M8指定操作模式，M9指定写入突发模式，M10和M11保留以供将来使用。
++4. 在READ突发期间，在READ命令之后的CAS延迟之后，起始列地址的有效数据输出元素将可用。每个后续的数据输出元素将在下一个正时钟沿之前有效
++5. 但是，打开行地址(激活)是需要一定时间的， 即从打开行地址到可以打开列地址进行读写，这之间有一定的时间间隔，这个间隔叫做tRCD(ACTIVE-to-READ or WRITE delay)，对于不同型号规格的器件，这个值是不一样的。
++6. 伴随着激活命令，A0-A12上同时被寄存的数据是期望获取的位置的行地址，BAO和BA1上被寄存的数据是期望获取的位置的BANK地址。伴随着读写命令，A0-A8上同时被寄存的是期望获取的位置的列地址首地址(突发获取)，BAO和BA1上被寄存的数据是期望获取的位置的BANK地址。
++7. 实际读出数据的时间起始差距是CAS_Latency-1，所以如果从0开始计数，则需要直接在计数器为2的时候就读数据
++
++
++
++
++
++读写指令和之前充电的bank可以不一样，充电的意义在那里？
++
++
++位扩展需要修改的部分:
++    1. ysyxSoCFull.v文件中涉及sdram的dq信号的,都需要从16位位宽改为32位位宽
++    2. sdram_top_apb.v的输出信号的位宽需要修改
++    3. sdram_axi_core.v的输出信号位宽需要修改
++    4. sdram_top_axi.v的输出信号位宽需要修改
+\ No newline at end of file
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index fd830f9..d8efb94 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -1,14 +1,3 @@
+-/*
+-  CLK, CKE - 时钟信号和时钟使能信号
+-  CS#, WE#, CAS#, #RAS - 命令信号
+-  BA[1:0] - 存储体地址
+-  A[12:0] - 地址
+-  DQ[15:0] - 数据
+-  DQM[1:0] - 数据掩码：DQM是用于写访问的输入掩码信号和用于读访问的输出使能信号，低电平有效
+-  4 Meg x 16 x 4 banks(每个bank有4 MB空间，16位的数据宽度，4个bank)
+-  Mode寄存器主要考虑突发长度和CAS Latency
+-  控制器的CAS=2,突发长度为4字节
+-*/
+ module sdram(
+   input        clk,
+   input        cke,
+@@ -16,240 +5,66 @@ module sdram(
+   input        ras,
+   input        cas,
+   input        we,
+-  input [12:0] a,
++  input [13:0] a,
+   input [ 1:0] ba,
+-  input [ 1:0] dqm,
+-  inout [15:0] dq
++  input [ 3:0] dqm,
++  inout [31:0] dq
+ );
+ 
+-  // assign dq = 16'bz;
+-  localparam CMD_W = 4;
+-  localparam CMD_NOP       = 4'b0111;
+-  localparam CMD_ACTIVE    = 4'b0011;
+-  localparam CMD_READ      = 4'b0101;
+-  localparam CMD_WRITE     = 4'b0100;
+-  localparam CMD_TERMINATE = 4'b0110;
+-  localparam CMD_PRECHARGE = 4'b0010;
+-  localparam CMD_REFRESH   = 4'b0001;
+-  localparam CMD_LOAD_MODE = 4'b0000;
+-  
+-  wire [CMD_W-1:0] cmd = {cs, ras, cas, we};
++  wire [2:0] command;
++  reg ras_u0 ;
++  reg cas_u0 ;
++  reg we_u0  ;
++  reg ras_u1 ;
++  reg cas_u1 ;
++  reg we_u1  ;
+ 
+-  // 寄存器定义
+-  reg    [2:0]  CAS_Latency;
+-  reg    [2:0]  Burst_Length;
++  assign command = {ras,cas,we};
+ 
+-  wire   [3:0]  Length;             // 实际写入的突发长度
+-  reg    [1:0]  curr_bank;          // 当前操作bank
+-  reg    [15:0] dq_out;             // 输出寄存器
+-  reg           read_en;            // 输出使能
+-  reg    [12:0] row_addr [0:3];     // 每个bank的行地址
+-  reg    [8:0]  f_col_addr;         // 第一个写入/读取元素的地址
+-  reg    [3:0]  active;             // bank激活状态
+-
+-  reg is_read;                      // 判断现在是否是read指令
+-  reg is_write;                     // 判断现在是否是write指令
+-
+-  // 数据总线控制
+-  assign dq = read_en ? dq_out : 16'bz;
+-
+-  // 命令解析
+-  always @(posedge clk) begin
+-    if (!cke) begin
+-      // 时钟无效时复位
+-      row_addr[0]   <= 13'b0;
+-      row_addr[1]   <= 13'b0;
+-      row_addr[2]   <= 13'b0;
+-      row_addr[3]   <= 13'b0;
+-      Burst_Length  <= 3'b0;
+-      CAS_Latency   <= 3'b0;
+-      
+-      curr_bank     <= 2'b0;
+-
+-      active        <= 4'b0;
+-    end else if (cmd == CMD_NOP || cmd == CMD_PRECHARGE || cmd == CMD_REFRESH) begin
+-      // 所有NOP类命令(包括预充电/刷新)
+-      // 空操作
+-    end else if (cmd == CMD_LOAD_MODE) begin
+-      // 模式寄存器设置
+-      CAS_Latency   <= a[6:4]; // 读取CAS延迟
+-      Burst_Length  <= a[2:0]; // 读取突发长度
+-    end else if (cmd == CMD_ACTIVE) begin
+-      // 记录激活的bank和行地址
+-      curr_bank     <= ba;
+-      row_addr[ba]  <= a;
+-      active[ba]    <= 1'b1;
+-    end else if (cmd == CMD_READ) begin
+-      // 读命令
+-      curr_bank     <= ba;
+-    end else if (cmd == CMD_WRITE) begin
+-      // 写命令
+-      curr_bank     <= ba;
+-    end
+-  end
+-
+-  // 根据Burst_Length计算突发的长度，需要读或者写多少次
+-  assign Length   =   (Burst_Length == 3'b011) ? 4'd8 : 
+-                      (Burst_Length == 3'b010) ? 4'd4 : 
+-                      (Burst_Length == 3'b001) ? 4'd2 : 4'd1;
+-
+-  // DPI接口信号
+-  wire [15:0] read_data;
+-  reg  [15:0] write_data;
+-  reg  [1:0]  write_mask;
+-  reg         write_en;
+-
+-  // 突发加延时计数器
+-  reg [3:0] burst_cnt;
+-  always @(posedge clk) begin
+-    if (!cke || cs || cmd == CMD_READ || cmd == CMD_WRITE) begin
+-      burst_cnt <= 0;
+-    end else if (is_read || is_write) begin
+-      burst_cnt <= burst_cnt + 1;
+-    end
+-  end
+-
+-  // 存储第一次的列地址
+-  always @(posedge clk) begin
+-    if(!cke)begin
+-      f_col_addr    <= 9'b0;
+-    end else if(cmd == CMD_READ || cmd == CMD_WRITE)begin
+-      f_col_addr    <= a[8:0];  // 发送READ或者WRITE指令的时候，传输的是列地址
+-    end else if((write_en == 1 && burst_cnt == Length - 1) || (read_en == 1 && burst_cnt == ({1'b0, CAS_Latency} + Length - 1)))begin
+-      f_col_addr    <= 9'b0;
+-    end
+-  end
+-  // 列地址计算
+-  wire [8:0] col_addr;
+-  assign col_addr = (read_en == 1'b1) ? (f_col_addr + {5'b0, burst_cnt} - {6'b0, CAS_Latency} + 1'b1) : (f_col_addr + {5'b0, burst_cnt});
+-
+-  // read_en判断
+-  always @(posedge clk) begin
+-    if(!cke || cs)begin
+-      is_read   <= 1'b0;
+-    end else if(cmd == CMD_READ) begin
+-      is_read   <= 1'b1;
+-    end else if(burst_cnt == ({1'b0, CAS_Latency} + Length - 'd2))begin // 这里减2和下面的减2都是靠看波形来调整的。
+-      is_read   <= 1'b0;
+-    end
+-  end
+-
+-  always @(posedge clk)begin
+-    if(!cke || cs)begin
+-      read_en   <= 1'b0;
+-    end else if(is_read == 1'b1)begin
+-      if(burst_cnt < {1'b0, CAS_Latency} - 'd2)begin
+-        read_en <= 1'b0;
+-      end else begin
+-        read_en <= 1'b1;
++  always @(*) begin
++    case(command)
++      // NOP指令或者设置Mode寄存器的指令
++      3'b000,3'b111:begin
++        {ras_u0,cas_u0,we_u0} = command;
++        {ras_u1,cas_u1,we_u1} = command;
+       end
+-    end else begin
+-      read_en   <= 1'b0;
+-    end
+-  end
+-
+-  // 读出数据就直接输出
+-  assign dq_out = (read_en == 1'b1) ? read_data : 0;
+-
+-  // 写数据锁存
+-  assign is_write = write_en;
+-
+-  always @(posedge clk) begin
+-    if(!cke || cs)begin
+-      write_data      <= 16'b0;
+-      write_mask      <= 2'b0;
+-      write_en        <= 1'b0;
+-    end else begin
+-      if (cmd == CMD_WRITE) begin
+-        write_data    <= dq;
+-        write_mask    <= ~dqm;
+-        write_en      <= 1'b1;
+-      end else if (write_en) begin
+-        // 写突发结束
+-        if(burst_cnt == Length - 1'b1) begin
+-          write_en    <= 1'b0; // 突发结束后关闭写使能
+-        end else begin
+-          write_data  <= dq;
+-          write_mask  <= ~dqm;    // dqm低电平有效
+-        end
++      default:begin
++        // a的最高位为0选择u0，为1选择u1
++        {ras_u0,cas_u0,we_u0} = !a[13] ? command : 3'b111;
++        {ras_u1,cas_u1,we_u1} =  a[13] ? command : 3'b111;
+       end
+-    end
++    endcase
+   end
+ 
+-  // 调用DPI函数
+-  sdram_dpi #(
+-    .BANK_WIDTH(2),
+-    .ROW_WIDTH(13),
+-    .COL_WIDTH(9)
+-  ) sdram_dpi (
+-    .clk(clk),
+-    .active(active),
+-    .read_en(read_en),
+-    .write_en(write_en),
+-    .bank(curr_bank),
+-    .row(row_addr[curr_bank]),
+-    .col(col_addr),
+-    .wmask(write_mask),
+-    .wdata(write_data),
+-    .rdata(read_data)
+-  );
+-
+-endmodule
+-
+-// DPI接口模块
+-module sdram_dpi #(
+-  parameter BANK_WIDTH = 2,
+-  parameter ROW_WIDTH = 13,
+-  parameter COL_WIDTH = 9
+-)(
+-  input             clk,
+-  input [3:0]       active,
+-  input             read_en,
+-  input             write_en,
+-  input [1:0]       bank,
+-  input [12:0]      row,
+-  input [8:0]       col,
+-  input [1:0]       wmask,
+-  input [15:0]      wdata,
+-  output reg [15:0] rdata
+-);
+ 
+-  import "DPI-C" function void sdram_read(
+-    input int bank_id,
+-    input int row_id,
+-    input int col_id,
+-    output int data
++  sdram_32mX32 u0_sdram_32mX32
++  (
++    .clk  (clk),   // SDRAM时钟（需与控制器相位对齐）
++    .cke  (cke),   // 时钟使能
++    .cs   (cs),    // 片选（低有效）
++    .ras  (ras_u0),   // 行地址选通
++    .cas  (cas_u0),   // 列地址选通
++    .we   (we_u0),    // 写使能
++    .a    (a[12:0]),  // 地址总线 [12:0]
++    .ba   (ba),    // Bank地址 [1:0]
++    .dqm  (dqm),   // 数据掩码 [1:0]
++    .dq   (dq),     // 双向数据总线 [15:0]
++    .id   (0)              // 确定这个sdram需要访问的是哪几个chip
+   );
+ 
+-  import "DPI-C" function void sdram_write(
+-    input int bank_id,
+-    input int row_id,
+-    input int col_id,
+-    input int wstrb,
+-    input int data
++  sdram_32mX32 u1_sdram_32mX32
++  (
++    .clk  (clk),   // SDRAM时钟（需与控制器相位对齐）
++    .cke  (cke),   // 时钟使能
++    .cs   (cs),    // 片选（低有效）
++    .ras  (ras_u1),   // 行地址选通
++    .cas  (cas_u1),   // 列地址选通
++    .we   (we_u1),    // 写使能
++    .a    (a[12:0]),  // 地址总线 [12:0]
++    .ba   (ba),    // Bank地址 [1:0]
++    .dqm  (dqm),   // 数据掩码 [1:0]
++    .dq   (dq),     // 双向数据总线 [15:0]
++    .id   (2)              // 确定这个sdram需要访问的是哪几个chip
+   );
+ 
+-  reg [31:0]  r_data_temp;
+-
+-  // 读取
+-  always @(*) begin
+-    r_data_temp = 32'b0;
+-    if(active[bank])begin
+-      if(read_en)begin
+-        sdram_read({30'b0, bank}, {19'b0, row}, {23'b0, col}, r_data_temp);
+-      end
+-    end
+-    rdata  = r_data_temp[15:0];      // 读取出来的32位的数据，但是只取低16位
+-  end
+-
+-  // 写入
+-  always @(posedge clk) begin
+-    if(active[bank])begin
+-      // 只有有掩码的时候才能写入
+-      if(write_en == 1'b1 && (wmask[0] == 1'b1 || wmask[1] == 1'b1))begin
+-        sdram_write({30'b0, bank}, {19'b0, row}, {23'b0, col}, {30'b0, wmask}, {16'b0 ,wdata});
+-      end
+-    end
+-  end
+-
+ endmodule
+\ No newline at end of file
+diff --git a/perip/sdram/sdram_32mX16.v b/perip/sdram/sdram_32mX16.v
+new file mode 100644
+index 0000000..7ac8c7c
+--- /dev/null
++++ b/perip/sdram/sdram_32mX16.v
+@@ -0,0 +1,265 @@
++// 32M的MT48LC16M16A2颗粒，一次读取16bit
++/*
++  CLK, CKE - 时钟信号和时钟使能信号
++  CS#, WE#, CAS#, #RAS - 命令信号
++  BA[1:0] - 存储体地址
++  A[12:0] - 地址
++  DQ[15:0] - 数据
++  DQM[1:0] - 数据掩码：DQM是用于写访问的输入掩码信号和用于读访问的输出使能信号，低电平有效
++  4 Meg x 16 x 4 banks(每个bank有4 MB空间，16位的数据宽度，4个bank)
++  Mode寄存器主要考虑突发长度和CAS Latency
++  控制器的CAS=2,突发长度为4字节
++*/
++module sdram_32mX16(
++  input        clk,
++  input        cke,
++  input        cs,
++  input        ras,
++  input        cas,
++  input        we,
++  input [12:0] a,
++  input [ 1:0] ba,
++  input [ 1:0] dqm,
++  inout [15:0] dq,
++  input [1:0]  id
++);
++
++  // assign dq = 16'bz;
++  localparam CMD_W = 4;
++  localparam CMD_NOP       = 4'b0111;
++  localparam CMD_ACTIVE    = 4'b0011;
++  localparam CMD_READ      = 4'b0101;
++  localparam CMD_WRITE     = 4'b0100;
++  localparam CMD_TERMINATE = 4'b0110;
++  localparam CMD_PRECHARGE = 4'b0010;
++  localparam CMD_REFRESH   = 4'b0001;
++  localparam CMD_LOAD_MODE = 4'b0000;
++  
++  wire [CMD_W-1:0] cmd = {cs, ras, cas, we};
++
++  // 寄存器定义
++  reg    [2:0]  CAS_Latency;
++  reg    [2:0]  Burst_Length;
++
++  wire   [3:0]  Length;             // 实际写入的突发长度
++  reg    [1:0]  curr_bank;          // 当前操作bank
++  reg    [15:0] dq_out;             // 输出寄存器
++  reg           read_en;            // 输出使能
++  reg    [12:0] row_addr [0:3];     // 每个bank的行地址
++  reg    [8:0]  f_col_addr;         // 第一个写入/读取元素的地址
++  reg    [3:0]  active;             // bank激活状态
++
++  reg is_read;                      // 判断现在是否是read指令
++  reg is_write;                     // 判断现在是否是write指令
++
++  // 数据总线控制
++  assign dq = read_en ? dq_out : 16'bz;
++
++  // 命令解析
++  always @(posedge clk) begin
++    if (!cke) begin
++      // 时钟无效时复位
++      row_addr[0]   <= 13'b0;
++      row_addr[1]   <= 13'b0;
++      row_addr[2]   <= 13'b0;
++      row_addr[3]   <= 13'b0;
++      Burst_Length  <= 3'b0;
++      CAS_Latency   <= 3'b0;
++      
++      curr_bank     <= 2'b0;
++
++      active        <= 4'b0;
++    end else if (cmd == CMD_NOP || cmd == CMD_PRECHARGE || cmd == CMD_REFRESH) begin
++      // 所有NOP类命令(包括预充电/刷新)
++      // 空操作
++    end else if (cmd == CMD_LOAD_MODE) begin
++      // 模式寄存器设置
++      CAS_Latency   <= a[6:4]; // 读取CAS延迟
++      Burst_Length  <= a[2:0]; // 读取突发长度
++    end else if (cmd == CMD_ACTIVE) begin
++      // 记录激活的bank和行地址
++      curr_bank     <= ba;
++      row_addr[ba]  <= a;
++      active[ba]    <= 1'b1;
++    end else if (cmd == CMD_READ) begin
++      // 读命令
++      curr_bank     <= ba;
++    end else if (cmd == CMD_WRITE) begin
++      // 写命令
++      curr_bank     <= ba;
++    end
++  end
++
++  // 根据Burst_Length计算突发的长度，需要读或者写多少次
++  assign Length   =   (Burst_Length == 3'b011) ? 4'd8 : 
++                      (Burst_Length == 3'b010) ? 4'd4 : 
++                      (Burst_Length == 3'b001) ? 4'd2 : 4'd1;
++
++  // DPI接口信号
++  wire [15:0] read_data;
++  reg  [15:0] write_data;
++  reg  [1:0]  write_mask;
++  reg         write_en;
++
++  // 突发加延时计数器
++  reg [3:0] burst_cnt;
++  always @(posedge clk) begin
++    if (!cke || cs || cmd == CMD_READ || cmd == CMD_WRITE) begin
++      burst_cnt <= 0;
++    end else if (is_read || is_write) begin
++      burst_cnt <= burst_cnt + 1;
++    end
++  end
++
++  // 存储第一次的列地址
++  always @(posedge clk) begin
++    if(!cke)begin
++      f_col_addr    <= 9'b0;
++    end else if(cmd == CMD_READ || cmd == CMD_WRITE)begin
++      f_col_addr    <= a[8:0];  // 发送READ或者WRITE指令的时候，传输的是列地址
++    end else if((write_en == 1 && burst_cnt == Length - 1) || (read_en == 1 && burst_cnt == ({1'b0, CAS_Latency} + Length - 1)))begin
++      f_col_addr    <= 9'b0;
++    end
++  end
++  // 列地址计算
++  wire [8:0] col_addr;
++  assign col_addr = (read_en == 1'b1) ? (f_col_addr + {5'b0, burst_cnt} - {6'b0, CAS_Latency} + 1'b1) : (f_col_addr + {5'b0, burst_cnt});
++
++  // read_en判断
++  always @(posedge clk) begin
++    if(!cke || cs)begin
++      is_read   <= 1'b0;
++    end else if(cmd == CMD_READ) begin
++      is_read   <= 1'b1;
++    end else if(burst_cnt == ({1'b0, CAS_Latency} + Length - 'd1))begin
++      is_read   <= 1'b0;
++    end
++  end
++
++  // 可以使用下面的assign语句代替
++  always @(*)begin
++    if(!cke || cs)begin
++      read_en   = 1'b0;
++    end else if(is_read == 1'b1)begin
++      if(burst_cnt < {1'b0, CAS_Latency} - 'd1)begin
++        read_en = 1'b0;
++      end else begin
++        read_en = 1'b1;
++      end
++    end else begin
++      read_en   = 1'b0;
++    end
++  end
++  // assign read_en =  (!cke || cs) ? 1'b0 : 
++  //                   ((is_read == 1'b1) ? ((burst_cnt < {1'b0, CAS_Latency} - 'd1) ? 1'b0 : 1'b1) : 1'b0);
++
++  // 读出数据就直接输出
++  assign dq_out = (read_en == 1'b1) ? read_data : 0;
++
++  // 写数据锁存
++  assign is_write = write_en;
++
++  always @(posedge clk) begin
++    if(!cke || cs)begin
++      write_data      <= 16'b0;
++      write_mask      <= 2'b0;
++      write_en        <= 1'b0;
++    end else begin
++      if (cmd == CMD_WRITE) begin
++        write_data    <= dq;
++        write_mask    <= ~dqm;
++        write_en      <= 1'b1;
++      end else if (write_en) begin
++        // 写突发结束
++        if(burst_cnt == Length - 1'b1) begin
++          write_en    <= 1'b0; // 突发结束后关闭写使能
++        end else begin
++          write_data  <= dq;
++          write_mask  <= ~dqm;    // dqm低电平有效
++        end
++      end
++    end
++  end
++
++  // 调用DPI函数
++  sdram_dpi #(
++    .BANK_WIDTH(2),
++    .ROW_WIDTH(13),
++    .COL_WIDTH(9)
++  ) sdram_dpi (
++    .clk(clk),
++    .active(active),
++    .read_en(read_en),
++    .write_en(write_en),
++    .bank(curr_bank),
++    .row(row_addr[curr_bank]),
++    .col(col_addr),
++    .wmask(write_mask),
++    .wdata(write_data),
++    .rdata(read_data),
++    .id(id)
++  );
++
++endmodule
++
++// DPI接口模块
++module sdram_dpi #(
++  parameter BANK_WIDTH = 2,
++  parameter ROW_WIDTH = 13,
++  parameter COL_WIDTH = 9
++)(
++  input             clk,
++  input [3:0]       active,
++  input             read_en,
++  input             write_en,
++  input [1:0]       bank,
++  input [12:0]      row,
++  input [8:0]       col,
++  input [1:0]       wmask,
++  input [15:0]      wdata,
++  output reg [15:0] rdata,
++
++  input [1:0]       id
++);
++
++  import "DPI-C" function void sdram_read(
++    input int chip_id,
++    input int bank_id,
++    input int row_id,
++    input int col_id,
++    output int data
++  );
++
++  import "DPI-C" function void sdram_write(
++    input int chip_id,
++    input int bank_id,
++    input int row_id,
++    input int col_id,
++    input int wstrb,
++    input int data
++  );
++
++  reg [31:0]  r_data_temp;
++
++  // 读取
++  always @(*) begin
++    r_data_temp = 32'b0;
++    if(active[bank])begin
++      if(read_en)begin
++        sdram_read({30'b0, id}, {30'b0, bank}, {19'b0, row}, {23'b0, col}, r_data_temp);
++      end
++    end
++    rdata  = r_data_temp[15:0];      // 读取出来的32位的数据，但是只取低16位
++  end
++
++  // 写入
++  always @(posedge clk) begin
++    if(active[bank])begin
++      // 只有有掩码的时候才能写入
++      if(write_en == 1'b1 && (wmask[0] == 1'b1 || wmask[1] == 1'b1))begin
++        sdram_write({30'b0, id}, {30'b0, bank}, {19'b0, row}, {23'b0, col}, {30'b0, wmask}, {16'b0 ,wdata});
++      end
++    end
++  end
++
++endmodule
+\ No newline at end of file
+diff --git a/perip/sdram/sdram_32mX32.v b/perip/sdram/sdram_32mX32.v
+new file mode 100644
+index 0000000..132a6bc
+--- /dev/null
++++ b/perip/sdram/sdram_32mX32.v
+@@ -0,0 +1,46 @@
++// 32M的MT48LC16M16A2颗粒，一次读取32bit
++module sdram_32mX32(
++  input        clk,
++  input        cke,
++  input        cs,
++  input        ras,
++  input        cas,
++  input        we,
++  input [12:0] a,
++  input [ 1:0] ba,
++  input [ 3:0] dqm,
++  inout [31:0] dq,
++  input [1:0]  id
++);
++
++  sdram_32mX16 u0_sdram_32mX16
++  (
++    .clk  (clk),   // SDRAM时钟（需与控制器相位对齐）
++    .cke  (cke),   // 时钟使能
++    .cs   (cs),    // 片选（低有效）
++    .ras  (ras),   // 行地址选通
++    .cas  (cas),   // 列地址选通
++    .we   (we),    // 写使能
++    .a    (a),  // 地址总线 [12:0]
++    .ba   (ba),    // Bank地址 [1:0]
++    .dqm  (dqm[1:0]),   // 数据掩码 [1:0]
++    .dq   (dq[15:0]),     // 双向数据总线 [15:0]
++    .id   (id)          // 表示使用的SDRAM的颗粒属于哪一个chip
++  );
++
++  sdram_32mX16 u1_sdram_32mX16
++  (
++    .clk  (clk),   // SDRAM时钟（需与控制器相位对齐）
++    .cke  (cke),   // 时钟使能
++    .cs   (cs),    // 片选（低有效）
++    .ras  (ras),   // 行地址选通
++    .cas  (cas),   // 列地址选通
++    .we   (we),    // 写使能
++    .a    (a),  // 地址总线 [12:0]
++    .ba   (ba),    // Bank地址 [1:0]
++    .dqm  (dqm[3:2]),   // 数据掩码 [1:0]
++    .dq   (dq[31:16]),     // 双向数据总线 [15:0]
++    .id   (id + 1'b1)          // 表示使用的SDRAM的颗粒属于哪一个chip
++  );
++
++endmodule
+\ No newline at end of file
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 3bc5b93..f29ef40 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -18,15 +18,20 @@ module sdram_top_apb (
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  // output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  // output [ 1:0] sdram_dqm,
++  // inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  // wire [15:0] sdram_dout;
++  // assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fd..8c68648 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -37,15 +37,20 @@ module sdram_top_axi(
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  // output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  // output [ 1:0] sdram_dqm,
++  // inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  // wire [15:0] sdram_dout;
++  // assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index fcdd04f..c6af52a 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -185,6 +185,7 @@ spi_top u0_spi_top (
+     end else begin
+       case(flash_xip_state)
+         INIT_DIV_SET: begin
++          // SEL需要早一拍置位,保证地址和数据的稳定
+           flash_xip_psel        <= 1'b1;
+           flash_xip_pwrite      <= 1'b1;
+           flash_xip_pwdata      <= 50000000 / (2 * 2500000) - 1;
+-- 
+2.34.1
+

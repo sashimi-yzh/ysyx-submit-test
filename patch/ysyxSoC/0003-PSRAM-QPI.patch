@@ -1,0 +1,636 @@
+From 4fa1d7d1fae6453918a5a4f335535af321f5a67b Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Mon, 12 May 2025 20:04:45 +0800
+Subject: [PATCH 03/12] =?UTF-8?q?=E5=AE=9E=E7=8E=B0PSRAM=E5=92=8CQPI?=
+ =?UTF-8?q?=E6=A8=A1=E5=BC=8F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/flash/flash.v                     |   6 +
+ perip/psram/efabless/EF_PSRAM_CTRL.v    |  89 ++++++---
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v |  59 +++++-
+ perip/psram/efabless/EF_PSRAM_INIT.v    |  58 ++++++
+ perip/psram/psram.v                     | 251 +++++++++++++++++++++++-
+ perip/psram/readme.md                   |  18 ++
+ 6 files changed, 445 insertions(+), 36 deletions(-)
+ create mode 100644 perip/psram/efabless/EF_PSRAM_INIT.v
+ create mode 100644 perip/psram/readme.md
+
+diff --git a/perip/flash/flash.v b/perip/flash/flash.v
+index 0335f98..081c452 100644
+--- a/perip/flash/flash.v
++++ b/perip/flash/flash.v
+@@ -75,9 +75,15 @@ module flash (
+   always@(posedge sck or posedge reset) begin
+     if (reset) data <= 32'd0;
+     else if (state == data_t) begin
++      // 刚开始传输的时候，这里起始就已经将data_bswap赋值给了data变量，然后后续的输出的就是交换了字节序的值
+       data <= { {counter == 8'd0 ? data_bswap : data}[30:0], 1'b0 };
+     end
+   end
++  // always @(posedge sck) begin
++  //   if(data_bswap != 0)begin
++  //     $display("data_bswap is %08x",data_bswap);
++  //   end
++  // end
+ 
+   assign miso = ss ? 1'b1 : ({(state == data_t && counter == 8'd0) ? data_bswap : data}[31]);
+ 
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e..1ecbfa9 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -38,6 +38,8 @@
+         prime           549         97                  5.66
+ */
+ 
++// TAG:为了实现QIP模式，这里的读和写发送的指令也需要修改
++
+ `timescale              1ns/1ps
+ `default_nettype        none
+ 
+@@ -60,7 +62,9 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    // TAG:传输指令少了6个周期，所以COUNT比之前少6
++    // wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    wire [7:0]  FINAL_COUNT = 13 + size*2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -113,22 +117,37 @@ module PSRAM_READER (
+             saddr <= {addr[23:0]};
+ 
+     // Sample with the negedge of sck
+-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++    // wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++    // 传输指令的时间少了，所以这里需要变
++    wire[1:0] byte_index = {counter[7:1] - 8'd7}[1:0];
++    // 这里是在写入读取的数据data缓存，然后等写完了就直接使用line传输出去，因为写死了，所以只能一次读取32位
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
++        // if(counter >= 20 && counter <= FINAL_COUNT)
++        // 传输指令的时间少了，所以这里需要变
++        if(counter >= 14 && counter <= FINAL_COUNT)
+             if(sck)
+                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
++    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
++    //                     (counter == 8)  ?   saddr[23:20]        :
++    //                     (counter == 9)  ?   saddr[19:16]        :
++    //                     (counter == 10) ?   saddr[15:12]        :
++    //                     (counter == 11) ?   saddr[11:8]         :
++    //                     (counter == 12) ?   saddr[7:4]          :
++    //                     (counter == 13) ?   saddr[3:0]          :
++    //                     4'h0;
++     assign dout     =  (counter == 0)  ?   CMD_EBH[7 : 4]      :
++                        (counter == 1)  ?   CMD_EBH[3 : 0]      :
++                        (counter == 2)  ?   saddr[23:20]        :
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4)  ?   saddr[15:12]        :
++                        (counter == 5)  ?   saddr[11:8]         :
++                        (counter == 6)  ?   saddr[7:4]          :
++                        (counter == 7)  ?   saddr[3:0]          :
+                         4'h0;
+ 
+-    assign douten   = (counter < 14);
++    // assign douten   = (counter < 14);
++    assign douten   = (counter < 8);
+ 
+     assign done     = (counter == FINAL_COUNT+1);
+ 
+@@ -161,7 +180,9 @@ module PSRAM_WRITER (
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    // TAG:传输指令少了6个周期，所以COUNT比之前少6
++    // wire[7:0]        FINAL_COUNT = 13 + size*2;
++    wire[7:0]        FINAL_COUNT = 7 + size*2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,20 +233,36 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
+-                        (counter == 14) ?   line[7:4]           :
+-                        (counter == 15) ?   line[3:0]           :
+-                        (counter == 16) ?   line[15:12]         :
+-                        (counter == 17) ?   line[11:8]          :
+-                        (counter == 18) ?   line[23:20]         :
+-                        (counter == 19) ?   line[19:16]         :
+-                        (counter == 20) ?   line[31:28]         :
++    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
++    //                     (counter == 8)  ?   saddr[23:20]        :
++    //                     (counter == 9)  ?   saddr[19:16]        :
++    //                     (counter == 10) ?   saddr[15:12]        :
++    //                     (counter == 11) ?   saddr[11:8]         :
++    //                     (counter == 12) ?   saddr[7:4]          :
++    //                     (counter == 13) ?   saddr[3:0]          :
++    //                     (counter == 14) ?   line[7:4]           :
++    //                     (counter == 15) ?   line[3:0]           :
++    //                     (counter == 16) ?   line[15:12]         :
++    //                     (counter == 17) ?   line[11:8]          :
++    //                     (counter == 18) ?   line[23:20]         :
++    //                     (counter == 19) ?   line[19:16]         :
++    //                     (counter == 20) ?   line[31:28]         :
++    //                     line[27:24];
++    assign dout     =   (counter == 0)  ?   CMD_38H[7 : 4]      :
++                        (counter == 1)  ?   CMD_38H[3 : 0]      :
++                        (counter == 2)  ?   saddr[23:20]        :
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4)  ?   saddr[15:12]        :
++                        (counter == 5)  ?   saddr[11:8]         :
++                        (counter == 6)  ?   saddr[7:4]          :
++                        (counter == 7)  ?   saddr[3:0]          :
++                        (counter == 8)  ?   line[7:4]           :
++                        (counter == 9)  ?   line[3:0]           :
++                        (counter == 10) ?   line[15:12]         :
++                        (counter == 11) ?   line[11:8]          :
++                        (counter == 12) ?   line[23:20]         :
++                        (counter == 13) ?   line[19:16]         :
++                        (counter == 14) ?   line[31:28]         :
+                         line[27:24];
+ 
+     assign douten   = (~ce_n);
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+index 7b5296d..3ba649c 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -39,8 +39,9 @@ module EF_PSRAM_CTRL_wb (
+     output  wire [3:0]      douten
+ );
+ 
+-    localparam  ST_IDLE = 1'b0,
+-                ST_WAIT = 1'b1;
++    localparam  QPI_INIT    = 2'b00,
++                ST_IDLE     = 2'b01,
++                ST_WAIT     = 2'b10;
+ 
+     wire        mr_sck;
+     wire        mr_ce_n;
+@@ -54,6 +55,14 @@ module EF_PSRAM_CTRL_wb (
+     wire [3:0]  mw_dout;
+     wire        mw_doe;
+ 
++    // QPI初始化使用的信号
++    reg         init_start;
++    wire        init_done;
++    wire        init_sck;
++    wire        init_ce_n;
++    wire [3:0]  init_dout;
++    wire        init_doe;
++
+     // PSRAM Reader and Writer wires
+     wire        mr_rd;
+     wire        mr_done;
+@@ -69,15 +78,30 @@ module EF_PSRAM_CTRL_wb (
+     //wire[3:0]   wb_byte_sel     =   sel_i & {4{wb_we}};
+ 
+     // The FSM
+-    reg         state, nstate;
++    reg [1:0]   state, nstate;
+     always @ (posedge clk_i or posedge rst_i)
+         if(rst_i)
+-            state <= ST_IDLE;
++            state <= QPI_INIT;
+         else
+             state <= nstate;
+ 
++    // 变化QPI_START信号
++    always @(*) begin
++        if(state == QPI_INIT)begin
++            init_start  = 1'b1;
++        end else begin
++            init_start  = 1'b0;
++        end
++    end
++
+     always @* begin
+         case(state)
++            QPI_INIT :
++                if(init_done)
++                    nstate = ST_IDLE;
++                else
++                    nstate = QPI_INIT;
++
+             ST_IDLE :
+                 if(wb_valid)
+                     nstate = ST_WAIT;
+@@ -89,6 +113,11 @@ module EF_PSRAM_CTRL_wb (
+                     nstate = ST_IDLE;
+                 else
+                     nstate = ST_WAIT;
++            default : begin
++                state = state;
++                $display("Assertion failed: Unsupported state in PSRAM CTRL");
++                $fatal;
++            end
+         endcase
+     end
+ 
+@@ -161,10 +190,24 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mw_doe)
+     );
+ 
+-    assign sck  = wb_we ? mw_sck  : mr_sck;
+-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
+-    assign dout = wb_we ? mw_dout : mr_dout;
+-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
++    PSRAM_INIT psram_init (
++        // 输入端口
++        .clk       (clk_i),           // 系统时钟
++        .rst_n     (~rst_i),         // 系统复位
++        .start     (init_start),    // 初始化启动信号
++        
++        // 输出端口
++        .init_done (init_done),     // 初始化完成标志
++        .sck       (init_sck),     // PSRAM 时钟
++        .ce_n      (init_ce_n),    // PSRAM 片选
++        .dout      (init_dout),    // PSRAM 数据输出
++        .douten    (init_doe)   // PSRAM 输出使能
++    );
++
++    assign sck  = (state == QPI_INIT) ? init_sck    : (wb_we ? mw_sck  : mr_sck);
++    assign ce_n = (state == QPI_INIT) ? init_ce_n   : (wb_we ? mw_ce_n : mr_ce_n);
++    assign dout = (state == QPI_INIT) ? init_dout   : (wb_we ? mw_dout : mr_dout);
++    assign douten  = (state == QPI_INIT) ? {4{init_doe}} : (wb_we ? {4{mw_doe}}  : {4{mr_doe}});
+ 
+     assign mw_din = din;
+     assign mr_din = din;
+diff --git a/perip/psram/efabless/EF_PSRAM_INIT.v b/perip/psram/efabless/EF_PSRAM_INIT.v
+new file mode 100644
+index 0000000..8bd2f46
+--- /dev/null
++++ b/perip/psram/efabless/EF_PSRAM_INIT.v
+@@ -0,0 +1,58 @@
++`timescale              1ns/1ps
++`default_nettype        none
++
++module PSRAM_INIT(
++    input   wire            clk,
++    input   wire            rst_n,
++    input                   start,  // 判断是否处于QPI模式
++    output  wire            init_done,   
++    output  reg             sck,
++    output  reg             ce_n,
++    output  wire [3:0]      dout,
++    output  wire            douten
++);
++
++    wire [7:0] CMD_35H = 8'h35;
++
++    reg [3:0] counter;
++
++    // 输出时钟
++    always @(posedge clk or negedge rst_n) begin
++        if(~rst_n)begin
++            sck     <= 1'b0;
++        // end else if(start == 1'b1)begin      // 直接使用start对于sck不一定正确
++        end else if(ce_n == 1'b0)begin
++            sck     <= ~sck;
++        end else begin
++            sck     <= 1'b0;
++        end
++    end
++
++    // 输出ce_n
++    always @(posedge clk or negedge rst_n) begin
++        if(~rst_n)begin
++            ce_n    <= 1'b1;
++        end else if(start == 1'b1)begin
++            ce_n    <= 1'b0;
++        end else begin
++            ce_n    <= 1'b1;
++        end
++    end
++
++    // 计数counter
++    always @(posedge sck or negedge rst_n) begin
++        if(~rst_n)begin
++            counter <= 4'b0;
++        end else if(sck & ~init_done) begin
++            counter <= counter + 1'b1;
++        end else begin
++            counter <= 4'b0;
++        end
++    end
++
++    // 输出dout,douten,init_done
++    assign dout         = (counter < 4'd8) ? {3'b0, CMD_35H[7 - counter]} : 4'b0;   // 在进入QPI模式之前，命令只在SPI0位进行输入
++    assign douten       = 1;
++    assign init_done    = (counter == 4'd8);
++
++endmodule   
+\ No newline at end of file
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index d9bdd88..f4e7911 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -1,9 +1,256 @@
++// 将PSRAM的实际存放位置放在C代码中，通过DPI-C进行调用
++// 可以参考flash进行实现
++// inout的处理可以参考psram_top_apb的实现，用一个信号来接dio当作输入端
+ module psram(
+   input sck,
+-  input ce_n,
++  input ce_n,   // ce_n的含义与SPI总线协议中的SS相同, 低电平有效
+   inout [3:0] dio
+ );
+ 
+-  assign dio = 4'bz;
++  // assign dio = 4'bz;
++  typedef enum [2:0] { 
++    STANDBY,      // 待机状态
++    CMD_PHASE, 
++    ADDR_PHASE, 
++    DUMMY_CYCLES, 
++    DATA_PHASE, 
++    WRITE_PHASE,
++    ERR_T
++  } state_t;
++
++  reg [2:0]   state;
++  reg [3:0]   counter;    // 用来计数使用
++  reg [7:0]   cmd;        // 传入的指令
++  reg [23:0]  addr;
++  wire[3:0]   dio_input;  // 用于锁存输入数据
++  wire[3:0]   dio_drive;  // 用于存储需要输出的数据
++  reg         dio_oe;     // 判断dio是用于输出还是输入
++
++  wire        r_valid;    // 读操作是否有效
++  wire        w_valid;    // 写操作是否有效
++  wire [31:0] rdata;
++  wire [31:0] wdata;
++  wire [3:0]  wstrb;
++
++  // 判断是否进入QPI模式
++  reg         QPI_MODE  = 0;    // TAG：这里的QPI_MODE的赋值方式后续看能不能改变一下，不可能就这样给个初值
++  always @(posedge ce_n) begin
++    if(cmd == 8'h35)begin
++      QPI_MODE    <= 1'b1;
++    end
++  end
++
++
++  // 输入数据锁存
++  assign dio_input = dio; //  直接锁存，别管上升沿还是下降沿，一改变就变化
++
++
++  assign dio        = dio_oe ? dio_drive : 4'bz;
++
++  // 写数据是靠冲刷进去的
++  assign r_valid = (state == DUMMY_CYCLES && counter == 0);
++  assign w_valid = (state == WRITE_PHASE);
++
++  psram_cmd psram_cmd_i (
++    .clock(sck),
++    .ce_n(ce_n),
++    .r_valid(r_valid),
++    .w_valid(w_valid),
++    .cmd(cmd),
++    .addr({8'b0,addr}),
++    .wstrb(wstrb),    // 32-bit write data
++    .wdata(wdata),    // 4-bit write strobe
++    .rdata(rdata)     // 32-bit read data
++  );
++
++  //----------------------------------------------------------
++  // 主状态机（上升沿触发状态迁移）
++  //----------------------------------------------------------
++  always @(posedge sck or posedge ce_n) begin
++    if(ce_n) begin
++      state     <= CMD_PHASE;
++      dio_oe    <= 1'b0;
++    end else begin
++      case(state)
++        CMD_PHASE: begin
++          // if(counter == 4'd7)begin
++          //   state   <= ADDR_PHASE;
++          // end
++          if(QPI_MODE == 1)begin
++            // QPI模式下传输指令只需要两个周期
++            if(counter == 4'd1)begin
++              state   <= ADDR_PHASE;
++            end
++          end else begin
++            if(counter == 4'd7)begin
++              state   <= ADDR_PHASE;
++            end
++          end
++        end
++
++        ADDR_PHASE: begin
++          // $display("cmd is %xh",cmd);
++          if(counter == 4'd5)begin
++            state   <= (cmd == 8'hEB) ? DUMMY_CYCLES : ( (cmd == 8'h38) ? WRITE_PHASE : ERR_T);
++          end
++        end
++
++        DUMMY_CYCLES: begin //  读延时
++          if(counter == 4'd6)begin
++            dio_oe  <= 1'b1;
++            state   <= DATA_PHASE;
++          end
++        end
++
++        DATA_PHASE: begin
++          // dio_oe等ce_n置为高时就会自动的变为0
++          state   <= state;
++        end
++
++        WRITE_PHASE: begin
++          // dio_oe等ce_n置为高时就会自动的变为0
++          state   <= state;
++        end
++        ERR_T: begin
++          state <= state;
++          $fwrite(32'h80000002, "Assertion failed: Unsupported command `%xh`, only support `EBh,38H` read command\n", cmd);
++          $fatal;
++        end
++        default:begin
++          state <= state;
++          $fwrite(32'h80000002, "Assertion failed: Unsupported command `%xh`, only support `EBh,38H` read command\n", cmd);
++          $fatal;
++        end
++      endcase
++    end
++  end
++
++  //----------------------------------------------------------
++  // 计数器逻辑（上升沿更新）
++  //----------------------------------------------------------
++  always @(posedge sck or posedge ce_n) begin
++    if(ce_n)begin
++      counter   <= 4'b0;
++    end else begin
++      case(state)
++        // CMD_PHASE:    counter   <= (counter < 7)  ? counter + 1 : 4'b0;
++        CMD_PHASE:    counter   <= (QPI_MODE == 1) ? ((counter < 1)  ? counter + 1 : 4'b0) : ((counter < 7)  ? counter + 1 : 4'b0); // QPI模式下只需要两个周期传输指令
++        ADDR_PHASE:   counter   <= (counter < 5)  ? counter + 1 : 4'b0;
++        DUMMY_CYCLES: counter   <= (counter < 6)  ? counter + 1 : 4'b0;
++        DATA_PHASE:   counter   <= counter + 1;
++        WRITE_PHASE:  counter   <= counter + 1;
++        default:      counter   <= 0;
++      endcase
++    end
++  end
++
++  //----------------------------------------------------------
++  // 命令接收（下降沿锁存的输入）
++  //----------------------------------------------------------
++  always @(posedge sck or posedge ce_n) begin
++    if(ce_n)begin
++      cmd   <= 8'b0;
++    end else if(state == CMD_PHASE) begin
++      // cmd   <= {cmd[6:0],dio_input[0]};   // QSPI模式使用SIO0来传输指令
++      if(QPI_MODE == 1)begin
++        cmd   <= {cmd[3:0], dio_input[3:0]};   // QPI模式使用SIO0_3来传输指令
++      end else begin
++        cmd   <= {cmd[6:0],dio_input[0]};   // QSPI模式使用SIO0来传输指令
++      end
++    end
++  end
++
++  //----------------------------------------------------------
++  // 地址接收（下降沿锁存的输入）
++  //----------------------------------------------------------
++  always @(posedge sck or posedge ce_n) begin
++    if(ce_n)begin
++      addr  <= 24'b0;
++    end else if (state == ADDR_PHASE)
++      addr  <= {addr[19:0], dio_input}; // 四线并行输入
++  end
++
++  //----------------------------------------------------------
++  // 数据输出（上升沿更新）
++  //----------------------------------------------------------
++  reg [31:0] data;
++  wire [31:0] data_bswap = {rdata[7:0], rdata[15:8], rdata[23:16], rdata[31:24]};
++  always@(posedge sck or posedge ce_n) begin
++    if (ce_n) data <= 32'd0;
++    else if (state == DATA_PHASE) begin
++      // 刚开始传输的时候，这里起始就已经将data_bswap赋值给了data变量，然后后续的输出的就是交换了字节序的值
++      data <= { {counter == 4'd0 ? data_bswap : data}[27:0], 4'b0000 };
++    end
++  end
++  assign dio_drive = {(state == DATA_PHASE && counter == 4'b0) ? data_bswap : data}[31:28];
++
++  //----------------------------------------------------------
++  // 写数据采集（上升沿锁存输入）
++  //----------------------------------------------------------
++  reg [31:0] write_buffer;
++  always @(posedge sck or posedge ce_n) begin
++    if(ce_n)begin
++      write_buffer  <= 32'b0;
++    end else if (state == WRITE_PHASE) begin
++      write_buffer  <= {write_buffer[27:0], dio_input};
++    end
++  end
++
++  // 写入数据时的字节掩码
++  assign wstrb =  (counter == 4'd2) ? 4'b0001 :           // 1字节
++                  (counter == 4'd4) ? 4'b0011 :           // 2字节
++                  (counter == 4'd8) ? 4'b1111 : 4'b1111;  // 4字节
++
++  // 需要切换大小端序
++  // assign wdata = {write_buffer[7:0], write_buffer[15:8], write_buffer[23:16], write_buffer[31:24]};
++  assign wdata =  (counter == 4'd2) ? {24'b0,write_buffer[7:0]} :         // 1字节
++                  (counter == 4'd4) ? {16'b0,write_buffer[7:0], write_buffer[15:8]} :         // 2字节
++                  (counter == 4'd8) ? {write_buffer[7:0], write_buffer[15:8], write_buffer[23:16], write_buffer[31:24]} : 32'b0;  // 4字节
++
+ 
+ endmodule
++
++import "DPI-C" function void psram_read(input int addr, output int data);
++import "DPI-C" function void psram_write(input int addr, input int data, input int wstrb);
++
++module psram_cmd(
++  input             clock,
++  input             ce_n,
++  input             w_valid,
++  input             r_valid,
++  input       [7:0] cmd,
++  input      [31:0] addr,
++  input       [3:0] wstrb,
++  input      [31:0] wdata,
++  output reg [31:0] rdata
++);
++
++  // TAG:读和写不能使用同一个always块，因为写需要是ce_n上升沿的时候写入，表示所有的需要数据都已经完成了读取
++  // 如果使用时钟上升沿的话，就需要冲刷的写入，而且写入的数据还不一定是正确的，因为可能在最后一个或者半个时钟周期内还有数据，只能等ce_n置高（表示这次传输结束）的时候写，这时候就没有数据会传输了
++
++  always@(posedge clock) begin
++    if (r_valid)begin
++      case (cmd)
++        8'hEB: psram_read(addr, rdata);
++        default:begin
++          $fwrite(32'h80000002, "Assertion failed: Unsupport command `%xh`, only support `EBh` read command and support `38h` write command\n", cmd);
++          $fatal;
++        end
++      endcase
++    end
++  end
++    
++  always@(posedge ce_n) begin
++    if (w_valid)begin
++      case (cmd)
++        8'h38: psram_write(addr, wdata, {28'b0,wstrb});
++        default:begin
++          $fwrite(32'h80000002, "Assertion failed: Unsupport command `%xh`, only support `EBh` read command and support `38h` write command\n", cmd);
++          $fatal;
++        end
++      endcase
++    end
++  end
++
++
++endmodule
+\ No newline at end of file
+diff --git a/perip/psram/readme.md b/perip/psram/readme.md
+new file mode 100644
+index 0000000..92e1f46
+--- /dev/null
++++ b/perip/psram/readme.md
+@@ -0,0 +1,18 @@
++psram的设计文档：
++1. PSRAM的状态机设计了CMD_PHASE,ADDR_PHASE,DUMMY_CYCLES,DATA_PHASE,WRITE_PHASE,ERR_T 六个状态，其中
++* CMD_PHASE状态用于接收指令
++* ADDR_PHASE状态用于接收读取或者写入的地址
++* DUMMY_CYCLES状态表示读取数据时的延时
++* DATA_PHASE状态表示读取数据
++* WRITE_PHASE状态表示写入数据
++* ERR_T状态表示输入的指令有误
++2. psram涉及到了双向的端口，这里可以直接拿一个信号用于接收双向的端口输入的数据，这样可以避免错过输入信号，不需要去考虑什么时间去读取直接一直保存就行，可以学psram_top_apb.v的处理方式。
++3. 对于写入数据时的掩码，PSRAM手册没有明确的规定，所以这里采用的方式是将根据写入数据时的counter的变化情况来判断写入的掩码是多少，同时因为这里没有学AXI一样写掩码，所以传入到dpi-c的地址还是一个非对齐的地址，在psram_write中直接将输入的数据写入到地址就行，如果dpi-c调用的时候需要传入对齐的地址，则需要增加对应的wstrb的判断逻辑，现在的wstrb如下
++* 4'b0001：表示写入一个字节
++* 4'b0011：表示写入两个字节
++* 4'b1111：表示写入四个字节
++4. 因为写入的时候，dpi-c需要传一个32位的数据，所以在写入一个或者两个字节的时候，需要对数据单独处理，写入的数据应该放在低八位或者低十六位。
++------------
++使用QPI协议访问PSRAM颗粒：
++1. 修改了EF_PSRAM_CTRL_wb和EF_PSRAM_CTRL两个PSRAM控制器的代码，增加了开启QPI模式的代码。
++2. 首先需要修改EF_PSRAM_CTRL_wb的代码，增加一个发送开启QPI模式的指令，然后需要修改EF_PSRAM_CTRL中的读取和写入模块的代码，需要修改发送指令的逻辑和发送数据的时机（即PSRAM_READER里面的counter，因为QPI模式比原来发送指令的时候少了6个周期，所以这里的counter的一些判断逻辑以及在不同的counter的时候干的事都需要修改）
+\ No newline at end of file
+-- 
+2.34.1
+

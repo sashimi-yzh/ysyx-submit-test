@@ -1,0 +1,115 @@
+From 591bb2065cf1414be49cfe1affd6580dea2b0f98 Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Tue, 20 May 2025 15:11:47 +0800
+Subject: [PATCH 2/6] =?UTF-8?q?=E5=AE=9E=E7=8E=B0=E5=9C=A8PSRAM=E4=B8=8A?=
+ =?UTF-8?q?=E6=89=A7=E8=A1=8CRTT?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/Makefile         |  3 +-
+ bsp/abstract-machine/extra_ysyxsoc.ld | 63 +++++++++++++++++++++++++++
+ bsp/abstract-machine/src/uart.c       |  2 +-
+ 3 files changed, 66 insertions(+), 2 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra_ysyxsoc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..5e4c064a5 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,8 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++# LDFLAGS += -T extra.ld
++LDFLAGS += -T extra_ysyxsoc.ld
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra_ysyxsoc.ld b/bsp/abstract-machine/extra_ysyxsoc.ld
+new file mode 100644
+index 000000000..2c4c85e13
+--- /dev/null
++++ b/bsp/abstract-machine/extra_ysyxsoc.ld
+@@ -0,0 +1,63 @@
++MEMORY {
++  sram  : ORIGIN = 0x0f000000, LENGTH = 8K
++  mrom  : ORIGIN = 0x20000000, LENGTH = 4K
++  flash : ORIGIN = 0x30000000, LENGTH = 16M
++  psram : ORIGIN = 0x80000000, LENGTH = 4M
++}
++
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } > psram AT > flash : data
++
++  /* 获取rtt的data段的虚拟内存地址(VMA) */
++  _data_extra       = ADDR(.data.extra);
++  _edata_extra      = _data_extra + SIZEOF(.data.extra);
++  /* 获取rtt的data段的加载内存地址(LMA) */
++  _data_extra_lma   = LOADADDR(.data.extra);
++  _edata_extra_lma  = _data_extra_lma + SIZEOF(.data.extra);  /* 等于号不能直接连接到变量上面，不然就报错 */
++} 
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra (NOLOAD) : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > psram
++
++  /* 获取rtt的bss段的虚拟内存地址(VMA) */
++  _bss_extra  = ADDR(.bss.extra);
++  _ebss_extra = _bss_extra + SIZEOF(.bss.extra);
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 793068b17..79526dfd4 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -37,7 +37,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";//am_fceux_am\nam_snake\nam_typing_game\nam_microbench\n";
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";//am_hello\n";//am_fceux_am\n";//am_snake\nam_typing_game\nam_microbench\n";
+   return (*p != '\0' ? *(p ++) : -1);
+ }
+ 
+-- 
+2.34.1
+

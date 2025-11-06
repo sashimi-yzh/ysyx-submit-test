@@ -1,0 +1,68 @@
+From a91ca51f52720e5695fa16c9ce0cd4633aa8e09d Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Tue, 24 Jun 2025 16:27:25 +0800
+Subject: [PATCH 4/6] =?UTF-8?q?=E6=B7=BB=E5=8A=A0=E4=B8=B2=E5=8F=A3?=
+ =?UTF-8?q?=E8=BE=93=E5=85=A5=E7=9A=84=E5=8A=9F=E8=83=BD?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/extra_ysyxsoc.ld |  2 +-
+ bsp/abstract-machine/src/uart.c       | 20 ++++++++++++++++++--
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra_ysyxsoc.ld b/bsp/abstract-machine/extra_ysyxsoc.ld
+index 588f694c3..b8b5b9e44 100644
+--- a/bsp/abstract-machine/extra_ysyxsoc.ld
++++ b/bsp/abstract-machine/extra_ysyxsoc.ld
+@@ -3,7 +3,7 @@ MEMORY {
+   mrom  : ORIGIN = 0x20000000, LENGTH = 4K
+   flash : ORIGIN = 0x30000000, LENGTH = 16M
+   psram : ORIGIN = 0x80000000, LENGTH = 4M
+-  sdram : ORIGIN = 0xa0000000, LENGTH = 32M
++  sdram : ORIGIN = 0xa0000000, LENGTH = 64M
+ }
+ 
+ SECTIONS {
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 79526dfd4..85f50346c 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -37,8 +38,23 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";//am_hello\n";//am_fceux_am\n";//am_snake\nam_typing_game\nam_microbench\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  // static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";//am_hello\n";//am_fceux_am\n";//am_snake\nam_typing_game\nam_microbench\n";
++  // return (*p != '\0' ? *(p ++) : -1);
++  static const char PREDEF_INPUT[] = 
++    "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *p    = PREDEF_INPUT;
++  static bool string_end  = false;    // 判断预置的字符串是否输入完
++
++  if(string_end){
++    return io_read(AM_UART_RX).data;
++  }
++
++  if(*p != '\0'){
++    return *(p++);
++  } else {
++    string_end = true;
++    return io_read(AM_UART_RX).data;
++  }
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

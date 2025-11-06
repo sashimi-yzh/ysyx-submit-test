@@ -1,0 +1,273 @@
+From 48b6cc39c1b51450133b2b113e3e629cb729645c Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Mon, 26 May 2025 09:40:09 +0800
+Subject: [PATCH 04/12] =?UTF-8?q?=E5=AE=9E=E7=8E=B0sdram=E4=BB=BF=E7=9C=9F?=
+ =?UTF-8?q?=E9=A2=97=E7=B2=92,=E5=B9=B6=E4=BD=BF=E7=94=A8mem-test=E6=B5=8B?=
+ =?UTF-8?q?=E8=AF=95?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/sdram.v | 241 +++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 240 insertions(+), 1 deletion(-)
+
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 3613b23..fd830f9 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -1,3 +1,14 @@
++/*
++  CLK, CKE - 时钟信号和时钟使能信号
++  CS#, WE#, CAS#, #RAS - 命令信号
++  BA[1:0] - 存储体地址
++  A[12:0] - 地址
++  DQ[15:0] - 数据
++  DQM[1:0] - 数据掩码：DQM是用于写访问的输入掩码信号和用于读访问的输出使能信号，低电平有效
++  4 Meg x 16 x 4 banks(每个bank有4 MB空间，16位的数据宽度，4个bank)
++  Mode寄存器主要考虑突发长度和CAS Latency
++  控制器的CAS=2,突发长度为4字节
++*/
+ module sdram(
+   input        clk,
+   input        cke,
+@@ -11,6 +22,234 @@ module sdram(
+   inout [15:0] dq
+ );
+ 
+-  assign dq = 16'bz;
++  // assign dq = 16'bz;
++  localparam CMD_W = 4;
++  localparam CMD_NOP       = 4'b0111;
++  localparam CMD_ACTIVE    = 4'b0011;
++  localparam CMD_READ      = 4'b0101;
++  localparam CMD_WRITE     = 4'b0100;
++  localparam CMD_TERMINATE = 4'b0110;
++  localparam CMD_PRECHARGE = 4'b0010;
++  localparam CMD_REFRESH   = 4'b0001;
++  localparam CMD_LOAD_MODE = 4'b0000;
++  
++  wire [CMD_W-1:0] cmd = {cs, ras, cas, we};
++
++  // 寄存器定义
++  reg    [2:0]  CAS_Latency;
++  reg    [2:0]  Burst_Length;
++
++  wire   [3:0]  Length;             // 实际写入的突发长度
++  reg    [1:0]  curr_bank;          // 当前操作bank
++  reg    [15:0] dq_out;             // 输出寄存器
++  reg           read_en;            // 输出使能
++  reg    [12:0] row_addr [0:3];     // 每个bank的行地址
++  reg    [8:0]  f_col_addr;         // 第一个写入/读取元素的地址
++  reg    [3:0]  active;             // bank激活状态
++
++  reg is_read;                      // 判断现在是否是read指令
++  reg is_write;                     // 判断现在是否是write指令
++
++  // 数据总线控制
++  assign dq = read_en ? dq_out : 16'bz;
++
++  // 命令解析
++  always @(posedge clk) begin
++    if (!cke) begin
++      // 时钟无效时复位
++      row_addr[0]   <= 13'b0;
++      row_addr[1]   <= 13'b0;
++      row_addr[2]   <= 13'b0;
++      row_addr[3]   <= 13'b0;
++      Burst_Length  <= 3'b0;
++      CAS_Latency   <= 3'b0;
++      
++      curr_bank     <= 2'b0;
++
++      active        <= 4'b0;
++    end else if (cmd == CMD_NOP || cmd == CMD_PRECHARGE || cmd == CMD_REFRESH) begin
++      // 所有NOP类命令(包括预充电/刷新)
++      // 空操作
++    end else if (cmd == CMD_LOAD_MODE) begin
++      // 模式寄存器设置
++      CAS_Latency   <= a[6:4]; // 读取CAS延迟
++      Burst_Length  <= a[2:0]; // 读取突发长度
++    end else if (cmd == CMD_ACTIVE) begin
++      // 记录激活的bank和行地址
++      curr_bank     <= ba;
++      row_addr[ba]  <= a;
++      active[ba]    <= 1'b1;
++    end else if (cmd == CMD_READ) begin
++      // 读命令
++      curr_bank     <= ba;
++    end else if (cmd == CMD_WRITE) begin
++      // 写命令
++      curr_bank     <= ba;
++    end
++  end
++
++  // 根据Burst_Length计算突发的长度，需要读或者写多少次
++  assign Length   =   (Burst_Length == 3'b011) ? 4'd8 : 
++                      (Burst_Length == 3'b010) ? 4'd4 : 
++                      (Burst_Length == 3'b001) ? 4'd2 : 4'd1;
++
++  // DPI接口信号
++  wire [15:0] read_data;
++  reg  [15:0] write_data;
++  reg  [1:0]  write_mask;
++  reg         write_en;
++
++  // 突发加延时计数器
++  reg [3:0] burst_cnt;
++  always @(posedge clk) begin
++    if (!cke || cs || cmd == CMD_READ || cmd == CMD_WRITE) begin
++      burst_cnt <= 0;
++    end else if (is_read || is_write) begin
++      burst_cnt <= burst_cnt + 1;
++    end
++  end
++
++  // 存储第一次的列地址
++  always @(posedge clk) begin
++    if(!cke)begin
++      f_col_addr    <= 9'b0;
++    end else if(cmd == CMD_READ || cmd == CMD_WRITE)begin
++      f_col_addr    <= a[8:0];  // 发送READ或者WRITE指令的时候，传输的是列地址
++    end else if((write_en == 1 && burst_cnt == Length - 1) || (read_en == 1 && burst_cnt == ({1'b0, CAS_Latency} + Length - 1)))begin
++      f_col_addr    <= 9'b0;
++    end
++  end
++  // 列地址计算
++  wire [8:0] col_addr;
++  assign col_addr = (read_en == 1'b1) ? (f_col_addr + {5'b0, burst_cnt} - {6'b0, CAS_Latency} + 1'b1) : (f_col_addr + {5'b0, burst_cnt});
++
++  // read_en判断
++  always @(posedge clk) begin
++    if(!cke || cs)begin
++      is_read   <= 1'b0;
++    end else if(cmd == CMD_READ) begin
++      is_read   <= 1'b1;
++    end else if(burst_cnt == ({1'b0, CAS_Latency} + Length - 'd2))begin // 这里减2和下面的减2都是靠看波形来调整的。
++      is_read   <= 1'b0;
++    end
++  end
++
++  always @(posedge clk)begin
++    if(!cke || cs)begin
++      read_en   <= 1'b0;
++    end else if(is_read == 1'b1)begin
++      if(burst_cnt < {1'b0, CAS_Latency} - 'd2)begin
++        read_en <= 1'b0;
++      end else begin
++        read_en <= 1'b1;
++      end
++    end else begin
++      read_en   <= 1'b0;
++    end
++  end
++
++  // 读出数据就直接输出
++  assign dq_out = (read_en == 1'b1) ? read_data : 0;
++
++  // 写数据锁存
++  assign is_write = write_en;
++
++  always @(posedge clk) begin
++    if(!cke || cs)begin
++      write_data      <= 16'b0;
++      write_mask      <= 2'b0;
++      write_en        <= 1'b0;
++    end else begin
++      if (cmd == CMD_WRITE) begin
++        write_data    <= dq;
++        write_mask    <= ~dqm;
++        write_en      <= 1'b1;
++      end else if (write_en) begin
++        // 写突发结束
++        if(burst_cnt == Length - 1'b1) begin
++          write_en    <= 1'b0; // 突发结束后关闭写使能
++        end else begin
++          write_data  <= dq;
++          write_mask  <= ~dqm;    // dqm低电平有效
++        end
++      end
++    end
++  end
++
++  // 调用DPI函数
++  sdram_dpi #(
++    .BANK_WIDTH(2),
++    .ROW_WIDTH(13),
++    .COL_WIDTH(9)
++  ) sdram_dpi (
++    .clk(clk),
++    .active(active),
++    .read_en(read_en),
++    .write_en(write_en),
++    .bank(curr_bank),
++    .row(row_addr[curr_bank]),
++    .col(col_addr),
++    .wmask(write_mask),
++    .wdata(write_data),
++    .rdata(read_data)
++  );
+ 
+ endmodule
++
++// DPI接口模块
++module sdram_dpi #(
++  parameter BANK_WIDTH = 2,
++  parameter ROW_WIDTH = 13,
++  parameter COL_WIDTH = 9
++)(
++  input             clk,
++  input [3:0]       active,
++  input             read_en,
++  input             write_en,
++  input [1:0]       bank,
++  input [12:0]      row,
++  input [8:0]       col,
++  input [1:0]       wmask,
++  input [15:0]      wdata,
++  output reg [15:0] rdata
++);
++
++  import "DPI-C" function void sdram_read(
++    input int bank_id,
++    input int row_id,
++    input int col_id,
++    output int data
++  );
++
++  import "DPI-C" function void sdram_write(
++    input int bank_id,
++    input int row_id,
++    input int col_id,
++    input int wstrb,
++    input int data
++  );
++
++  reg [31:0]  r_data_temp;
++
++  // 读取
++  always @(*) begin
++    r_data_temp = 32'b0;
++    if(active[bank])begin
++      if(read_en)begin
++        sdram_read({30'b0, bank}, {19'b0, row}, {23'b0, col}, r_data_temp);
++      end
++    end
++    rdata  = r_data_temp[15:0];      // 读取出来的32位的数据，但是只取低16位
++  end
++
++  // 写入
++  always @(posedge clk) begin
++    if(active[bank])begin
++      // 只有有掩码的时候才能写入
++      if(write_en == 1'b1 && (wmask[0] == 1'b1 || wmask[1] == 1'b1))begin
++        sdram_write({30'b0, bank}, {19'b0, row}, {23'b0, col}, {30'b0, wmask}, {16'b0 ,wdata});
++      end
++    end
++  end
++
++endmodule
+\ No newline at end of file
+-- 
+2.34.1
+

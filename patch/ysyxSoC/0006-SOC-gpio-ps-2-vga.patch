@@ -1,0 +1,538 @@
+From ce22345a82184ebbc80a33cf6c25e6c5c3304f5d Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Thu, 12 Jun 2025 21:58:21 +0800
+Subject: [PATCH 06/12] =?UTF-8?q?=E5=AE=8C=E6=88=90SOC=E7=9A=84=E5=A4=96?=
+ =?UTF-8?q?=E8=AE=BE=E9=83=A8=E5=88=86=EF=BC=8Cgpio=E3=80=81ps/2=E5=92=8Cv?=
+ =?UTF-8?q?ga=E6=98=BE=E7=A4=BA?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/gpio/gpio_top_apb.v | 100 ++++++++++++++++++-
+ perip/gpio/seg.v          | 195 ++++++++++++++++++++++++++++++++++++++
+ perip/ps2/ps2_top_apb.v   |  87 +++++++++++++++++
+ perip/vga/vga_top_apb.v   |  94 ++++++++++++++++++
+ 4 files changed, 474 insertions(+), 2 deletions(-)
+ create mode 100644 perip/gpio/seg.v
+
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index ec51ffe..46db2bf 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -12,8 +12,8 @@ module gpio_top_apb(
+   output [31:0] in_prdata,
+   output        in_pslverr,
+ 
+-  output [15:0] gpio_out,
+-  input  [15:0] gpio_in,
++  output [15:0] gpio_out,   // LED灯
++  input  [15:0] gpio_in,    // 拨码开关
+   output [7:0]  gpio_seg_0,
+   output [7:0]  gpio_seg_1,
+   output [7:0]  gpio_seg_2,
+@@ -24,4 +24,100 @@ module gpio_top_apb(
+   output [7:0]  gpio_seg_7
+ );
+ 
++  wire          write_en;           // 判断是否为写操作
++  wire          read_en;            // 判断是否为读操作
++  wire  [31:0]  write_data;         // 根据in_pstrb来选择写入的数据（可能会有掩码）
++  reg   [31:0]  store_data[3:0];    // 存储写入的数据，因为有些数据需要保持，不能一闪而过
++  wire  [1:0]   addr;               // 是写入哪个寄存器
++
++  assign write_en   = in_psel & in_penable & in_pwrite;
++  assign read_en    = in_psel & in_penable & !in_pwrite;
++  assign addr       = in_paddr[3:2];
++
++  assign write_data = (in_pstrb == 4'b0001) ? {24'b0, in_pwdata[7:0]} : 
++                      (in_pstrb == 4'b0010) ? {16'b0, in_pwdata[15:8], 8'b0} :
++                      (in_pstrb == 4'b0100) ? {8'b0, in_pwdata[23:16], 16'b0} :
++                      (in_pstrb == 4'b1000) ? {in_pwdata[31:24], 24'b0} :
++                      (in_pstrb == 4'b0011) ? {16'b0, in_pwdata[15:0]} : 
++                      (in_pstrb == 4'b0110) ? {8'b0, in_pwdata[23:8], 8'b0} : 
++                      (in_pstrb == 4'b1100) ? {in_pwdata[31:16], 16'b0} : 
++                      (in_pstrb == 4'b1111) ? in_pwdata : 32'b0;
++
++  // assign gpio_out   = (write_en == 1'b1 && in_pwrite == 1'b1) ? store_data[15:0] : 16'b0;
++  assign gpio_out   = store_data[0][15:0];
++
++  always @(posedge clock) begin
++    if(reset)begin
++      store_data[0]     <= 32'b0;
++      store_data[1]     <= 32'b0;
++      store_data[2]     <= 32'b0;
++      store_data[3]     <= 32'b0;
++    end else if(write_en == 1'b1 && in_pwrite == 1'b1)begin
++      store_data[addr]  <= write_data;
++    end
++    
++    store_data[1]  <= {16'b0, gpio_in};   // 拨码开关的数据
++  end
++
++  // APB总线响应
++  assign in_pready = in_psel & in_penable;
++  assign in_pslverr = 1'b0; // 无错误
++
++  // 读操作
++  assign in_prdata = (read_en == 1'b1) ? store_data[addr] : 32'b0;   // 这里的地址没有减去基地址
++
++
++  // TAG：注释掉的数码管实例化的部分是显示输入的，下面是显示学号的
++  // 实例化数码管显示模块
++  // seg u_seg (
++  //   // 时钟输入 (通常连接系统主时钟)
++  //   .clk(clock), 
++    
++  //   // 数码管显示数字输入 (每管显示一个4位BCD码)
++  //   .num0(store_data[2][3:0]),  // 连接到数码管0的显示数据
++  //   .num1(store_data[2][7:4]),  // 连接到数码管1的显示数据
++  //   .num2(store_data[2][11:8]),  // 连接到数码管2的显示数据
++  //   .num3(store_data[2][15:12]),  // 连接到数码管3的显示数据
++  //   .num4(store_data[2][19:16]),  // 连接到数码管4的显示数据
++  //   .num5(store_data[2][23:20]),  // 连接到数码管5的显示数据
++  //   .num6(store_data[2][27:24]),  // 连接到数码管6的显示数据
++  //   .num7(store_data[2][31:28]),  // 连接到数码管7的显示数据
++    
++  //   // 数码管段选信号输出 (低电平有效，顺序为dp-g-f-e-d-c-b-a)
++  //   .seg0(gpio_seg_0),  // 数码管0的段选信号
++  //   .seg1(gpio_seg_1),  // 数码管1的段选信号
++  //   .seg2(gpio_seg_2),  // 数码管2的段选信号
++  //   .seg3(gpio_seg_3),  // 数码管3的段选信号
++  //   .seg4(gpio_seg_4),  // 数码管4的段选信号
++  //   .seg5(gpio_seg_5),  // 数码管5的段选信号
++  //   .seg6(gpio_seg_6),  // 数码管6的段选信号
++  //   .seg7(gpio_seg_7)   // 数码管7的段选信号
++  // );
++
++  // 上面是显示输入的，下面是直接显示学号
++  seg u_seg (
++    // 时钟输入 (通常连接系统主时钟)
++    .clk(clock), 
++    
++    // 数码管显示数字输入 (每管显示一个4位BCD码)
++    .num0(4'd6),  // 个位: 6 (BCD)
++    .num1(4'd0),  // 十位: 0 (BCD)
++    .num2(4'd0),  // 百位: 0 (BCD)
++    .num3(4'd0),  // 千位: 0 (BCD)
++    .num4(4'd1),  // 万位: 1 (BCD)
++    .num5(4'd0),  // 十万位: 0 (BCD)
++    .num6(4'd4),  // 百万位: 4 (BCD)
++    .num7(4'd2),  // 千万位: 2 (BCD)
++    
++    // 数码管段选信号输出 (低电平有效，顺序为dp-g-f-e-d-c-b-a)
++    .seg0(gpio_seg_0),  // 数码管0的段选信号
++    .seg1(gpio_seg_1),  // 数码管1的段选信号
++    .seg2(gpio_seg_2),  // 数码管2的段选信号
++    .seg3(gpio_seg_3),  // 数码管3的段选信号
++    .seg4(gpio_seg_4),  // 数码管4的段选信号
++    .seg5(gpio_seg_5),  // 数码管5的段选信号
++    .seg6(gpio_seg_6),  // 数码管6的段选信号
++    .seg7(gpio_seg_7)   // 数码管7的段选信号
++  );
++
+ endmodule
+diff --git a/perip/gpio/seg.v b/perip/gpio/seg.v
+new file mode 100644
+index 0000000..7de0a40
+--- /dev/null
++++ b/perip/gpio/seg.v
+@@ -0,0 +1,195 @@
++module seg(
++    input clk,
++    input [3:0] num0,
++    input [3:0] num1,
++    input [3:0] num2,
++    input [3:0] num3,
++    input [3:0] num4,
++    input [3:0] num5,
++    input [3:0] num6,
++    input [3:0] num7,
++    
++    output reg [7:0] seg0,
++    output reg [7:0] seg1,
++    output reg [7:0] seg2,
++    output reg [7:0] seg3,
++    output reg [7:0] seg4,
++    output reg [7:0] seg5,
++    output reg [7:0] seg6,
++    output reg [7:0] seg7
++);
++
++    wire [7:0] segs [16:0];
++    assign segs[0] = 8'b00000011;  // 0为亮 1为熄
++    assign segs[1] = 8'b10011111;
++    assign segs[2] = 8'b00100101;
++    assign segs[3] = 8'b00001101;
++    assign segs[4] = 8'b10011001;
++    assign segs[5] = 8'b01001001;
++    assign segs[6] = 8'b01000001;
++    assign segs[7] = 8'b00011111;
++    assign segs[8] = 8'b00000001;
++    assign segs[9] = 8'b00011001;
++    assign segs[10] = 8'b00010001;
++    assign segs[11] = 8'b00000001;
++    assign segs[12] = 8'b01100011;
++    assign segs[13] = 8'b00000011;
++    assign segs[14] = 8'b01100001;
++    assign segs[15] = 8'b01110001;
++    assign segs[16] = 8'b11111111;
++    always@(posedge clk)begin
++        case (num0)
++          4'd0:seg0 <= segs[0];
++          4'd1:seg0 <= segs[1];
++          4'd2:seg0 <= segs[2];
++          4'd3:seg0 <= segs[3];
++          4'd4:seg0 <= segs[4];
++          4'd5:seg0 <= segs[5];
++          4'd6:seg0 <= segs[6];
++          4'd7:seg0 <= segs[7];
++          4'd8:seg0 <= segs[8];
++          4'd9:seg0 <= segs[9];
++          4'd10:seg0 <= segs[10];
++          4'd11:seg0 <= segs[11];
++          4'd12:seg0 <= segs[12];
++          4'd13:seg0 <= segs[13];
++          4'd14:seg0 <= segs[14];
++          4'd15:seg0 <= segs[15];
++          default: seg0 <= segs[16];
++        endcase
++        case (num1)
++          4'd0:seg1 <= segs[0];
++          4'd1:seg1 <= segs[1];
++          4'd2:seg1 <= segs[2];
++          4'd3:seg1 <= segs[3];
++          4'd4:seg1 <= segs[4];
++          4'd5:seg1 <= segs[5];
++          4'd6:seg1 <= segs[6];
++          4'd7:seg1 <= segs[7];
++          4'd8:seg1 <= segs[8];
++          4'd9:seg1 <= segs[9];
++          4'd10:seg1 <= segs[10];
++          4'd11:seg1 <= segs[11];
++          4'd12:seg1 <= segs[12];
++          4'd13:seg1 <= segs[13];
++          4'd14:seg1 <= segs[14];
++          4'd15:seg1 <= segs[15];
++          default: seg1 <= segs[16];
++        endcase
++        case (num2)
++          4'd0:seg2 <= segs[0];
++          4'd1:seg2 <= segs[1];
++          4'd2:seg2 <= segs[2];
++          4'd3:seg2 <= segs[3];
++          4'd4:seg2 <= segs[4];
++          4'd5:seg2 <= segs[5];
++          4'd6:seg2 <= segs[6];
++          4'd7:seg2 <= segs[7];
++          4'd8:seg2 <= segs[8];
++          4'd9:seg2 <= segs[9];
++          4'd10:seg2 <= segs[10];
++          4'd11:seg2 <= segs[11];
++          4'd12:seg2 <= segs[12];
++          4'd13:seg2 <= segs[13];
++          4'd14:seg2 <= segs[14];
++          4'd15:seg2 <= segs[15];
++          default: seg2 <= segs[16];
++        endcase
++        case (num3)
++          4'd0:seg3 <= segs[0];
++          4'd1:seg3 <= segs[1];
++          4'd2:seg3 <= segs[2];
++          4'd3:seg3 <= segs[3];
++          4'd4:seg3 <= segs[4];
++          4'd5:seg3 <= segs[5];
++          4'd6:seg3 <= segs[6];
++          4'd7:seg3 <= segs[7];
++          4'd8:seg3 <= segs[8];
++          4'd9:seg3 <= segs[9];
++          4'd10:seg3 <= segs[10];
++          4'd11:seg3 <= segs[11];
++          4'd12:seg3 <= segs[12];
++          4'd13:seg3 <= segs[13];
++          4'd14:seg3 <= segs[14];
++          4'd15:seg3 <= segs[15];
++          default: seg3 <= segs[16];
++        endcase
++        case (num4)
++          4'd0:seg4 <= segs[0];
++          4'd1:seg4 <= segs[1];
++          4'd2:seg4 <= segs[2];
++          4'd3:seg4 <= segs[3];
++          4'd4:seg4 <= segs[4];
++          4'd5:seg4 <= segs[5];
++          4'd6:seg4 <= segs[6];
++          4'd7:seg4 <= segs[7];
++          4'd8:seg4 <= segs[8];
++          4'd9:seg4 <= segs[9];
++          4'd10:seg4 <= segs[10];
++          4'd11:seg4 <= segs[11];
++          4'd12:seg4 <= segs[12];
++          4'd13:seg4 <= segs[13];
++          4'd14:seg4 <= segs[14];
++          4'd15:seg4 <= segs[15];
++          default: seg4 <= segs[16];
++        endcase
++        case (num5)
++          4'd0:seg5 <= segs[0];
++          4'd1:seg5 <= segs[1];
++          4'd2:seg5 <= segs[2];
++          4'd3:seg5 <= segs[3];
++          4'd4:seg5 <= segs[4];
++          4'd5:seg5 <= segs[5];
++          4'd6:seg5 <= segs[6];
++          4'd7:seg5 <= segs[7];
++          4'd8:seg5 <= segs[8];
++          4'd9:seg5 <= segs[9];
++          4'd10:seg5 <= segs[10];
++          4'd11:seg5 <= segs[11];
++          4'd12:seg5 <= segs[12];
++          4'd13:seg5 <= segs[13];
++          4'd14:seg5 <= segs[14];
++          4'd15:seg5 <= segs[15];
++          default: seg5 <= segs[16];
++        endcase
++        case (num6)
++          4'd0:seg6 <= segs[0];
++          4'd1:seg6 <= segs[1];
++          4'd2:seg6 <= segs[2];
++          4'd3:seg6 <= segs[3];
++          4'd4:seg6 <= segs[4];
++          4'd5:seg6 <= segs[5];
++          4'd6:seg6 <= segs[6];
++          4'd7:seg6 <= segs[7];
++          4'd8:seg6 <= segs[8];
++          4'd9:seg6 <= segs[9];
++          4'd10:seg6 <= segs[10];
++          4'd11:seg6 <= segs[11];
++          4'd12:seg6 <= segs[12];
++          4'd13:seg6 <= segs[13];
++          4'd14:seg6 <= segs[14];
++          4'd15:seg6 <= segs[15];
++          default: seg6 <= segs[16];
++        endcase
++        case (num7)
++          4'd0:seg7 <= segs[0];
++          4'd1:seg7 <= segs[1];
++          4'd2:seg7 <= segs[2];
++          4'd3:seg7 <= segs[3];
++          4'd4:seg7 <= segs[4];
++          4'd5:seg7 <= segs[5];
++          4'd6:seg7 <= segs[6];
++          4'd7:seg7 <= segs[7];
++          4'd8:seg7 <= segs[8];
++          4'd9:seg7 <= segs[9];
++          4'd10:seg7 <= segs[10];
++          4'd11:seg7 <= segs[11];
++          4'd12:seg7 <= segs[12];
++          4'd13:seg7 <= segs[13];
++          4'd14:seg7 <= segs[14];
++          4'd15:seg7 <= segs[15];
++          default: seg7 <= segs[16];
++        endcase
++    end
++
++endmodule
+\ No newline at end of file
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 080d38f..7d7e4c7 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -16,4 +16,91 @@ module ps2_top_apb(
+   input         ps2_data
+ );
+ 
++  // ps2_clk为低电平的时候禁止通信
++  // 检测低电平到高电平转换，打两拍，跨时钟域避免亚稳态问题
++  reg [2:0] ps2_clk_sync;
++  always @(posedge clock) begin
++    ps2_clk_sync <= {ps2_clk_sync[1:0], ps2_clk};
++  end
++
++  wire sampling = ps2_clk_sync[2] & ~ps2_clk_sync[1];
++
++  reg [9:0] buffer;         // ps2_data bits
++  reg [3:0] count;          // count ps2_data bits
++  reg [7:0] fifo[7:0];      // data fifo
++  reg [2:0] w_ptr,r_ptr;    // fifo write and read pointers
++  reg is_empty;             // fifo是否为空
++
++  parameter IDLE = 0,
++            READ = 1;
++  reg state;
++
++  always @(posedge clock) begin
++    if(reset)begin
++      state   <= IDLE;
++    end else begin
++      case (state)
++        IDLE : begin
++          // 不能在写入的时候读取
++          if(in_psel == 1'b1 && in_penable == 1'b1 && in_pwrite == 1'b0)begin
++            state <= READ;
++          end
++        end
++        READ : begin
++          state   <= IDLE;
++        end
++      endcase
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset)begin
++      buffer    <= 10'b0;
++      count     <= 4'b0;
++      w_ptr     <= 3'b0;
++      r_ptr     <= 3'b0;
++      is_empty  <= 1'b1;
++      fifo[0]   <= 8'b0;
++      fifo[1]   <= 8'b0;
++      fifo[2]   <= 8'b0;
++      fifo[3]   <= 8'b0;
++      fifo[4]   <= 8'b0;
++      fifo[5]   <= 8'b0;
++      fifo[6]   <= 8'b0;
++      fifo[7]   <= 8'b0;
++    end
++    else begin
++      if(sampling)begin
++        if(count == 4'd10)begin
++          if((buffer[0] == 0) &&            // start bit
++            (ps2_data)      &&              // stop bit
++            (^buffer[9:1])) begin           // odd  parity
++              // $display("receive %x", buffer[8:1]);
++              fifo[w_ptr] <= buffer[8:1];   // kbd scan code
++              w_ptr       <= w_ptr + 3'b1;
++              is_empty    <= 1'b0;
++            end
++            count         <= 4'b0;
++        end
++        else begin
++          buffer[count]     <= ps2_data;    // store ps2_data
++          count             <= count + 3'b1;
++        end
++      end
++      
++      // 读指针的变化以及is_empty的变化
++      // 当要输出数据的时候才变化读指针和is_empty变量
++      if(in_psel == 1'b1 && in_penable == 1'b1 && in_pready == 1'b1 && is_empty == 1'b0)begin
++        r_ptr             <= r_ptr + 3'b1;
++        if(w_ptr == (r_ptr + 1'b1))begin
++          is_empty        <= 1'b1;
++        end
++      end
++    end
++  end
++
++  assign in_pready  = (state == READ) ? 1'b1 : 1'b0;
++  assign in_prdata  = (state == READ) ? ((is_empty == 1'b0) ? {24'b0, fifo[r_ptr]} : 32'b0) : 32'b0;
++  assign in_pslverr = 1'b0;
++
+ endmodule
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 5c74cfb..e4a51d2 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -20,4 +20,98 @@ module vga_top_apb(
+   output        vga_valid
+ );
+ 
++  // 定义VGA时序参数（640x480@60Hz）
++  // 行像素
++  parameter h_frontporch = 96;
++  parameter h_active     = 144;
++  parameter h_backporch  = 784;
++  parameter h_total      = 800;
++
++  // 一帧的像素
++  parameter v_frontporch = 2;
++  parameter v_active     = 35;
++  parameter v_backporch  = 515;
++  parameter v_total      = 525;
++
++  // 帧缓冲存储器（19位地址，32位数据，一共512KB）
++  localparam N = 19;
++  reg [31:0] frame_buffer[0 : (1 << N) - 1];   // 2 ^ 19 = 524288个条目
++
++  // APB接口信号
++  assign in_pready  = (in_psel == 1'b1 && in_penable == 1'b1);
++  assign in_prdata  = 32'b0;
++  assign in_pslverr = 1'b0;
++
++  // APB 总线处理
++  always @(posedge clock) begin
++    if(in_psel == 1'b1 && in_penable == 1'b1 && in_pwrite == 1'b1)begin
++      // 字节使能写入处理
++      if (in_pstrb[0]) frame_buffer[in_paddr[20:2]][7:0]   <= in_pwdata[7:0];
++      if (in_pstrb[1]) frame_buffer[in_paddr[20:2]][15:8]  <= in_pwdata[15:8];
++      if (in_pstrb[2]) frame_buffer[in_paddr[20:2]][23:16] <= in_pwdata[23:16];
++      if (in_pstrb[3]) frame_buffer[in_paddr[20:2]][31:24] <= in_pwdata[31:24];
++    end
++  end
++
++  // vga 计数器
++  // 像素计数值
++  reg [9:0]    x_cnt;
++  reg [9:0]    y_cnt;
++  wire         h_valid;
++  wire         v_valid;
++  
++  // 行像素计数
++  always @(posedge clock) begin
++    if(reset)begin
++      x_cnt   <= 10'b1;
++    end else begin
++      if(x_cnt == h_total)begin
++        x_cnt <= 10'b1;
++      end else begin
++        x_cnt <= x_cnt + 10'd1;
++      end
++    end
++  end
++
++  // 列像素计数
++  always @(posedge clock) begin
++    if(reset)begin
++      y_cnt   <= 10'b1;
++    end else begin
++      if(y_cnt == v_total && x_cnt == h_total)begin
++        y_cnt <= 10'b1;
++      end else if(x_cnt == h_total)begin
++        y_cnt <= y_cnt + 10'd1;
++      end
++    end
++  end
++
++  // 同步信号生成
++  assign vga_hsync = (x_cnt > h_frontporch);  // 水平同步（低电平有效）
++  assign vga_vsync = (y_cnt > v_frontporch);  // 垂直同步（低电平有效）
++
++  // 有效区域判断
++  assign h_valid    = (x_cnt > h_active) && (x_cnt <= h_backporch);
++  assign v_valid    = (y_cnt > v_active) && (y_cnt <= v_backporch);
++  assign vga_valid  = h_valid && v_valid;  // 有效像素区域
++
++  // 像素地址计算
++  wire [9:0] h_addr,v_addr;
++  assign h_addr     = h_valid ? (x_cnt - 10'd145) : 10'd0;  // 水平像素坐标
++  assign v_addr     = v_valid ? (y_cnt - 10'd36)  : 10'd0;  // 垂直像素坐标
++
++  // 帧缓冲地址计算（优化乘法为移位加法）
++  wire [18:0] pixel_addr;
++  assign pixel_addr  = 
++                      ({9'b0, v_addr} << 9) +  // v_addr * 512
++                      ({9'b0, v_addr} << 7) +  // v_addr * 128 (总计 512+128=640)
++                      {9'b0, h_addr};          // 加上水平偏移
++
++  // 从帧缓冲读取像素数据
++  wire [31:0] pixel_data;
++  assign pixel_data   = frame_buffer[pixel_addr];
++
++  // VGA输出（有效区域输出像素，非有效区域输出黑色）
++  assign {vga_r, vga_g, vga_b} = vga_valid ? pixel_data[23:0] : 24'h0;
++
+ endmodule
+-- 
+2.34.1
+

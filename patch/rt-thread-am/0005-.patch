@@ -1,0 +1,65 @@
+From 294f0675812fb41afd34393f9015f463a03c3d0e Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Sun, 2 Nov 2025 20:01:27 +0800
+Subject: [PATCH 5/6] =?UTF-8?q?=E7=8E=B0=E5=9C=A8=E8=83=BD=E5=A4=9F?=
+ =?UTF-8?q?=E6=A0=B9=E6=8D=AE=E6=9E=B6=E6=9E=84=E8=87=AA=E5=8A=A8=E9=80=89?=
+ =?UTF-8?q?=E6=8B=A9=E9=93=BE=E6=8E=A5=E6=96=87=E4=BB=B6?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/Makefile   | 11 +++++++++--
+ bsp/abstract-machine/src/uart.c |  7 +++++--
+ 2 files changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 5e4c064a5..dc28e28fe 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,8 +8,15 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-# LDFLAGS += -T extra.ld
+-LDFLAGS += -T extra_ysyxsoc.ld
++
++# 根据ARCH设置不同的链接脚本
++ifeq ($(ARCH),riscv32e-ysyxsoc)
++    LDFLAGS += -T extra_ysyxsoc.ld
++	CXXFLAGS += -DARCH_RISCV32E_YSYXSOC
++else
++    LDFLAGS += -T extra.ld
++endif
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 85f50346c..e21adc859 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -38,8 +38,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  // static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";//am_hello\n";//am_fceux_am\n";//am_snake\nam_typing_game\nam_microbench\n";
+-  // return (*p != '\0' ? *(p ++) : -1);
++#ifdef ARCH_RISCV32E_YSYXSOC
+   static const char PREDEF_INPUT[] = 
+     "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   static const char *p    = PREDEF_INPUT;
+@@ -55,6 +54,10 @@ static int _uart_getc(struct rt_serial_device *serial) {
+     string_end = true;
+     return io_read(AM_UART_RX).data;
+   }
++#else
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";//am_hello\n";//am_fceux_am\n";//am_snake\nam_typing_game\nam_microbench\n";
++  return (*p != '\0' ? *(p ++) : -1);
++#endif
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

@@ -1,0 +1,46 @@
+From 668018382dbd0788cb0763d893aa21c9c8838d73 Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Mon, 26 May 2025 09:40:41 +0800
+Subject: [PATCH 3/6] =?UTF-8?q?=E5=B0=86VMA=E4=BB=8Epsram=E4=BF=AE?=
+ =?UTF-8?q?=E6=94=B9=E4=B8=BAsdram?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/extra_ysyxsoc.ld | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra_ysyxsoc.ld b/bsp/abstract-machine/extra_ysyxsoc.ld
+index 2c4c85e13..588f694c3 100644
+--- a/bsp/abstract-machine/extra_ysyxsoc.ld
++++ b/bsp/abstract-machine/extra_ysyxsoc.ld
+@@ -3,6 +3,7 @@ MEMORY {
+   mrom  : ORIGIN = 0x20000000, LENGTH = 4K
+   flash : ORIGIN = 0x30000000, LENGTH = 16M
+   psram : ORIGIN = 0x80000000, LENGTH = 4M
++  sdram : ORIGIN = 0xa0000000, LENGTH = 32M
+ }
+ 
+ SECTIONS {
+@@ -34,7 +35,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  } > psram AT > flash : data
++  } > sdram AT > flash : data
+ 
+   /* 获取rtt的data段的虚拟内存地址(VMA) */
+   _data_extra       = ADDR(.data.extra);
+@@ -54,7 +55,7 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  } > psram
++  } > sdram
+ 
+   /* 获取rtt的bss段的虚拟内存地址(VMA) */
+   _bss_extra  = ADDR(.bss.extra);
+-- 
+2.34.1
+

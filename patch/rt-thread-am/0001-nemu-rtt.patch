@@ -1,0 +1,126 @@
+From 105b0eff6c1f989cf48f23726df4452439af3535 Mon Sep 17 00:00:00 2001
+From: LUO QUAN <2990261695@qq.com>
+Date: Mon, 13 Jan 2025 21:06:32 +0800
+Subject: [PATCH 1/6] =?UTF-8?q?=E5=AE=9E=E7=8E=B0=E4=BA=86nemu=E7=9A=84rtt?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/context.c | 69 ++++++++++++++++++++++++++++--
+ bsp/abstract-machine/src/uart.c    |  2 +-
+ 2 files changed, 66 insertions(+), 5 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..7f2fcd27f 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,8 +2,33 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++#define STACK_SIZE  1024*16
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD:
++      // rt_thread_t self  = rt_thread_self();
++      // rt_ubase_t *args  = (void*)self->user_data;
++      // Context** from    = (Context**)args[0];
++      // Context** to      = (Context**)args[1];
++      // if (from!=NULL)
++      //   *from = c;
++      // c = *to;
++      rt_thread_t self  = rt_thread_self();
++      rt_ubase_t *para  = (rt_ubase_t *)self->user_data;
++      rt_ubase_t from   = para[0];
++      rt_ubase_t to     = para[1];
++      if(from){
++        *((Context **)from) = c;
++        c = *((Context **)to);
++      }
++      else{
++        c = *((Context **)to);
++      }
++      break;
++    case EVENT_IRQ_TIMER:
++      // printf("event irq_timer\n");
++      break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -14,18 +39,54 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  // assert(0);
++  rt_ubase_t temp_user_data;
++  rt_ubase_t user_data[2] = {0, to};
++
++  rt_thread_t current     = rt_thread_self();
++  temp_user_data          = current->user_data;
++
++  current->user_data      = (rt_ubase_t)user_data;
++
++  yield();
++
++  current->user_data      = temp_user_data;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  // assert(0);
++  rt_ubase_t temp_user_data;
++  rt_ubase_t user_data[2] = {from, to};
++  rt_thread_t current     = rt_thread_self();
++
++  temp_user_data          = current->user_data;
++  current->user_data      = (rt_ubase_t)user_data;
++
++  yield();
++
++  current->user_data      = temp_user_data;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++static void tentry_entry(void *para) {
++  uintptr_t *args = para;
++  void (*tentry)() = (void*)args[1];
++  tentry(args[0]);
++  void (*texit)() = (void*)args[2];
++  texit(); 
++}
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  // assert(0);
++  stack_addr = (rt_uint8_t *)(((uintptr_t)stack_addr + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1));
++  uintptr_t *args = (void*)(stack_addr-512);
++  stack_addr      = stack_addr - 512;
++  args[0]         = (uintptr_t)parameter;
++  args[1]         =(uintptr_t)tentry;
++  args[2]         =(uintptr_t)texit;
++  Context* cp     = kcontext((Area){(void*)(stack_addr - STACK_SIZE), (void*)stack_addr}, tentry_entry, args);
++  return (rt_uint8_t*)cp;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..793068b17 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -37,7 +37,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";//am_fceux_am\nam_snake\nam_typing_game\nam_microbench\n";
+   return (*p != '\0' ? *(p ++) : -1);
+ }
+ 
+-- 
+2.34.1
+
