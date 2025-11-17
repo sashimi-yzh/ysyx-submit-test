@@ -1,0 +1,206 @@
+From 40cd055e3ab65aa98fd9078928d8df40f3e35ffb Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Sun, 28 Sep 2025 14:23:46 +0800
+Subject: [PATCH 1/2] rtt
+
+---
+ bsp/abstract-machine/Makefile      |  6 +++-
+ bsp/abstract-machine/extra-soc.ld  | 58 ++++++++++++++++++++++++++++++
+ bsp/abstract-machine/src/context.c | 56 ++++++++++++++++++++++++++---
+ bsp/abstract-machine/src/uart.c    |  4 +++
+ 4 files changed, 119 insertions(+), 5 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra-soc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..6d473bd67 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,11 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++ifeq ($(ARCH), riscv32e-ysyxsoc)
++    LDFLAGS += -T extra-soc.ld
++else
++    LDFLAGS += -T extra.ld
++endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra-soc.ld b/bsp/abstract-machine/extra-soc.ld
+new file mode 100644
+index 000000000..f67696243
+--- /dev/null
++++ b/bsp/abstract-machine/extra-soc.ld
+@@ -0,0 +1,58 @@
++MEMORY {
++  sram  (rwx) : ORIGIN = 0x0f000000, LENGTH = 8K
++  mrom  (r x) : ORIGIN = 0x20000000, LENGTH = 4K
++  flash (rwx) : ORIGIN = 0x30000000, LENGTH = 16M
++  psram (rwx) : ORIGIN = 0x80000000, LENGTH = 4M
++  sdram (rwx) : ORIGIN = 0xa0000000, LENGTH = 32M
++}
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } > sdram AT> flash
++  _data_extra = ADDR(.data.extra);
++  _edata_extra = _data_extra + SIZEOF(.data.extra);
++  _data_extra_load = LOADADDR(.data.extra);
++  _edata_extra_load = _data_extra_load + SIZEOF(.data.extra);
++}
++INSERT AFTER .data;
++
++SECTIONS {
++  .bss.extra (NOLOAD) : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > sdram
++  _bss_extra_start = ADDR(.bss.extra);
++  _ebss_extra = _bss_extra_start + SIZEOF(.bss.extra);
++}
++INSERT AFTER .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..3293c9b0b 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -4,28 +4,76 @@
+ 
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD:
++    {
++      rt_thread_t cp = rt_thread_self();
++      rt_ubase_t to = cp->user_data;
++      c = *(Context **)to;
++      // c->mepc += 4;
++      break;
++    }
++    case EVENT_IRQ_TIMER: break;
++    case EVENT_IRQ_IODEV: break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+ 
++typedef struct{
++  void * (*task_entry)(void * args);
++  void * parameter;
++  void * (*task_exit)();
++} w_args;
++
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t user_data_saver = pcb->user_data;
++  pcb->user_data = to;
++  yield();
++  pcb->user_data = user_data_saver;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t user_data_saver = pcb->user_data;
++  pcb->user_data = to;
++  from = (rt_ubase_t)pcb->sp;
++  yield();
++  pcb->user_data = user_data_saver;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++void wrap(void *arg) {
++  w_args *stack_bottom = (w_args *)arg;
++
++  void * exit_func=stack_bottom->task_exit;
++  
++  ((void(*)())stack_bottom->task_entry) (stack_bottom->parameter);// 调用任务入口函数
++  ((void(*)())exit_func) ();
++}
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++
++  stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
++
++  Area stack;
++  stack.start = stack_addr - 0;
++  stack.end = stack_addr;
++
++  w_args *stack_bottom = (w_args *)(stack.end - sizeof(Context) - sizeof(w_args));
++
++  Context *cp = kcontext(stack, wrap, (void *)stack_bottom);
++  
++  stack_bottom->parameter=parameter;
++  stack_bottom->task_entry=tentry;
++  stack_bottom->task_exit=texit;
++
++  return (rt_uint8_t *)cp;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..85c50731d 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -37,8 +38,11 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
++  //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_fceux_am mario\n";
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  //return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+   return (*p != '\0' ? *(p ++) : -1);
++
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

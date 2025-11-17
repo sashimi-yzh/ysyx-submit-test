@@ -1,0 +1,207 @@
+From 183cf26c83d34886e8ea1d5ed7b2da2bc2587b67 Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Wed, 22 Oct 2025 12:19:56 +0800
+Subject: [PATCH 21/22] =?UTF-8?q?=E4=BF=AE=E6=94=B9=E4=BA=86nvboard?=
+ =?UTF-8?q?=E7=BF=BB=E5=80=8D=E6=9B=B4=E6=96=B0=E5=AF=BC=E8=87=B4=E7=9A=84?=
+ =?UTF-8?q?=E6=98=BE=E7=A4=BAbug?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .metals/metals.log      |  25 +++++++++++++++++++++++++
+ .metals/metals.mv.db    | Bin 172032 -> 258048 bytes
+ perip/vga/vga_top_apb.v |  10 +++++-----
+ 3 files changed, 30 insertions(+), 5 deletions(-)
+
+diff --git a/.metals/metals.log b/.metals/metals.log
+index f763aa4..b65a300 100644
+--- a/.metals/metals.log
++++ b/.metals/metals.log
+@@ -2190,3 +2190,28 @@ WARNING: Unmatched cancel notification for request id 6
+ 2025.10.04 16:29:42 INFO  Shutting down server
+ 2025.10.04 16:29:42 INFO  shutting down Metals
+ 2025.10.04 16:29:42 INFO  Exiting server
++2025.10.21 16:16:16 INFO  Started: Metals version 1.6.2 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++2025.10.21 16:16:17 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/Top.scala. Using presentation compiler with project's scala-library version: 3.3.6
++2025.10.21 16:16:21 INFO  Shutting down server
++2025.10.21 16:16:21 INFO  shutting down Metals
++2025.10.21 16:16:21 INFO  Exiting server
++2025.10.21 16:16:22 ERROR Unexpected error initializing server: 
++org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequest failed with message: Canceled
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleResponse(RemoteEndpoint.java:220)
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:204)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:185)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
++	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:114)
++	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
++	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
++	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
++	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
++	at java.lang.Thread.run(Thread.java:840)
++
++2025.10.21 21:23:32 INFO  Started: Metals version 1.6.2 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++2025.10.21 21:23:33 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/src/Top.scala. Using presentation compiler with project's scala-library version: 3.3.6
++Oct 22, 2025 10:50:30 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++2025.10.22 10:59:56 INFO  Shutting down server
++2025.10.22 10:59:56 INFO  shutting down Metals
++2025.10.22 10:59:56 INFO  Exiting server
+diff --git a/.metals/metals.mv.db b/.metals/metals.mv.db
+index 8484556a470cc3aa406c08028b06d660c74da79c..b3ebecf2685c4cf30c7ca10f7f976deeae373a0c 100644
+GIT binary patch
+delta 11936
+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
+
+delta 5493
+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
+F$d7~F<x2nn
+
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 573a2a3..c74677a 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -72,10 +72,10 @@ module vga_ctrl (
+     output [7:0] vga_b
+ );
+ 
+-parameter h_frontporch = 96/2;
+-parameter h_active = 144/2;
+-parameter h_backporch = 784/2;
+-parameter h_total = 800/2;
++parameter h_frontporch = 96;
++parameter h_active = 144;
++parameter h_backporch = 784;
++parameter h_total = 800;
+ 
+ parameter v_frontporch = 2;
+ parameter v_active = 35;
+@@ -110,7 +110,7 @@ assign h_valid = (x_cnt > h_active) & (x_cnt <= h_backporch);
+ assign v_valid = (y_cnt > v_active) & (y_cnt <= v_backporch);
+ assign valid = h_valid & v_valid;
+ //计算当前有效像素坐标
+-assign h_addr = h_valid ? (x_cnt - 10'd73) : 10'd0;
++assign h_addr = h_valid ? (x_cnt - 10'd145) : 10'd0;
+ assign v_addr = v_valid ? (y_cnt - 11'd36) : 11'd0;
+ //设置输出的颜色值
+ assign {vga_r, vga_g, vga_b} = vga_data;
+-- 
+2.34.1
+

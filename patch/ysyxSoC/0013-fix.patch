@@ -1,0 +1,23 @@
+From 5e4cc21303106e3142fa9dda0ea0f13876007e69 Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Sun, 18 May 2025 15:58:45 +0800
+Subject: [PATCH 13/22] fix
+
+---
+ perip/amba/apb_delayer.v | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index a387748..c4e9f57 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -120,5 +120,5 @@ module apb_delayer(
+   // assign in_pready   = out_pready ;
+   // assign in_prdata   = out_prdata ;
+   // assign in_pslverr  = out_pslverr;
+-
++  //
+ endmodule
+-- 
+2.34.1
+

@@ -1,0 +1,282 @@
+From 7b196785bf0293a09f941c25950efe766d0bda68 Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Mon, 17 Nov 2025 23:26:32 +0800
+Subject: [PATCH 22/22] =?UTF-8?q?=E4=BF=AE=E5=A4=8D=E9=94=AE=E7=9B=98?=
+ =?UTF-8?q?=E9=94=99=E8=AF=AF?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .metals/metals.log      |  65 ++++++++++++++++++++++++++++++++++++++++
+ .metals/metals.mv.db    | Bin 258048 -> 282624 bytes
+ perip/ps2/ps2_top_apb.v |  30 ++++++++-----------
+ 3 files changed, 78 insertions(+), 17 deletions(-)
+
+diff --git a/.metals/metals.log b/.metals/metals.log
+index b65a300..08bb933 100644
+--- a/.metals/metals.log
++++ b/.metals/metals.log
+@@ -2215,3 +2215,68 @@ INFO: Unsupported notification method: $/setTrace
+ 2025.10.22 10:59:56 INFO  Shutting down server
+ 2025.10.22 10:59:56 INFO  shutting down Metals
+ 2025.10.22 10:59:56 INFO  Exiting server
++2025.10.25 16:11:48 INFO  Started: Metals version 1.6.2 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++Oct 25, 2025 4:11:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 25, 2025 4:11:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 25, 2025 4:11:49 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 25, 2025 4:11:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++2025.10.25 16:11:59 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/Parameters.scala. Using presentation compiler with project's scala-library version: 3.3.6
++2025.10.25 16:12:02 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/Parameters.scala. Using presentation compiler with project's scala-library version: 3.3.6
++Oct 25, 2025 4:12:04 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 25, 2025 4:12:04 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 25, 2025 4:12:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 25, 2025 4:12:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++2025.10.25 16:12:29 INFO  no build target found for /home/plutoisy/ysyx-workbench/ysyxSoC/rocket-chip/src/main/scala/amba/axi4/Parameters.scala. Using presentation compiler with project's scala-library version: 3.3.6
++2025.10.25 16:12:42 INFO  Shutting down server
++2025.10.25 16:12:42 INFO  shutting down Metals
++2025.10.25 16:12:42 INFO  Exiting server
++2025.10.25 16:12:42 ERROR Unexpected error initializing server: 
++org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequest failed with message: Canceled
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleResponse(RemoteEndpoint.java:220)
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:204)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:185)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
++	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:114)
++	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
++	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
++	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
++	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
++	at java.lang.Thread.run(Thread.java:840)
++
++2025.10.31 12:34:52 INFO  Started: Metals version 1.6.2 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++Oct 31, 2025 12:34:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 31, 2025 12:34:52 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 31, 2025 12:34:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 31, 2025 12:34:54 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 31, 2025 12:34:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++Oct 31, 2025 12:34:56 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++INFO: Unsupported notification method: $/setTrace
++2025.10.31 12:35:02 INFO  Shutting down server
++2025.10.31 12:35:02 INFO  shutting down Metals
++2025.10.31 12:35:02 INFO  Exiting server
++2025.10.31 12:35:02 ERROR Unexpected error initializing server: 
++org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequest failed with message: Canceled
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleResponse(RemoteEndpoint.java:220)
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:204)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:185)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
++	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:114)
++	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
++	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
++	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
++	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
++	at java.lang.Thread.run(Thread.java:840)
++
+diff --git a/.metals/metals.mv.db b/.metals/metals.mv.db
+index b3ebecf2685c4cf30c7ca10f7f976deeae373a0c..9fc42c6029d368eb7401e7c965b5bb85427334ff 100644
+GIT binary patch
+delta 10062
+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
+WGk*W3tD+v0!Xd00xT>nE{C@-H{LfYZ
+
+delta 8021
+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
+GFZve<u@`Ls
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 06c9e21..2281606 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -20,9 +20,8 @@ module ps2_top_apb(
+   wire ready;
+   reg [31:0] reg_in_prdata;
+   reg nextdata_n;
+-  
+   assign in_pready = in_psel & in_penable;
+-  assign in_prdata = reg_in_prdata;
++  assign in_prdata = ready ? {24'b0, buffer_out} : 0;
+ 
+   ps2_keyboard u_ps2_keyboard(
+       .clk        ( clock      ),
+@@ -35,28 +34,25 @@ module ps2_top_apb(
+       .overflow   (    )
+   );
+ 
+-
++  reg flag;
+   always@(posedge clock) begin
+     if(reset) begin
+-      reg_in_prdata      <= 'b0;
+-      nextdata_n         <= 'b1;
++      nextdata_n <= 'b1;
++      flag <= 0;
+     end
+     else begin
+-      if(in_pready & !in_pwrite) begin//读
+-        if(in_paddr[3:2] == 2'b00) begin
+-          if(ready) begin
+-            reg_in_prdata <= {24'b0, buffer_out};
+-            nextdata_n <= 1'b0;
+-          end
+-          else begin
+-            reg_in_prdata <= 'b0;
+-          end
++      if((in_psel && in_penable) && !in_pwrite && ready) begin//读
++        // $display("%h",buffer_out);
++        flag <= 1;
++        if (flag == 0) begin
++          nextdata_n <= 1'b0;
++        end else begin
++          nextdata_n <= 1'b1;
+         end
+       end
+       else begin
+-        if(!nextdata_n) begin
+-          nextdata_n <= 1'b1;
+-        end
++        flag <= 0;
++        nextdata_n <= 1'b1;
+       end
+     end
+   end
+-- 
+2.34.1
+

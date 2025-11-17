@@ -1,0 +1,306 @@
+From ee77d1e93dfbe8487f9b1c5316854822436a247d Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Thu, 27 Mar 2025 12:51:29 +0800
+Subject: [PATCH 06/22] uart tx
+
+---
+ .metals/metals.log        |  39 ++++++++++++++
+ .metals/metals.mv.db      | Bin 53248 -> 49152 bytes
+ constr/auto_bind.cpp      |  16 ++++++
+ constr/ysyxSoCFull.nxdc   |  13 +++++
+ perip/gpio/gpio_top_apb.v | 111 ++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 179 insertions(+)
+ create mode 100644 constr/auto_bind.cpp
+ create mode 100644 constr/ysyxSoCFull.nxdc
+
+diff --git a/.metals/metals.log b/.metals/metals.log
+index 6549728..475a7b3 100644
+--- a/.metals/metals.log
++++ b/.metals/metals.log
+@@ -1589,3 +1589,42 @@ WARNING: Unsupported notification method: metals/windowStateDidChange
+ 2025.03.24 22:03:45 INFO  Shutting down server
+ 2025.03.24 22:03:45 INFO  shutting down Metals
+ 2025.03.24 22:03:45 INFO  Exiting server
++2025.03.26 12:47:40 INFO  Started: Metals version 1.5.1 in folders '/home/plutoisy/ysyx-workbench/ysyxSoC' for client Visual Studio Code 1.98.0.
++Mar 26, 2025 12:51:16 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:28:40 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:29:50 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:31:38 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:34:26 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:34:27 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:35:37 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:46:00 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 2:47:10 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 3:08:05 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++Mar 26, 2025 3:09:02 PM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
++WARNING: Unsupported notification method: metals/windowStateDidChange
++2025.03.26 15:09:09 INFO  Shutting down server
++2025.03.26 15:09:09 INFO  shutting down Metals
++2025.03.26 15:09:09 INFO  Exiting server
++2025.03.26 15:09:09 ERROR Unexpected error initializing server: 
++org.eclipse.lsp4j.jsonrpc.ResponseErrorException: Request window/showMessageRequest failed with message: Canceled
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleResponse(RemoteEndpoint.java:220)
++	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:204)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:185)
++	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
++	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:114)
++	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
++	at java.util.concurrent.FutureTask.run(FutureTask.java:264)
++	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
++	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
++	at java.lang.Thread.run(Thread.java:840)
++
+diff --git a/.metals/metals.mv.db b/.metals/metals.mv.db
+index e304016f19cd60e6c961fa88793584a929290732..20fc5bd6270c17818a7180a551ebc44a90d9701a 100644
+GIT binary patch
+delta 5204
+zcmeHLTWl0n7(TPxZFjd@fi{4mh3(Q>HXS!}=CV7p5h)P4wLnt}(FDc0N<(Q2v=uLL
+zn_wb|4?;%`8b}c20YO7uH71(4%A1LTBpQq_`eNdPmltEA5BSfS`*y3XO2PyCu;=_c
+zm-Fv`{_p$0|4g2aPEJPKHx*f085&Xd6%~8jG5C~T#0<mG>fZ6;eMQVN$5-Z-z(5;A
+z`k1;`KUg&Ks>0~`d~*80iwllVCZ-l9m;IN=)AhSCmgymVxQOXd`EmVFQK0wBhl?0<
+z3`|Cgd7VBuGBQ@=^CGy$a9ERAdTemNUKH{L5o57HPv{2^4UWJY;7!B&;jv<#9ve}M
+z1}~V?Yql&+A{61G&!NRBL`9-?vHFI1BH5TSUvIm&{6qRP$~@E7!Tj;YnlIk|b1{NX
+zCVHKM4?-Iz5vrUZW8_G4IuiqbavDMn$yl>_J@ZjqtG9m1>*bRx`(jku{ApEd9me^z
+z*_3UK!o;Mr??e*Ml)uY97NNCBUI$OEEI3<-QYb-UoWr=_%|ve|O--zCxj;GFfD6t(
+zu_pDzT_r0l5FZ}mGc-7%Zv~?&QiAG63IahQB^Y_pPz&_<@c1EJ^CM^5YsYqZ5tIVa
+zERZl_Mv>?dRUIFdht(&GP1rc?c_x|*bE`^*?7PCMV1)P0a)yy435WNMal8qxE(TT?
+z$?B|F&;qN&o7nT-@)8M*`ED*#;vj8j2}hnM9<YiKc7U5_I3(f_S73wwU<#)oHA`d(
+zMPxY3^40@`%q58t8Q<Vl&tSkU)xE;8ifFySeuhyr?>0#k85W^fH$q+gkfShu5Vc1u
+zL($f51Stv=grcoe>22Ew(%W|S_9nCK>9!_$egA`QF1c6>V#Y(aEEp`u>juDPn>m`U
+zGjFVEcm!jW;FELkDU<wTtxXT@bHVwi)%&aj_Efd;$=h2iaoCj8y>yCdx`ZM*6vtY@
+z5Oh(9v$7y)3Zun2fn@|v#&J&1YXUDZ<*R)=skp8Pc}+5Ov%UX<`SX_c@|FIxakH|i
+z-MrGj!#vS*Jlpg#6^j6dH$p&!hsYS?mXNWYd#x$na>v~O<lmDIl>2x8)(}~A?d)d0
+zF49~s_w3!%7-|2seDTmPRHSpcd1^epp>un~QVLOM)BeGsAqerJ&PU^S!Vj(;`Ml%3
+zL=e<Ilw}XpiUsPoyxbKXP|IdvZ8`*@s<^rtR2^3rKQ5Y;8h8rEz9yawgW*n6YTPD#
+zESn$Gi%SAQQXgSs-ewz%ja_)@b7$t6{2~XkK_+PcG#vmGX3jTzF>)$Pku#rNx5E57
+z*HZF|0iiexJdjI)Vjxyw`k#WL5Epn>3An&Gm?rrghI9!yB*nX#PB85n1k<+RVA?hu
+zOgp#Pn05>s(`XVfy&EB_8%4X0*rS!PV3Ul65i%Ci7@<U_@hVKZQQ~L>$e@A}$Kc_5
+zxbRX1(h|m3o2L)lh)t#IJAK&tP*?pzu1WxPISh3uS-KhTzUO{7$_0<f+(KfPTrIGP
+zx(#X74y2|4cl4}=l3SOHokHjiztGjhgoh5*n`yOi!r#WpEr%0d2&fL573@-BF3&9s
+zaoS8-;9y{eEU1N8HIQ$1qOnjrf{+c#0*yEm-B*-n@J7MY0%6`zt9V1JL8ig1*Bsu+
+z2c4LmHy*wjya9Oc+GWa{JIYrF&eZ?g>eqWNa-S;>bVrE$jG_CCp<!SQHOv?w4h-@P
+z?}!7PlnYMNs)|^F@U<#dYcM^qvxdziw(8^rMs&qN`F|G&uQ=kM;)sKaO|=^<7S;OV
+zV6`I-zO==`B}W{5;)sJ*^VGQ&EnLTN!{4<QI|8l6qU_W0u#(6gO$3z$%4FY6lI8<^
+zN#-o!QbCQsUJEuKxr>eFH<=IT)O|$h_fzHXvwOVu<6Hb=Q&6e+`ow2oeQKfyY5@@g
+zlwf{EcldR8)+Q|6TIe<K6Wr^XrQh(?k;^BX!zZiPhWVsAy=K*(^K+{vxmX$rdX9yT
+zM$#Rs%LBQvUSMV~mGkpJckAd3VzD74vw{jOf^A4riIFTpLeM2+jfaN8y$@R*hi$lm
+z#O@32Cc}AyBS^><r^%R)AXyg@Bp^(VO%Y*|Z0#n(B-u6zG}Vog9hdFVN@=hmrC~%U
+z^+Nyjfq2puEH0J!^kew+V*vf|I7~lLIGZrz6<@H}dS#|8G<=$Y(+qM(;0P9uw*(6Z
+zf+hNV1iqVm!BP_%o=h=rgCtmiZvl|_YQzYs5#Gd?mzAuN<aRKeJooxEvxNyH6I4Iz
+zq{%8)LA)|7V;u{)NVE{EI2N1)+yuk|lDY=W;SI~nnSs8BuoRektqVv2K#6@O=V38;
+R3Mk5krm+U&o)b{XzW_jh)cODb
+
+delta 5219
+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
+U{}+@E-c)6S4A(HKXJVPZ0Y>H+rvLx|
+
+diff --git a/constr/auto_bind.cpp b/constr/auto_bind.cpp
+new file mode 100644
+index 0000000..293e9c8
+--- /dev/null
++++ b/constr/auto_bind.cpp
+@@ -0,0 +1,16 @@
++#include <nvboard.h>
++#include "VysyxSoCFull.h"
++
++void nvboard_bind_all_pins(VysyxSoCFull* top) {
++	nvboard_bind_pin( &top->externalPins_gpio_out, 16, LD15, LD14, LD13, LD12, LD11, LD10, LD9, LD8, LD7, LD6, LD5, LD4, LD3, LD2, LD1, LD0);
++	nvboard_bind_pin( &top->externalPins_gpio_in, 16, SW15, SW14, SW13, SW12, SW11, SW10, SW9, SW8, SW7, SW6, SW5, SW4, SW3, SW2, SW1, SW0);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_0, 8, SEG0A, SEG0B, SEG0C, SEG0D, SEG0E, SEG0F, SEG0G, DEC0P);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_1, 8, SEG1A, SEG1B, SEG1C, SEG1D, SEG1E, SEG1F, SEG1G, DEC1P);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_2, 8, SEG2A, SEG2B, SEG2C, SEG2D, SEG2E, SEG2F, SEG2G, DEC2P);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_3, 8, SEG3A, SEG3B, SEG3C, SEG3D, SEG3E, SEG3F, SEG3G, DEC3P);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_4, 8, SEG4A, SEG4B, SEG4C, SEG4D, SEG4E, SEG4F, SEG4G, DEC4P);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_5, 8, SEG5A, SEG5B, SEG5C, SEG5D, SEG5E, SEG5F, SEG5G, DEC5P);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_6, 8, SEG6A, SEG6B, SEG6C, SEG6D, SEG6E, SEG6F, SEG6G, DEC6P);
++	nvboard_bind_pin( &top->externalPins_gpio_seg_7, 8, SEG7A, SEG7B, SEG7C, SEG7D, SEG7E, SEG7F, SEG7G, DEC7P);
++	nvboard_bind_pin( &top->externalPins_uart_tx, 1, UART_TX);
++}
+diff --git a/constr/ysyxSoCFull.nxdc b/constr/ysyxSoCFull.nxdc
+new file mode 100644
+index 0000000..8057818
+--- /dev/null
++++ b/constr/ysyxSoCFull.nxdc
+@@ -0,0 +1,13 @@
++top=ysyxSoCFull
++externalPins_gpio_out (LD15, LD14, LD13, LD12, LD11, LD10, LD9, LD8, LD7, LD6, LD5, LD4, LD3, LD2, LD1, LD0)
++externalPins_gpio_in  (SW15, SW14, SW13, SW12, SW11, SW10, SW9, SW8, SW7, SW6, SW5, SW4, SW3, SW2, SW1, SW0)
++externalPins_gpio_seg_0 (SEG0A, SEG0B, SEG0C, SEG0D, SEG0E, SEG0F, SEG0G, DEC0P)
++externalPins_gpio_seg_1 (SEG1A, SEG1B, SEG1C, SEG1D, SEG1E, SEG1F, SEG1G, DEC1P)
++externalPins_gpio_seg_2 (SEG2A, SEG2B, SEG2C, SEG2D, SEG2E, SEG2F, SEG2G, DEC2P)
++externalPins_gpio_seg_3 (SEG3A, SEG3B, SEG3C, SEG3D, SEG3E, SEG3F, SEG3G, DEC3P)
++externalPins_gpio_seg_4 (SEG4A, SEG4B, SEG4C, SEG4D, SEG4E, SEG4F, SEG4G, DEC4P)
++externalPins_gpio_seg_5 (SEG5A, SEG5B, SEG5C, SEG5D, SEG5E, SEG5F, SEG5G, DEC5P)
++externalPins_gpio_seg_6 (SEG6A, SEG6B, SEG6C, SEG6D, SEG6E, SEG6F, SEG6G, DEC6P)
++externalPins_gpio_seg_7 (SEG7A, SEG7B, SEG7C, SEG7D, SEG7E, SEG7F, SEG7G, DEC7P)
++externalPins_uart_tx UART_TX
++externalPins_uart_rx UART_RX
+\ No newline at end of file
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index ec51ffe..3d3cdbb 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -23,5 +23,116 @@ module gpio_top_apb(
+   output [7:0]  gpio_seg_6,
+   output [7:0]  gpio_seg_7
+ );
++  reg [15:0] reg_gpio_out;
++  reg [31:0] reg_in_prdata;
++  reg [3:0]  reg_gpio_seg_hex_0;
++  reg [3:0]  reg_gpio_seg_hex_1;
++  reg [3:0]  reg_gpio_seg_hex_2;
++  reg [3:0]  reg_gpio_seg_hex_3;
++  reg [3:0]  reg_gpio_seg_hex_4;
++  reg [3:0]  reg_gpio_seg_hex_5;
++  reg [3:0]  reg_gpio_seg_hex_6;
++  reg [3:0]  reg_gpio_seg_hex_7;
+ 
++  assign in_pready = in_psel & in_penable;
++  assign gpio_out  = reg_gpio_out;
++  assign in_prdata = reg_in_prdata;
++
++  bcd7seg u_bcd7seg0(
++      .b  ( reg_gpio_seg_hex_0  ),
++      .h  ( gpio_seg_0          )
++  );
++  bcd7seg u_bcd7seg1(
++      .b  ( reg_gpio_seg_hex_1  ),
++      .h  ( gpio_seg_1          )
++  );
++  bcd7seg u_bcd7seg2(
++      .b  ( reg_gpio_seg_hex_2  ),
++      .h  ( gpio_seg_2          )
++  );
++  bcd7seg u_bcd7seg3(
++      .b  ( reg_gpio_seg_hex_3  ),
++      .h  ( gpio_seg_3          )
++  );
++  bcd7seg u_bcd7seg4(
++      .b  ( reg_gpio_seg_hex_4  ),
++      .h  ( gpio_seg_4          )
++  );
++  bcd7seg u_bcd7seg5(
++      .b  ( reg_gpio_seg_hex_5  ),
++      .h  ( gpio_seg_5          )
++  );
++  bcd7seg u_bcd7seg6(
++      .b  ( reg_gpio_seg_hex_6  ),
++      .h  ( gpio_seg_6          )
++  );
++  bcd7seg u_bcd7seg7(
++      .b  ( reg_gpio_seg_hex_7  ),
++      .h  ( gpio_seg_7          )
++  );
++
++  always@(posedge clock) begin
++    if(reset) begin
++      reg_gpio_out       <= 'b0;
++      reg_in_prdata      <= 'b0;
++      reg_gpio_seg_hex_0 <= 'b0;
++      reg_gpio_seg_hex_1 <= 'b0;
++      reg_gpio_seg_hex_2 <= 'b0;
++      reg_gpio_seg_hex_3 <= 'b0;
++      reg_gpio_seg_hex_4 <= 'b0;
++      reg_gpio_seg_hex_5 <= 'b0;
++      reg_gpio_seg_hex_6 <= 'b0;
++      reg_gpio_seg_hex_7 <= 'b0;
++    end
++    else begin
++      if(in_pready & in_pwrite) begin//写
++        if(in_paddr[3:2] == 2'b00) begin
++          reg_gpio_out[7:0]  <= in_pstrb[0] ? in_pwdata[7:0]  : 'b0;
++          reg_gpio_out[15:8] <= in_pstrb[1] ? in_pwdata[15:8] : 'b0;
++        end
++        else if(in_paddr[3:2] == 2'b10) begin
++          reg_gpio_seg_hex_0  <= in_pstrb[0] ? in_pwdata[3:0]    : 'b0;
++          reg_gpio_seg_hex_1  <= in_pstrb[0] ? in_pwdata[7:4]    : 'b0;
++          reg_gpio_seg_hex_2  <= in_pstrb[1] ? in_pwdata[11:8]   : 'b0;
++          reg_gpio_seg_hex_3  <= in_pstrb[1] ? in_pwdata[15:12]  : 'b0;
++          reg_gpio_seg_hex_4  <= in_pstrb[2] ? in_pwdata[19:16]  : 'b0;
++          reg_gpio_seg_hex_5  <= in_pstrb[2] ? in_pwdata[23:20]  : 'b0;
++          reg_gpio_seg_hex_6  <= in_pstrb[3] ? in_pwdata[27:24]  : 'b0;
++          reg_gpio_seg_hex_7  <= in_pstrb[3] ? in_pwdata[31:28]  : 'b0;
++        end
++      end
++      else if(in_pready & !in_pwrite) begin//读
++        if(in_paddr[3:2] == 2'b01) begin
++          reg_in_prdata <= {16'b0, gpio_in};
++        end
++      end
++    end
++  end
+ endmodule
++
++module bcd7seg(
++  input  [3:0] b,
++  output reg [7:0] h
++);
++always@(*) begin
++  case(b)
++    4'b0000: h = 8'b00000011;//0
++    4'b0001: h = 8'b10011111;//1
++    4'b0010: h = 8'b00100101;//2
++    4'b0011: h = 8'b00001101;//3
++    4'b0100: h = 8'b10011001;//4
++    4'b0101: h = 8'b01001001;//5
++    4'b0110: h = 8'b01000001;//6
++    4'b0111: h = 8'b00011111;//7
++    4'b1000: h = 8'b00000001;//8
++    4'b1001: h = 8'b00001001;//9
++    4'b1010: h = 8'b00010001;//a
++    4'b1011: h = 8'b11000001;//b
++    4'b1100: h = 8'b01100011;//c
++    4'b1101: h = 8'b10000101;//d
++    4'b1110: h = 8'b01100001;//e
++    4'b1111: h = 8'b01110001;//f
++  endcase
++end
++
++endmodule
+\ No newline at end of file
+-- 
+2.34.1
+

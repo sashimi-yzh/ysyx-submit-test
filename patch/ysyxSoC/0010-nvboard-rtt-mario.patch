@@ -1,0 +1,170 @@
+From 3c5420249b80a76fa2a6e7a8eec09ae33258a32f Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Sun, 30 Mar 2025 13:06:53 +0800
+Subject: [PATCH 10/22] =?UTF-8?q?nvboard=E5=90=AF=E5=8A=A8rtt=E5=92=8Cmari?=
+ =?UTF-8?q?o?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ constr/auto_bind.cpp    |  6 +++
+ constr/ysyxSoCFull.nxdc |  8 +++-
+ perip/ps2/ps2_top_apb.v |  2 +-
+ perip/vga/vga_top_apb.v | 95 +++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 109 insertions(+), 2 deletions(-)
+
+diff --git a/constr/auto_bind.cpp b/constr/auto_bind.cpp
+index 364b869..acc7138 100644
+--- a/constr/auto_bind.cpp
++++ b/constr/auto_bind.cpp
+@@ -16,4 +16,10 @@ void nvboard_bind_all_pins(VysyxSoCFull* top) {
+ 	nvboard_bind_pin( &top->externalPins_uart_rx, 1, UART_RX);
+ 	nvboard_bind_pin( &top->externalPins_ps2_clk, 1, PS2_CLK);
+ 	nvboard_bind_pin( &top->externalPins_ps2_data, 1, PS2_DAT);
++	nvboard_bind_pin( &top->externalPins_vga_vsync, 1, VGA_VSYNC);
++	nvboard_bind_pin( &top->externalPins_vga_hsync, 1, VGA_HSYNC);
++	nvboard_bind_pin( &top->externalPins_vga_valid, 1, VGA_BLANK_N);
++	nvboard_bind_pin( &top->externalPins_vga_r, 8, VGA_R7, VGA_R6, VGA_R5, VGA_R4, VGA_R3, VGA_R2, VGA_R1, VGA_R0);
++	nvboard_bind_pin( &top->externalPins_vga_g, 8, VGA_G7, VGA_G6, VGA_G5, VGA_G4, VGA_G3, VGA_G2, VGA_G1, VGA_G0);
++	nvboard_bind_pin( &top->externalPins_vga_b, 8, VGA_B7, VGA_B6, VGA_B5, VGA_B4, VGA_B3, VGA_B2, VGA_B1, VGA_B0);
+ }
+diff --git a/constr/ysyxSoCFull.nxdc b/constr/ysyxSoCFull.nxdc
+index d7a868b..6a1e690 100644
+--- a/constr/ysyxSoCFull.nxdc
++++ b/constr/ysyxSoCFull.nxdc
+@@ -12,4 +12,10 @@ externalPins_gpio_seg_7 (SEG7A, SEG7B, SEG7C, SEG7D, SEG7E, SEG7F, SEG7G, DEC7P)
+ externalPins_uart_tx UART_TX
+ externalPins_uart_rx UART_RX
+ externalPins_ps2_clk PS2_CLK
+-externalPins_ps2_data PS2_DAT
+\ No newline at end of file
++externalPins_ps2_data PS2_DAT
++externalPins_vga_vsync VGA_VSYNC
++externalPins_vga_hsync VGA_HSYNC
++externalPins_vga_valid VGA_BLANK_N
++externalPins_vga_r (VGA_R7, VGA_R6, VGA_R5, VGA_R4, VGA_R3, VGA_R2, VGA_R1, VGA_R0)
++externalPins_vga_g (VGA_G7, VGA_G6, VGA_G5, VGA_G4, VGA_G3, VGA_G2, VGA_G1, VGA_G0)
++externalPins_vga_b (VGA_B7, VGA_B6, VGA_B5, VGA_B4, VGA_B3, VGA_B2, VGA_B1, VGA_B0)
+\ No newline at end of file
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 58bb409..06c9e21 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -60,7 +60,7 @@ module ps2_top_apb(
+       end
+     end
+   end
+-//
++
+ endmodule
+ 
+ 
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 5c74cfb..573a2a3 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -20,4 +20,99 @@ module vga_top_apb(
+   output        vga_valid
+ );
+ 
++  wire [9:0] h_addr;
++  wire [10:0] v_addr;
++  wire [23:0] vga_data;
++  reg  [23:0] vga_mem [2**21-1:0];
++
++  assign vga_data = vga_mem[{h_addr, v_addr}];
++  assign in_pready = in_psel & in_penable;
++  
++  always@(posedge clock) begin
++    if(reset) begin
++      //$readmemh("/home/plutoisy/ysyx-workbench/nvboard/example/resource/picture.hex", vga_mem);
++    end
++    else begin
++      if(in_pready & in_pwrite) begin//写
++        vga_mem[in_paddr[22:2]][7:0]    <= in_pstrb[0] ? in_pwdata[7:0]   : 'b0;
++        vga_mem[in_paddr[22:2]][15:8]   <= in_pstrb[1] ? in_pwdata[15:8]  : 'b0;
++        vga_mem[in_paddr[22:2]][23:16]  <= in_pstrb[2] ? in_pwdata[23:16] : 'b0;
++      end
++    end
++  end
++
++  vga_ctrl my_vga_ctrl(
++      .pclk(clock),
++      .reset(reset),
++      .vga_data(vga_data),
++      .h_addr(h_addr),
++      .v_addr(v_addr),
++      .hsync(vga_hsync),
++      .vsync(vga_vsync),
++      .valid(vga_valid),
++      .vga_r(vga_r),
++      .vga_g(vga_g),
++      .vga_b(vga_b)
++  );
++
++
+ endmodule
++
++module vga_ctrl (
++    input pclk,
++    input reset,
++    input [23:0] vga_data,
++    output [9:0] h_addr,
++    output [10:0] v_addr,
++    output hsync,
++    output vsync,
++    output valid,
++    output [7:0] vga_r,
++    output [7:0] vga_g,
++    output [7:0] vga_b
++);
++
++parameter h_frontporch = 96/2;
++parameter h_active = 144/2;
++parameter h_backporch = 784/2;
++parameter h_total = 800/2;
++
++parameter v_frontporch = 2;
++parameter v_active = 35;
++parameter v_backporch = 515;
++parameter v_total = 525;
++
++reg [9:0] x_cnt;
++reg [10:0] y_cnt;
++wire h_valid;
++wire v_valid;
++
++always @(posedge pclk) begin
++    if(reset == 1'b1) begin
++        x_cnt <= 1;
++        y_cnt <= 1;
++    end
++    else begin
++        if(x_cnt == h_total)begin
++            x_cnt <= 1;
++            if(y_cnt == v_total) y_cnt <= 1;
++            else y_cnt <= y_cnt + 1;
++        end
++        else x_cnt <= x_cnt + 1;
++    end
++end
++
++//生成同步信号    
++assign hsync = (x_cnt > h_frontporch);
++assign vsync = (y_cnt > v_frontporch);
++//生成消隐信号
++assign h_valid = (x_cnt > h_active) & (x_cnt <= h_backporch);
++assign v_valid = (y_cnt > v_active) & (y_cnt <= v_backporch);
++assign valid = h_valid & v_valid;
++//计算当前有效像素坐标
++assign h_addr = h_valid ? (x_cnt - 10'd73) : 10'd0;
++assign v_addr = v_valid ? (y_cnt - 11'd36) : 11'd0;
++//设置输出的颜色值
++assign {vga_r, vga_g, vga_b} = vga_data;
++
++endmodule
+\ No newline at end of file
+-- 
+2.34.1
+

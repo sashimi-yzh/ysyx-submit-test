@@ -1,0 +1,28 @@
+From 2d4f40823ed2c4ad9443ea61c6d6b3cce9683a02 Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Sun, 18 May 2025 16:13:11 +0800
+Subject: [PATCH 14/22] =?UTF-8?q?=E4=BF=9D=E5=AD=98perf?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/psram/psram.v | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index fa92c26..947d8e3 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -29,7 +29,7 @@ module psram(
+   reg [7:0] cmd;        // 命令寄存器
+   reg [23:0] addr;      // 地址寄存器
+   reg [31:0] data;      // 数据寄存器
+-  wire [31:0] rdata;    // 读取数据寄存器
++  reg [31:0] rdata;    // 读取数据寄存器
+   reg [7:0] counter;    // 计数器，用于状态控制
+   reg [3:0] state;      // 当前状态
+ 
+-- 
+2.34.1
+
