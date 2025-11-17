@@ -1,0 +1,49 @@
+From d464e35a16c16cd296becc36ae6c52dd9350a091 Mon Sep 17 00:00:00 2001
+From: "wuwenhui.wuwh" <wuwenhui.wuwh@bytedance.com>
+Date: Wed, 6 Aug 2025 17:18:31 +0800
+Subject: [PATCH 11/23] fix(sdram): sdram core activate no precharge
+
+---
+ Makefile                                     | 4 ++--
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 3 ++-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 6572217..88ed778 100644
+--- a/Makefile
++++ b/Makefile
+@@ -14,8 +14,8 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D)
+ 	mv $(V_FILE_GEN) $@
+ 	
+-	gsed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+-	gsed -i '/firrtl_black_box_resource_files.f/, $$d' $@
++	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
++	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
+ verilog: $(V_FILE_FINAL)
+ 	cp $(V_FILE_FINAL) $(NPC_HOME)/svsrc/
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index c021671..cd677d8 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -68,7 +68,7 @@ module sdram_axi_core
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ              = 50;
+-parameter SDRAM_ADDR_W           = 26;
++parameter SDRAM_ADDR_W           = 25;
+ parameter SDRAM_COL_W            = 9;
+ parameter SDRAM_READ_LATENCY     = 2;
+ 
+@@ -565,6 +565,7 @@ begin
+         addr_q        <= addr_row_w;
+         bank_q        <= addr_bank_w;
+ 
++        row_open_q                 <= {SDRAM_BANKS{1'b0}};
+         active_row_q[addr_bank_w]  <= addr_row_w;
+         row_open_q[addr_bank_w]    <= 1'b1;
+     end
+-- 
+2.43.0
+

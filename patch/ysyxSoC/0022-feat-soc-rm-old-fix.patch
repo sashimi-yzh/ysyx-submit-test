@@ -1,0 +1,71 @@
+From ae0c08e64dc7689275b5f1b11b70102fc4ca18a5 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Tue, 30 Sep 2025 11:45:08 +0800
+Subject: [PATCH 22/23] feat(soc): rm old fix
+
+---
+ src/SoC.scala              | 16 ++++++++--------
+ src/amba/APBDelayer.scala  |  2 +-
+ src/amba/AXI4Delayer.scala |  2 +-
+ 3 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 3de9cea..83fa44c 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -61,18 +61,18 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+     
+     // generate delayed reset for cpu, since chiplink should finish reset
+     // to initialize some async modules before accept any requests from cpu
+-    // cpu.module.reset := SynchronizerShiftReg(reset.asBool, 10) || reset.asBool
++    cpu.module.reset := SynchronizerShiftReg(reset.asBool, 10) || reset.asBool
+ 
+     ////// the line above is not guaranteed to reset === 1 in first 10 cycles
+-    val initCounter = RegInit(0.U(5.W))  
+-    val maxCount = 10.U                  
+-    val initReset = (initCounter < maxCount) 
+-    when(initCounter < maxCount) {
+-      initCounter := initCounter + 1.U
+-    }
++    // val initCounter = RegInit(0.U(5.W))  
++    // val maxCount = 10.U                  
++    // val initReset = (initCounter < maxCount) 
++    // when(initCounter < maxCount) {
++    //   initCounter := initCounter + 1.U
++    // }
+     ////// 
+ 
+-    cpu.module.reset := initReset.asBool || reset.asBool
++    cpu.module.reset := reset.asBool
+ 
+     val fpga_io = if (Config.hasChipLink) Some(IO(chiselTypeOf(chipMaster.get.module.fpga_io))) else None
+     if (Config.hasChipLink) {
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 44c6418..d75c7e7 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -67,7 +67,7 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new APBDelayerChisel)
++      val delayer = Module(new apb_delayer)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 561026e..1e87615 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -112,7 +112,7 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new AXI4DelayerChisel)
++      val delayer = Module(new axi4_delayer)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.43.0
+

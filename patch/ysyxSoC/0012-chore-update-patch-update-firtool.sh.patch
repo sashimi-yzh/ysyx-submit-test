@@ -1,0 +1,27 @@
+From bdf560e19194b148eb02001766e544700c296633 Mon Sep 17 00:00:00 2001
+From: "wuwenhui.wuwh" <wuwenhui.wuwh@bytedance.com>
+Date: Wed, 6 Aug 2025 17:32:38 +0800
+Subject: [PATCH 12/23] chore(*): update patch/update-firtool.sh
+
+---
+ patch/update-firtool.sh | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/patch/update-firtool.sh b/patch/update-firtool.sh
+index 00f8784..78c39f6 100755
+--- a/patch/update-firtool.sh
++++ b/patch/update-firtool.sh
+@@ -70,4 +70,7 @@ update_firtool() {
+ 
+ # Call update_firtool with version and patch directory
+ # e.g. update_firtool 1.105.0 `pwd`/patch/firtool
+-# update_firtool $1 $2
+\ No newline at end of file
++# update_firtool $1 $2
++if $(uname -s) == "Linux"; then 
++    update_firtool $1 $2
++fi
+\ No newline at end of file
+-- 
+2.43.0
+

@@ -1,0 +1,134 @@
+menu "Memory Configuration"
+
+config MBASE
+  hex "Memory base address"
+  default 0x0        if ISA_x86
+  default 0x80000000
+
+config MSIZE
+  hex "Memory size"
+  default 0x8000000
+
+config PC_RESET_OFFSET
+  hex "Offset of reset vector from the base of memory"
+  default 0x100000 if ISA_x86
+  default 0
+
+choice
+  prompt "Physical memory definition"
+  default PMEM_GARRAY
+config PMEM_MALLOC
+  bool "Using malloc()"
+config PMEM_GARRAY
+  depends on !TARGET_AM
+  bool "Using global array"
+endchoice
+
+config MEM_RANDOM
+  depends on MODE_SYSTEM && !DIFFTEST && !TARGET_AM
+  bool "Initialize the memory with random values"
+  default y
+  help
+    This may help to find undefined behaviors.
+
+config HAS_MROM
+   bool "Enable MROM memory valid"
+   default n
+
+config MROM_BASE 
+  depends on HAS_MROM
+  hex "MROM base address"
+  default 0x20000000 
+
+config MROM_SIZE
+  depends on HAS_MROM
+  hex "MROM size"
+  default 0x1000
+
+config HAS_SRAM
+   bool "Enable SRAM memory "
+   default n
+
+config SRAM_BASE 
+  depends on HAS_SRAM
+  hex "SRAM base address"
+  default 0x0f000000 
+
+config SRAM_SIZE
+  depends on HAS_SRAM
+  hex "SRAM size"
+  default 0x2000
+
+config HAS_PSRAM
+   bool "Enable PSRAM memory "
+   default n
+
+config PSRAM_BASE 
+  depends on HAS_PSRAM
+  hex "PSRAM base address"
+  default 0x80000000 
+
+config PSRAM_SIZE
+  depends on HAS_PSRAM
+  hex "PSRAM size"
+  default 0x200000
+
+config HAS_FLASH
+   bool "Enable FLASH memory "
+   default n
+
+config FLASH_BASE 
+  depends on HAS_FLASH
+  hex "FLASH base address"
+  default 0x30000000 
+
+config FLASH_SIZE
+  depends on HAS_FLASH
+  hex "FLASH size"
+  default 0x2000000
+
+config HAS_SDRAM
+   bool "Enable SDRAM memory "
+   default n
+
+config SDRAM_BASE 
+  depends on HAS_SDRAM
+  hex "SDRAM base address"
+  default 0xa0000000 
+
+config SDRAM_SIZE
+  depends on HAS_SDRAM
+  hex "SDRAM size"
+  default 0x10000000
+
+config HAS_UART
+   bool "Enable UART "
+   default n
+
+config UART_BASE 
+  depends on HAS_UART
+  hex "UART base address"
+  default 0x10000000 
+
+config UART_SIZE
+  depends on HAS_UART
+  hex "UART size"
+  default 0x100
+
+config HAS_CLINT
+   bool "Enable CLINT "
+   default n
+
+config CLINT_BASE 
+  depends on HAS_CLINT
+  hex "CLINT base address"
+  default 0x02000000 
+
+config CLINT_SIZE
+  depends on HAS_CLINT
+  hex "CLINT size"
+  default 0x10000
+
+
+
+endmenu #MEMORY

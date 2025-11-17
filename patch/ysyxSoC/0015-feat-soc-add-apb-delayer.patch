@@ -1,0 +1,70 @@
+From 34d1be74c71211a26e89adfbc3deb561bffaed28 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Sat, 16 Aug 2025 15:28:07 +0800
+Subject: [PATCH 15/23] feat(soc): add apb delayer
+
+---
+ src/amba/APBDelayer.scala | 40 +++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 38 insertions(+), 2 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 0cfc3d0..44c6418 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -22,7 +22,43 @@ class apb_delayer extends BlackBox {
+ 
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+-  io.out <> io.in
++
++  val s_idle :: s_transmit :: s_wait :: s_resp :: Nil = Enum(4)
++  val state = RegInit(s_idle)
++  // B2 freq 350MHz, device typical 100MHz
++  // s = 2^16, r= 3.5 , s_r = 229376
++  val s_r = 229376.U(32.W)
++  val cnt = RegInit(0.U(32.W))
++  val apb_start = io.in.penable && io.in.psel 
++
++  switch (state) {
++    is (s_idle) { when (apb_start) { state := s_transmit
++                    cnt := s_r } }
++    is (s_transmit) { when (io.out.pready){ state := s_wait
++                        cnt := cnt >> 16
++                      }.otherwise { cnt := cnt + s_r }}
++    is (s_wait) { when (cnt === 1.U) { state := s_resp
++                  }.otherwise { cnt := cnt - 1.U }}
++    is (s_resp) { state := s_idle}
++  }
++
++  val pslverr  = RegEnable(io.out.pslverr,io.out.pready)
++  val prdata   = RegEnable(io.out.prdata,io.out.pready)
++  val pduser   = RegEnable(io.out.pduser,io.out.pready)
++
++  io.out.psel    := Mux(state===s_idle || state===s_transmit, io.in.psel ,false.B)  
++  io.out.penable := Mux(state===s_idle || state===s_transmit, io.in.penable ,false.B)  
++  io.out.pwrite  := io.in.pwrite 
++  io.out.paddr   := io.in.paddr  
++  io.out.pprot   := io.in.pprot  
++  io.out.pwdata  := io.in.pwdata 
++  io.out.pstrb   := io.in.pstrb  
++  io.out.pauser  := io.in.pauser 
++
++  io.in.pready  := Mux(state === s_resp, true.B, false.B)
++  io.in.pslverr := pslverr
++  io.in.prdata  := prdata
++  io.in.pduser  := pduser
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +67,7 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new apb_delayer)
++      val delayer = Module(new APBDelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.43.0
+

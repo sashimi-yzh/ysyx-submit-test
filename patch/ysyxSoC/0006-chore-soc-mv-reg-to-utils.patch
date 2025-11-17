@@ -1,0 +1,134 @@
+From fb1ebbf2b1c408e8566523bb8441dcddfe9800a7 Mon Sep 17 00:00:00 2001
+From: "wuwenhui.wuwh" <wuwenhui.wuwh@bytedance.com>
+Date: Sat, 2 Aug 2025 12:50:32 +0800
+Subject: [PATCH 06/23] chore(soc): mv reg to utils
+
+---
+ src/device/Const.scala | 18 ++++++++++++++++--
+ src/device/PSRAM.scala | 28 ----------------------------
+ src/util/reg.scala     | 35 +++++++++++++++++++++++++++++++++++
+ 3 files changed, 51 insertions(+), 30 deletions(-)
+ create mode 100644 src/util/reg.scala
+
+diff --git a/src/device/Const.scala b/src/device/Const.scala
+index 6531cfb..5abf4a3 100644
+--- a/src/device/Const.scala
++++ b/src/device/Const.scala
+@@ -21,7 +21,7 @@ trait AddrConst {
+   // val PSRAM_SIZE    =     0x20000000.asUInt(32.W)
+ }
+ 
+-trait CmdConst {
++trait SPICmdConst {
+   val SPI_CMD_X           =     0x00.asUInt(8.W)   // write command
+   val SPI_CMD_READ        =     0x03.asUInt(8.W)   // read command
+   val SPI_CMD_QUAD_READ   =     0xeb.asUInt(8.W)   // quad read command
+@@ -31,8 +31,22 @@ trait CmdConst {
+   val SPI_CMD_SET_BURST   =     0xc0.asUInt(8.W)
+ }
+ 
++trait SdramCmdConst { 
++  val SDRAM_CMD_W             = "b1111".U;
++  val SDRAM_CMD_NOP           = "b0111".U;
++  val SDRAM_CMD_ACTIVE        = "b0011".U;
++  val SDRAM_CMD_READ          = "b0101".U;
++  val SDRAM_CMD_WRITE         = "b0100".U;
++  val SDRAM_CMD_TERMINATE     = "b0110".U;
++  val SDRAM_CMD_PRECHARGE     = "b0010".U;
++  val SDRAM_CMD_REFRESH       = "b0001".U;
++  val SDRAM_CMD_LOAD_MODE     = "b0000".U;
++}
++
++
+ object Constants extends
+    AddrConst with 
+-    CmdConst 
++    SPICmdConst with
++    SdramCmdConst
+ {
+ }
+\ No newline at end of file
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index 9d100f8..818f1a9 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -12,35 +12,7 @@ import freechips.rocketchip.util._
+ import ysyx.Constants._
+ 
+ 
+-object NegRegInit {
+-  def apply[T <: Data](initValue: T, clockVal: Bool, resetVal: Bool): T = {
+-    val negClock = (~ clockVal.asUInt).asBool.asClock
+ 
+-    withClockAndReset(negClock, resetVal) {
+-      RegInit(initValue)
+-    }
+-  }
+-}
+-
+-object SCKRegInit {
+-  def apply[T <: Data](initValue: T, clockVal: Bool, resetVal: Bool): T = {
+-    val clk = (clockVal.asUInt).asBool.asClock
+-
+-    withClockAndReset(clk, resetVal.asAsyncReset) {
+-      RegInit(initValue)
+-    }
+-  }
+-}
+-
+-object RegSynRetInit {
+-  def apply[T <: Data](initValue: T, clockVal: Bool, resetVal: Bool): T = {
+-    val clk = (clockVal.asUInt).asBool.asClock
+-
+-    withClockAndReset(clk, resetVal.asBool) {
+-      RegInit(initValue)
+-    }
+-  }
+-}
+ 
+ 
+ class QSPIIO extends Bundle {
+diff --git a/src/util/reg.scala b/src/util/reg.scala
+new file mode 100644
+index 0000000..60c5f98
+--- /dev/null
++++ b/src/util/reg.scala
+@@ -0,0 +1,35 @@
++package ysyx
++
++import chisel3._
++import chisel3.util._
++import chisel3.experimental.Analog
++
++object NegRegInit {
++  def apply[T <: Data](initValue: T, clockVal: Bool, resetVal: Bool): T = {
++    val negClock = (~ clockVal.asUInt).asBool.asClock
++
++    withClockAndReset(negClock, resetVal) {
++      RegInit(initValue)
++    }
++  }
++}
++
++object SCKRegInit {
++  def apply[T <: Data](initValue: T, clockVal: Bool, resetVal: Bool): T = {
++    val clk = (clockVal.asUInt).asBool.asClock
++
++    withClockAndReset(clk, resetVal.asAsyncReset) {
++      RegInit(initValue)
++    }
++  }
++}
++
++object RegSynRetInit {
++  def apply[T <: Data](initValue: T, clockVal: Bool, resetVal: Bool): T = {
++    val clk = (clockVal.asUInt).asBool.asClock
++
++    withClockAndReset(clk, resetVal.asBool) {
++      RegInit(initValue)
++    }
++  }
++}
+-- 
+2.43.0
+

@@ -1,0 +1,202 @@
+From 6588c81d46ff1a0a34c894a85b42b87e345314d2 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Thu, 14 Aug 2025 16:25:01 +0800
+Subject: [PATCH 14/23] feat(soc): add vga keyboard
+
+---
+ src/device/Keyboard.scala | 91 ++++++++++++++++++++++++++++++++++++++-
+ src/device/VGA.scala      | 60 +++++++++++++++++++++++++-
+ 2 files changed, 149 insertions(+), 2 deletions(-)
+
+diff --git a/src/device/Keyboard.scala b/src/device/Keyboard.scala
+index 5bd7f5b..269f735 100644
+--- a/src/device/Keyboard.scala
++++ b/src/device/Keyboard.scala
+@@ -24,8 +24,97 @@ class ps2_top_apb extends BlackBox {
+   val io = IO(new PS2CtrlIO)
+ }
+ 
++
++
++class PS2Keyboard extends Module {
++  val io = IO(new Bundle {
++    val nextdata_n  = Input(Bool())       // 读请求（低有效）
++    val data        = Output(UInt(8.W))
++    val ready       = Output(Bool())      // FIFO数据就绪
++    // val overflow    = Output(Bool())      // FIFO溢出标志
++    val ps2         = new PS2IO
++  })
++
++    // 寄存器声明
++    val buffer      = RegInit(0.U(10.W))    // PS/2数据缓冲
++    val fifo        = Reg(Vec(8, UInt(8.W))) // 8字节FIFO
++    val w_ptr       = RegInit(0.U(3.W))     // 写指针
++    val r_ptr       = RegInit(0.U(3.W))     // 读指针
++    val count       = RegInit(0.U(4.W))     // 位计数器
++    val ready       = RegInit(false.B)      // FIFO就绪标志
++    val overflow    = RegInit(false.B)      // 溢出标志
++  
++    // 3级同步器检测PS/2时钟下降沿[6](@ref)
++    val ps2_clk_sync = RegInit(VecInit(Seq.fill(3)(true.B)))
++    ps2_clk_sync(0) := io.ps2.clk
++    for (i <- 1 until 3) {
++      ps2_clk_sync(i) := ps2_clk_sync(i-1)
++    }
++    val sampling = ps2_clk_sync(2) && !ps2_clk_sync(1)  // 下降沿检测
++
++    // FIFO读取逻辑
++    when(ready && !io.nextdata_n) {
++      r_ptr := r_ptr + 1.U
++      when(w_ptr === (r_ptr + 1.U)) {  // FIFO变空
++        ready := false.B
++      }
++    }
++
++    // PS/2数据采样逻辑[7](@ref)
++    when(sampling) {
++      when(count === 10.U) {
++        val startBit  = !buffer(0)        // 起始位应为0
++        val stopBit   = io.ps2.data       // 停止位应为1
++        val parity    = buffer(9,1).xorR  // 奇校验位
++        
++        // 帧校验通过
++        when(startBit && stopBit && parity) {
++          fifo(w_ptr) := buffer(8,1)     // 存储8位数据
++          w_ptr := w_ptr + 1.U
++          ready := true.B
++          // 溢出检测：写指针赶上读指针[3](@ref)
++          // overflow := overflow || (r_ptr === (w_ptr + 1.U))
++        }
++        count := 0.U
++      }.otherwise {
++        buffer := (buffer << 1) | io.ps2.data  // 移位存储数据位
++        count := count + 1.U
++      }
++    }
++  
++
++    // 输出连接[2](@ref)
++    io.data     := fifo(r_ptr)
++    io.ready    := ready
++    // io.overflow := overflow
++}
++
+ class ps2Chisel extends Module {
+   val io = IO(new PS2CtrlIO)
++  io.in  := DontCare
++
++  val ps2Ctrl = Module(new PS2Keyboard)
++  val rdata = RegInit(0.U(32.W))
++  val nextdata_n = RegInit(false.B)
++  val ready = RegInit(false.B)
++  val is_read = io.in.psel && io.in.penable && !io.in.pwrite
++  when(ps2Ctrl.io.ready) {
++    rdata := Cat(0.U(24.W),ps2Ctrl.io.data)
++    nextdata_n := false.B
++    ready := true.B
++  }.elsewhen(is_read){
++    nextdata_n := true.B
++    ready := false.B
++  }.otherwise {
++    nextdata_n := true.B
++    rdata := rdata
++    ready := ready
++  }
++  ps2Ctrl.io.nextdata_n :=  nextdata_n  
++  ps2Ctrl.io.ps2 <> io.ps2
++  io.in.prdata    := Mux(ready,rdata,0.U)
++  io.in.pready    := is_read
++  io.in.pslverr   := 0.U
+ }
+ 
+ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -42,7 +131,7 @@ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends Lazy
+     val (in, _) = node.in(0)
+     val ps2_bundle = IO(new PS2IO)
+ 
+-    val mps2 = Module(new ps2_top_apb)
++    val mps2 = Module(new ps2Chisel)
+     mps2.io.clock := clock
+     mps2.io.reset := reset
+     mps2.io.in <> in
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index 6724bc3..b68a9e3 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -30,6 +30,64 @@ class vga_top_apb extends BlackBox {
+ 
+ class vgaChisel extends Module {
+   val io = IO(new VGACtrlIO)
++
++    // 可配置时序参数（640x480@60Hz）
++    case class VGAParams(
++        hFrontPorch: Int = 96,
++        hActive:     Int = 144,
++        hBackPorch:  Int = 784,
++        hTotal:      Int = 800,
++        vFrontPorch: Int = 2,
++        vActive:     Int = 35,
++        vBackPorch:  Int = 515,
++        vTotal:      Int = 525
++    )
++    io.in.pready := true.B
++    io.in.pslverr := false.B
++    io.in.prdata := 0.U
++    val params = VGAParams()
++    
++    val sram = SyncReadMem(524288, UInt(24.W))
++    val xCnt = RegInit(1.U(10.W)).suggestName("xCnt")
++    val yCnt = RegInit(1.U(10.W)).suggestName("yCnt")
++
++    val is_write = io.in.psel && io.in.penable && io.in.pwrite
++    when(is_write){
++      sram.write(io.in.paddr(18,0), io.in.pwdata(23,0))
++    }
++
++    // 水平计数器逻辑
++    when(io.reset) {
++        xCnt := 1.U
++    }.otherwise {
++        xCnt := Mux(xCnt === params.hTotal.U, 1.U, xCnt + 1.U)
++    }
++
++    // 垂直计数器逻辑
++    when(io.reset) {
++        yCnt := 1.U
++    }.elsewhen(xCnt === params.hTotal.U) {
++        yCnt := Mux(yCnt === params.vTotal.U, 1.U, yCnt + 1.U)
++    }
++
++    // 有效区域判断
++    val hValid = (xCnt > params.hActive.U) && (xCnt <= params.hBackPorch.U)
++    val vValid = (yCnt > params.vActive.U) && (yCnt <= params.vBackPorch.U)
++    
++    // 同步信号生成（低有效脉冲）
++    io.vga.vsync := yCnt > params.vFrontPorch.U
++    io.vga.hsync := xCnt > params.hFrontPorch.U
++    io.vga.valid := hValid && vValid
++
++    // 像素坐标计算（消隐区归零）
++    val h_addr = Mux(hValid, xCnt - (params.hActive + 1).U, 0.U)
++    val v_addr = Mux(vValid, yCnt - (params.vActive + 1).U, 0.U)
++    val vga_data = sram((v_addr<< 9) + h_addr)
++    
++    // RGB输出（直接映射高位）
++    io.vga.r := vga_data(23, 16)
++    io.vga.g := vga_data(15, 8)
++    io.vga.b := vga_data(7, 0)
+ }
+ 
+ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -46,7 +104,7 @@ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     val (in, _) = node.in(0)
+     val vga_bundle = IO(new VGAIO)
+ 
+-    val mvga = Module(new vga_top_apb)
++    val mvga = Module(new vgaChisel)
+     mvga.io.clock := clock
+     mvga.io.reset := reset
+     mvga.io.in <> in
+-- 
+2.43.0
+

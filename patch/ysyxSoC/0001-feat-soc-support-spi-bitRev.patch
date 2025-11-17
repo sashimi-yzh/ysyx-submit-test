@@ -1,0 +1,184 @@
+From 9429b86b7868c8291939cf55618281bab149920e Mon Sep 17 00:00:00 2001
+From: "wuwenhui.wuwh" <wuwenhui.wuwh@bytedance.com>
+Date: Thu, 24 Jul 2025 11:20:18 +0800
+Subject: [PATCH 01/23] feat(soc): support spi bitRev
+
+---
+ Makefile                    |  7 +++++--
+ patch/update-firtool.sh     |  4 ++--
+ perip/spi/rtl/spi_defines.v | 12 ++++++------
+ src/CPU.scala               |  4 ++--
+ src/SoC.scala               | 17 +++++++++++++++--
+ src/device/BitRev.scala     | 21 +++++++++++++++++++--
+ 6 files changed, 49 insertions(+), 16 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index c30262e..6572217 100644
+--- a/Makefile
++++ b/Makefile
+@@ -13,10 +13,13 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	CHISEL_FIRTOOL_PATH=$(FIRTOOL_PATCH_DIR)/firtool-$(FIRTOOL_VERSION)/bin \
+ 	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D)
+ 	mv $(V_FILE_GEN) $@
+-	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+-	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
++	
++	gsed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
++	gsed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
+ verilog: $(V_FILE_FINAL)
++	cp $(V_FILE_FINAL) $(NPC_HOME)/svsrc/
++	cp -r $(wildcard $(SOC_HOME)/perip/*/*.v $(SOC_HOME)/perip/psram/efabless/*.v $(SOC_HOME)/perip/sdram/core_sdram_axi4/*.v )  $(NPC_HOME)/svsrc/
+ 
+ clean:
+ 	-rm -rf build/
+diff --git a/patch/update-firtool.sh b/patch/update-firtool.sh
+index cc91e5a..00f8784 100755
+--- a/patch/update-firtool.sh
++++ b/patch/update-firtool.sh
+@@ -50,7 +50,7 @@ update_firtool() {
+                 echo "Unsupported darwin architecture"
+                 echo "Please build firtool from source, see: https://github.com/llvm/circt?tab=readme-ov-file#setting-this-up"
+                 echo "Then copy the built firtool binary to $firtool_patch_dir/firtool-$firtool_update_version/bin/firtool"
+-                exit 1
++                # exit 1
+             else
+                 firtool_arch="macos-x64"
+             fi
+@@ -70,4 +70,4 @@ update_firtool() {
+ 
+ # Call update_firtool with version and patch directory
+ # e.g. update_firtool 1.105.0 `pwd`/patch/firtool
+-update_firtool $1 $2
+\ No newline at end of file
++# update_firtool $1 $2
+\ No newline at end of file
+diff --git a/perip/spi/rtl/spi_defines.v b/perip/spi/rtl/spi_defines.v
+index 0de93ed..96a7d6d 100644
+--- a/perip/spi/rtl/spi_defines.v
++++ b/perip/spi/rtl/spi_defines.v
+@@ -66,12 +66,12 @@
+ // Use SPI_MAX_CHAR for fine tuning the exact number, when using
+ // SPI_MAX_CHAR_32, SPI_MAX_CHAR_24, SPI_MAX_CHAR_16, SPI_MAX_CHAR_8.
+ //
+-`define SPI_MAX_CHAR_128
++// `define SPI_MAX_CHAR_128
+ //`define SPI_MAX_CHAR_64
+-//`define SPI_MAX_CHAR_32
+-//`define SPI_MAX_CHAR_24
+-//`define SPI_MAX_CHAR_16
+-//`define SPI_MAX_CHAR_8
++// `define SPI_MAX_CHAR_32
++// `define SPI_MAX_CHAR_24
++`define SPI_MAX_CHAR_16
++// `define SPI_MAX_CHAR_8
+ 
+ `ifdef SPI_MAX_CHAR_128
+   `define SPI_MAX_CHAR          128  // Can only be set to 128
+@@ -155,5 +155,5 @@
+ `define SPI_CTRL_RX_NEGEDGE     9
+ `define SPI_CTRL_GO             8
+ `define SPI_CTRL_RES_1          7
+-`define SPI_CTRL_CHAR_LEN       6:0
++`define SPI_CTRL_CHAR_LEN       3:0
+ 
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195..5a4c171 100644
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_24100012 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_24100012)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 1c65cd8..fb4c4ae 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -39,6 +39,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+     AddressSet.misaligned(0x10001000, 0x1000) ++    // SPI controller
+     AddressSet.misaligned(0x30000000, 0x10000000)   // XIP flash
+   ))
++
+   val lpsram = LazyModule(new APBPSRAM(AddressSet.misaligned(0x80000000L, 0x400000)))
+   val lmrom = LazyModule(new AXI4MROM(AddressSet.misaligned(0x20000000, 0x1000)))
+   val sramNode = AXI4RAM(AddressSet.misaligned(0x0f000000, 0x2000).head, false, true, 4, None, Nil, false)
+@@ -57,9 +58,21 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+ 
+   override lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) with DontTouch {
++    
+     // generate delayed reset for cpu, since chiplink should finish reset
+     // to initialize some async modules before accept any requests from cpu
+-    cpu.module.reset := SynchronizerShiftReg(reset.asBool, 10) || reset.asBool
++    // cpu.module.reset := SynchronizerShiftReg(reset.asBool, 10) || reset.asBool
++
++    ////// the line above is not guaranteed to reset === 1 in first 10 cycles
++    val initCounter = RegInit(0.U(5.W))  
++    val maxCount = 10.U                  
++    val initReset = (initCounter < maxCount) 
++    when(initCounter < maxCount) {
++      initCounter := initCounter + 1.U
++    }
++    ////// 
++
++    cpu.module.reset := initReset.asBool || reset.asBool
+ 
+     val fpga_io = if (Config.hasChipLink) Some(IO(chiselTypeOf(chipMaster.get.module.fpga_io))) else None
+     if (Config.hasChipLink) {
+@@ -135,7 +148,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     val flash = Module(new flash)
+     flash.io <> masic.spi
+     flash.io.ss := masic.spi.ss(0)
+-    val bitrev = Module(new bitrev)
++    val bitrev = Module(new bitrevChisel(8))
+     bitrev.io <> masic.spi
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+index 6bd3d57..d14fe53 100644
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -7,7 +7,24 @@ class bitrev extends BlackBox {
+   val io = IO(Flipped(new SPIIO(1)))
+ }
+ 
+-class bitrevChisel extends RawModule { // we do not need clock and reset
++class bitrevChisel(num_char_len: Int) extends RawModule { // we do not need clock and reset
+   val io = IO(Flipped(new SPIIO(1)))
+-  io.miso := true.B
++  val cycleCount = withReset (((io.ss(0).asBool)).asAsyncReset){ withClock(io.sck.asUInt.asBool.asClock){
++     RegInit(0.U(log2Ceil(2*num_char_len+2).W))
++  }}
++  val data = withReset (((io.ss(0).asBool)).asAsyncReset){ withClock(io.sck.asUInt.asBool.asClock){
++     RegInit(0.U(num_char_len.W))
++  }}
++ 
++  when ((!(io.ss(0).asBool)) && cycleCount <= (2*num_char_len).U && cycleCount >= num_char_len.U ) {
++      io.miso := data(0).asBool
++      data := Cat(0.U,data(num_char_len-1,1))
++      cycleCount := cycleCount + 1.U
++  } .elsewhen((!(io.ss(0).asBool)) &&  cycleCount <  num_char_len.U ) {
++      io.miso := false.B
++      data := Cat(data(num_char_len-2,0),io.mosi)
++      cycleCount := cycleCount + 1.U
++  } .otherwise {
++      io.miso := true.B
++  }
+ }
+-- 
+2.43.0
+
