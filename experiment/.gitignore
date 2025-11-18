@@ -1,0 +1,9 @@
+!*/
+!Makefile
+!*.mk
+!*.v
+!*.cc
+!*.cpp
+!.gitignore
+!*.nxdc
+build/

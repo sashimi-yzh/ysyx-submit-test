@@ -1,0 +1,38 @@
+From 02fb8f1310a0a706aca6591857c2764105583fe0 Mon Sep 17 00:00:00 2001
+From: AfalpHy <736353503@qq.com>
+Date: Mon, 25 Aug 2025 20:48:42 +0800
+Subject: [PATCH 2/2] add '\n' before cmd
+
+---
+ bsp/abstract-machine/src/uart.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 69af3fb8c..16d4e10cd 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -39,7 +39,20 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  if (*p != '\0') {
++    return *(p++);
++  } else {
++    static int new_cmd = true;
++    if (new_cmd) {
++      new_cmd = false;
++      return '\n';
++    }
++    char c = io_read(AM_UART_RX).data;
++    if (c == '\n') {
++      new_cmd = true;
++    }
++    return c;
++  }
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

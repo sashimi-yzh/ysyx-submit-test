@@ -1,0 +1,25 @@
+From 18db69788717436a54afd6434636368385a15bef Mon Sep 17 00:00:00 2001
+From: AfalpHy <736353503@qq.com>
+Date: Sat, 2 Aug 2025 22:42:51 +0800
+Subject: [PATCH] fix Error-PROCASSWIRE
+
+---
+ perip/psram/psram.v | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index 80d3556c..3c8ac39e 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -24,7 +24,7 @@ module psram (
+ 
+   reg [7:0] cmd;
+   reg [23:0] addr;
+-  wire [31:0] rdata;
++  reg [31:0] rdata;
+   reg [31:0] data;
+ 
+   reg wen;
+-- 
+2.34.1
+

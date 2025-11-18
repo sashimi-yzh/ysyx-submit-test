@@ -1,0 +1,346 @@
+From 1646ee385ed61cbac6306a89c56ee118cc8429fd Mon Sep 17 00:00:00 2001
+From: AfalpHy <736353503@qq.com>
+Date: Wed, 24 Sep 2025 08:31:26 +0800
+Subject: [PATCH] reset delayer
+
+---
+ perip/amba/apb_delayer.v  |  83 ++++++---------
+ perip/amba/axi4_delayer.v | 205 ++++++++++++--------------------------
+ 2 files changed, 94 insertions(+), 194 deletions(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 8095c7cc..79c920b5 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -1,65 +1,38 @@
+-module apb_delayer (
+-    input         clock,
+-    input         reset,
+-    input  [31:0] in_paddr,
+-    input         in_psel,
+-    input         in_penable,
+-    input  [ 2:0] in_pprot,
+-    input         in_pwrite,
+-    input  [31:0] in_pwdata,
+-    input  [ 3:0] in_pstrb,
+-    output        in_pready,
+-    output [31:0] in_prdata,
+-    output        in_pslverr,
++module apb_delayer(
++  input         clock,
++  input         reset,
++  input  [31:0] in_paddr,
++  input         in_psel,
++  input         in_penable,
++  input  [2:0]  in_pprot,
++  input         in_pwrite,
++  input  [31:0] in_pwdata,
++  input  [3:0]  in_pstrb,
++  output        in_pready,
++  output [31:0] in_prdata,
++  output        in_pslverr,
+ 
+-    output [31:0] out_paddr,
+-    output        out_psel,
+-    output        out_penable,
+-    output [ 2:0] out_pprot,
+-    output        out_pwrite,
+-    output [31:0] out_pwdata,
+-    output [ 3:0] out_pstrb,
+-    input         out_pready,
+-    input  [31:0] out_prdata,
+-    input         out_pslverr
++  output [31:0] out_paddr,
++  output        out_psel,
++  output        out_penable,
++  output [2:0]  out_pprot,
++  output        out_pwrite,
++  output [31:0] out_pwdata,
++  output [3:0]  out_pstrb,
++  input         out_pready,
++  input  [31:0] out_prdata,
++  input         out_pslverr
+ );
+-  reg done;
+-  reg [31:0] prdata;
+-  reg pready;
+ 
+-  integer counter;
+-  always @(posedge clock) begin
+-    if (reset) begin
+-      done <= 0;
+-      counter = 0;
+-      pready <= 0;
+-      prdata <= 0;
+-    end else begin
+-      if (pready) pready <= 0;
+-      else if (in_penable & out_pready) begin
+-        counter = counter + 940;  // 7.4 * 128(cpu clock 840MHZ)
+-        counter = counter >> 7;
+-        done   <= 1;
+-        prdata <= out_prdata;
+-      end else if (out_penable) counter = counter + 940;
+-      else if (in_penable) begin
+-        counter = counter - 1;
+-        if (counter == 0) begin
+-          done   <= 0;
+-          pready <= 1;
+-        end
+-      end
+-    end
+-  end
+   assign out_paddr   = in_paddr;
+-  assign out_psel    = in_psel & ~done;
+-  assign out_penable = in_penable & ~done;
++  assign out_psel    = in_psel;
++  assign out_penable = in_penable;
+   assign out_pprot   = in_pprot;
+   assign out_pwrite  = in_pwrite;
+   assign out_pwdata  = in_pwdata;
+   assign out_pstrb   = in_pstrb;
+-  assign in_pready   = pready;
+-  assign in_prdata   = prdata;
++  assign in_pready   = out_pready;
++  assign in_prdata   = out_prdata;
+   assign in_pslverr  = out_pslverr;
+ 
+-endmodule
++endmodule
+\ No newline at end of file
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index e2c9a5c5..fb4d9051 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -1,140 +1,67 @@
+-module axi4_delayer (
+-    input clock,
+-    input reset,
++module axi4_delayer(
++  input         clock,
++  input         reset,
+ 
+-    output        in_arready,
+-    input         in_arvalid,
+-    input  [ 3:0] in_arid,
+-    input  [31:0] in_araddr,
+-    input  [ 7:0] in_arlen,
+-    input  [ 2:0] in_arsize,
+-    input  [ 1:0] in_arburst,
+-    input         in_rready,
+-    output        in_rvalid,
+-    output [ 3:0] in_rid,
+-    output [31:0] in_rdata,
+-    output [ 1:0] in_rresp,
+-    output        in_rlast,
+-    output        in_awready,
+-    input         in_awvalid,
+-    input  [ 3:0] in_awid,
+-    input  [31:0] in_awaddr,
+-    input  [ 7:0] in_awlen,
+-    input  [ 2:0] in_awsize,
+-    input  [ 1:0] in_awburst,
+-    output        in_wready,
+-    input         in_wvalid,
+-    input  [31:0] in_wdata,
+-    input  [ 3:0] in_wstrb,
+-    input         in_wlast,
+-    in_bready,
+-    output        in_bvalid,
+-    output [ 3:0] in_bid,
+-    output [ 1:0] in_bresp,
++  output        in_arready,
++  input         in_arvalid,
++  input  [3:0]  in_arid,
++  input  [31:0] in_araddr,
++  input  [7:0]  in_arlen,
++  input  [2:0]  in_arsize,
++  input  [1:0]  in_arburst,
++  input         in_rready,
++  output        in_rvalid,
++  output [3:0]  in_rid,
++  output [31:0] in_rdata,
++  output [1:0]  in_rresp,
++  output        in_rlast,
++  output        in_awready,
++  input         in_awvalid,
++  input  [3:0]  in_awid,
++  input  [31:0] in_awaddr,
++  input  [7:0]  in_awlen,
++  input  [2:0]  in_awsize,
++  input  [1:0]  in_awburst,
++  output        in_wready,
++  input         in_wvalid,
++  input  [31:0] in_wdata,
++  input  [3:0]  in_wstrb,
++  input         in_wlast,
++                in_bready,
++  output        in_bvalid,
++  output [3:0]  in_bid,
++  output [1:0]  in_bresp,
+ 
+-    input         out_arready,
+-    output        out_arvalid,
+-    output [ 3:0] out_arid,
+-    output [31:0] out_araddr,
+-    output [ 7:0] out_arlen,
+-    output [ 2:0] out_arsize,
+-    output [ 1:0] out_arburst,
+-    output        out_rready,
+-    input         out_rvalid,
+-    input  [ 3:0] out_rid,
+-    input  [31:0] out_rdata,
+-    input  [ 1:0] out_rresp,
+-    input         out_rlast,
+-    input         out_awready,
+-    output        out_awvalid,
+-    output [ 3:0] out_awid,
+-    output [31:0] out_awaddr,
+-    output [ 7:0] out_awlen,
+-    output [ 2:0] out_awsize,
+-    output [ 1:0] out_awburst,
+-    input         out_wready,
+-    output        out_wvalid,
+-    output [31:0] out_wdata,
+-    output [ 3:0] out_wstrb,
+-    output        out_wlast,
+-    out_bready,
+-    input         out_bvalid,
+-    input  [ 3:0] out_bid,
+-    input  [ 1:0] out_bresp
++  input         out_arready,
++  output        out_arvalid,
++  output [3:0]  out_arid,
++  output [31:0] out_araddr,
++  output [7:0]  out_arlen,
++  output [2:0]  out_arsize,
++  output [1:0]  out_arburst,
++  output        out_rready,
++  input         out_rvalid,
++  input  [3:0]  out_rid,
++  input  [31:0] out_rdata,
++  input  [1:0]  out_rresp,
++  input         out_rlast,
++  input         out_awready,
++  output        out_awvalid,
++  output [3:0]  out_awid,
++  output [31:0] out_awaddr,
++  output [7:0]  out_awlen,
++  output [2:0]  out_awsize,
++  output [1:0]  out_awburst,
++  input         out_wready,
++  output        out_wvalid,
++  output [31:0] out_wdata,
++  output [3:0]  out_wstrb,
++  output        out_wlast,
++                out_bready,
++  input         out_bvalid,
++  input  [3:0]  out_bid,
++  input  [1:0]  out_bresp
+ );
+-  reg read_last;
+-  reg rready, rvalid, bvalid;
+-  reg read_couter_enable, write_couter_enable;
+-  reg read_valid, write_valid;
+-  integer read_counter, write_counter;
+-
+-  always @(posedge clock) begin
+-    if (reset) begin
+-      read_last <= 0;
+-      rready <= 0;
+-      rvalid <= 0;
+-      bvalid <= 0;
+-      read_valid <= 0;
+-      write_valid <= 0;
+-      read_couter_enable <= 0;
+-      write_couter_enable <= 0;
+-      read_counter  = 0;
+-      write_counter = 0;
+-    end else begin
+-      if (in_rready & rvalid) begin
+-        if (read_last) read_last <= 0;
+-        else read_couter_enable <= 1;
+-        rready <= 0;
+-        rvalid <= 0;
+-      end
+-
+-      if (in_arvalid) begin
+-        read_couter_enable <= 1;
+-        read_counter = read_counter + 940;  // 7.4 * 128(cpu clock 840MHZ)
+-      end else if (read_couter_enable) read_counter = read_counter + 940;
+-
+-      if (out_rvalid && read_couter_enable) begin
+-        read_valid <= 1;
+-        read_couter_enable <= 0;
+-        read_counter = read_counter >> 7;
+-      end
+-
+-      if (read_valid) begin
+-        read_counter = read_counter - 1;
+-        if (read_counter == 0) begin
+-          rready <= 1;
+-          rvalid <= 1;
+-          read_valid <= 0;
+-          if (out_rlast) begin
+-            read_last <= 1;
+-          end
+-        end
+-      end
+-
+-      if (in_bready & bvalid) begin
+-        bvalid <= 0;
+-      end
+-
+-      if (in_awvalid) begin
+-        write_couter_enable <= 1;
+-        write_counter = write_counter + 940;  // 7.4 * 128(cpu clock 840MHZ)
+-      end else if (write_couter_enable) write_counter = write_counter + 940;
+-
+-      if (out_bvalid & write_couter_enable) begin
+-        write_couter_enable <= 0;
+-        write_valid <= 1;
+-        write_counter = write_counter >> 7;
+-      end
+-
+-      if (write_valid) begin
+-        write_counter = write_counter - 1;
+-        if (write_counter == 0) begin
+-          bvalid <= 1;
+-          write_valid <= 0;
+-        end
+-      end
+-    end
+-  end
+ 
+   assign in_arready = out_arready;
+   assign out_arvalid = in_arvalid;
+@@ -143,12 +70,12 @@ module axi4_delayer (
+   assign out_arlen = in_arlen;
+   assign out_arsize = in_arsize;
+   assign out_arburst = in_arburst;
+-  assign out_rready = in_rready & rready;
+-  assign in_rvalid = rvalid;
++  assign out_rready = in_rready;
++  assign in_rvalid = out_rvalid;
+   assign in_rid = out_rid;
+   assign in_rdata = out_rdata;
+   assign in_rresp = out_rresp;
+-  assign in_rlast = read_last;
++  assign in_rlast = out_rlast;
+   assign in_awready = out_awready;
+   assign out_awvalid = in_awvalid;
+   assign out_awid = in_awid;
+@@ -162,8 +89,8 @@ module axi4_delayer (
+   assign out_wstrb = in_wstrb;
+   assign out_wlast = in_wlast;
+   assign out_bready = in_bready;
+-  assign in_bvalid = bvalid;
++  assign in_bvalid = out_bvalid;
+   assign in_bid = out_bid;
+   assign in_bresp = out_bresp;
+ 
+-endmodule
++endmodule
+\ No newline at end of file
+-- 
+2.34.1
+

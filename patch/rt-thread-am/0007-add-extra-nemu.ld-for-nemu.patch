@@ -1,0 +1,84 @@
+From d5f278084657f44046d80e8c04fa63b624a3dcac Mon Sep 17 00:00:00 2001
+From: AfalpHy <736353503@qq.com>
+Date: Tue, 18 Nov 2025 16:41:19 +0800
+Subject: [PATCH] add extra-nemu.ld for nemu
+
+---
+ bsp/abstract-machine/Makefile      |  6 ++++
+ bsp/abstract-machine/extra-nemu.ld | 45 ++++++++++++++++++++++++++++++
+ 2 files changed, 51 insertions(+)
+ create mode 100644 bsp/abstract-machine/extra-nemu.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..5c2780672 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,13 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
++
++ifeq ($(ARCH), riscv32e-nemu)
++LDFLAGS += -T extra-nemu.ld
++else
+ LDFLAGS += -T extra.ld
++endif
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra-nemu.ld b/bsp/abstract-machine/extra-nemu.ld
+new file mode 100644
+index 000000000..48ef5aabc
+--- /dev/null
++++ b/bsp/abstract-machine/extra-nemu.ld
+@@ -0,0 +1,45 @@
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  }
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  }
++}
++INSERT BEFORE .bss;
+\ No newline at end of file
+-- 
+2.34.1
+
