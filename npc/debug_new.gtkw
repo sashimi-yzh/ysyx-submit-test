@@ -1,0 +1,416 @@
+[*]
+[*] GTKWave Analyzer v3.3.104 (w)1999-2020 BSI
+[*] Fri Oct 10 07:30:16 2025
+[*]
+[dumpfile] "/home/yangpengcheng/ysyx/ysyx/ysyx-workbench/npc/build/wave_father.fst"
+[dumpfile_mtime] "Fri Oct 10 07:24:32 2025"
+[dumpfile_size] 7757213
+[savefile] "/home/yangpengcheng/桌面/debug_new.gtkw"
+[timestart] 1190358
+[size] 1920 1029
+[pos] -1 -1
+*-10.020272 1192259 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] top.
+[treeopen] top.ysyxSoCFull.
+[treeopen] top.ysyxSoCFull.asic.
+[treeopen] top.ysyxSoCFull.asic.axi4xbar.
+[treeopen] top.ysyxSoCFull.asic.axi4xbar.awIn_0.
+[treeopen] top.ysyxSoCFull.asic.cpu.cpu.
+[treeopen] top.ysyxSoCFull.asic.cpu.cpu.core.
+[treeopen] top.ysyxSoCFull.asic.cpu.cpu.core.exu.
+[treeopen] top.ysyxSoCFull.asic.cpu.cpu.core.idu.
+[treeopen] top.ysyxSoCFull.asic.cpu.cpu.core.isu.
+[treeopen] top.ysyxSoCFull.asic.lsdram_axi.msdram.
+[treeopen] top.ysyxSoCFull.asic.lsdram_axi.msdram.u_sdram_axi.
+[treeopen] top.ysyxSoCFull.asic.lsdram_axi.msdram.u_sdram_axi.u_axi.
+[treeopen] top.ysyxSoCFull.asic.lspi.
+[treeopen] top.ysyxSoCFull.asic.lspi.mspi.
+[treeopen] top.ysyxSoCFull.flash.
+[treeopen] top.ysyxSoCFull.sdram.bank0.
+[treeopen] top.ysyxSoCFull.sdram.bank0.chip0.
+[treeopen] top.ysyxSoCFull.sdram.bank0.chip1.
+[treeopen] top.ysyxSoCFull.sdram.bank1.
+[treeopen] top.ysyxSoCFull.sdram.bank1.chip0.
+[treeopen] top.ysyxSoCFull.sdram.bank1.chip1.
+[sst_width] 364
+[signals_width] 443
+[sst_expanded] 1
+[sst_vpaned_height] 293
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.clock
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.reset
+@200
+-
+-DATA HAZARD
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[0][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[1][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[2][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[3][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[4][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[5][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[6][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[7][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[8][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[9][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[10][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[11][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[12][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[13][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[14][31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.gpr_ext.Memory[15][31:0]
+@200
+-
+-CTRL HAZARD
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_flush_flush_flg
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_bj_target[31:0]
+@200
+-
+-ICACHE BLOCK
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.is_sdram_raddr
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.hit
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_0_set_0_data_0[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_0_set_0_valid
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_1_set_0_data_0[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_1_set_0_valid
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_2_set_0_data_0[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_2_set_0_valid
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_3_set_0_data_0[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.icache_3_set_0_valid
+@200
+-
+@24
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_arburst[1:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_arsize[2:0]
+@200
+-ICACHE
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_in_araddr[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_in_arvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_in_arready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_in_rdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_in_rvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_in_rready
+@200
+-
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_araddr[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_arvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_arready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_rdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_rvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_rready
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.io_out_rlast
+@200
+-
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.send_rdata[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.send_araddr[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.req_index[1:0]
+@200
+-
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.addr_align[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.is_ifu_require
+@24
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.c_state[2:0]
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.icache.n_state[2:0]
+@200
+-
+@28
+top.ysyxSoCFull.asic.axi4delay_delayer.c_state[1:0]
+top.ysyxSoCFull.asic.axi4delay_delayer.n_state[1:0]
+top.ysyxSoCFull.asic.axi4delay_delayer.io_in_arvalid
+top.ysyxSoCFull.asic.axi4delay_delayer.io_in_arready
+@22
+top.ysyxSoCFull.asic.axi4delay_delayer.io_in_araddr[31:0]
+@28
+top.ysyxSoCFull.asic.axi4delay_delayer.io_in_awvalid
+top.ysyxSoCFull.asic.axi4delay_delayer.io_in_awready
+top.ysyxSoCFull.asic.axi4delay_delayer.io_out_arvalid
+top.ysyxSoCFull.asic.axi4delay_delayer.io_out_arready
+@200
+-
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_fencei_is_fencei
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_fencei_fencei_done
+@200
+-
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_flush_flush_flg
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_bj_valid
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_bj_target[31:0]
+@200
+-
+@22
+top.ysyxSoCFull.asic.cpu.auto_master_out_araddr[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.auto_master_out_arvalid
+top.ysyxSoCFull.asic.cpu.auto_master_out_arready
+@200
+-IFU
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_pipe_in_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_pipe_in_ready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_pipe_out_bits_if2id_inst[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_pipe_out_bits_if2id_reg_pc[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_pipe_out_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_pipe_out_ready
+@24
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.c_state[2:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.n_state[2:0]
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_imem_araddr[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_imem_arvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_imem_arready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_imem_rdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_imem_rvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.ifu.io_imem_rready
+@200
+-
+-IDU
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_in_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_in_ready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_in_bits_if2id_inst[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_in_bits_if2id_reg_pc[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_ready
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_ch1tpe
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_ch2tpe[1:0]
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_csr_addr[11:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_imm[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_processtpe[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_rd_addr[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_reg_pc[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_rfwe
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_rs1_addr[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_id2is_rs2_addr[3:0]
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_diff_inst[31:0]
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.io_pipe_out_bits_diff_pc[31:0]
+@28
+[color] 2
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.c_state
+[color] 2
+top.ysyxSoCFull.asic.cpu.cpu.core.idu.n_state
+@200
+-
+-ISU
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_ready
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_ch1tpe
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_ch2tpe[1:0]
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_csr_addr[11:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_imm[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_processtpe[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_rd_addr[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_reg_pc[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_rfwe
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_rs1_addr[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_in_bits_id2is_rs2_addr[3:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.rs1ForEX
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.rs1ForWB
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.rs2ForEX
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.rs2ForWB
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_ready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_is2exe_ch1[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_is2exe_ch2[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_is2exe_ch3[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_is2exe_processtpe[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_is2exe_rd_addr[3:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_is2exe_rfwe
+@22
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_diff_inst[31:0]
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.isu.io_pipe_out_bits_diff_pc[31:0]
+@200
+-
+-EXU
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_ready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_bits_is2exe_bjtpe[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_bits_is2exe_ch1[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_bits_is2exe_ch2[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_bits_is2exe_ch3[31:0]
+@24
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_bits_is2exe_processtpe[3:0]
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_bits_is2exe_rd_addr[3:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_in_bits_is2exe_rfwe
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_ready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_bits_exe2wb_gpr_waddr[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_bits_exe2wb_gpr_wdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_bits_exe2wb_gpr_we
+@22
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_bits_diff_inst[31:0]
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_bits_diff_pc[31:0]
+@28
+[color] 2
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_bj_valid
+@22
+[color] 2
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_bj_target[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_out_bits_gpr_wdata[31:0]
+@200
+-
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.alu.io_out_bits_alu_out[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_araddr[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_arvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_arready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_rdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_rvalid
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_rready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.dmem_rdata[31:0]
+@200
+-
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_awaddr[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_awvalid
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_wdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.lsu.io_dmem_dmem_wvalid
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_bits_diff_inst[31:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.exu.io_pipe_out_bits_diff_pc[31:0]
+@200
+-
+@22
+top.ysyxSoCFull.flash.addr[23:0]
+top.ysyxSoCFull.flash.data[31:0]
+top.ysyxSoCFull.flash.data_bswap[31:0]
+top.ysyxSoCFull.flash.flash_cmd_i.cmd[7:0]
+@24
+top.ysyxSoCFull.asic.lspi.state[3:0]
+@22
+top.ysyxSoCFull.asic.lspi.auto_in_prdata[31:0]
+@28
+top.ysyxSoCFull.asic.lspi.auto_in_penable
+top.ysyxSoCFull.asic.lspi.auto_in_pready
+@22
+top.ysyxSoCFull.asic.apbdelay_delayer.io_out_prdata[31:0]
+@28
+top.ysyxSoCFull.asic.apbdelay_delayer.io_out_pready
+top.ysyxSoCFull.asic.apbdelay_delayer.io_out_penable
+@22
+top.ysyxSoCFull.asic.apbdelay_delayer.io_in_prdata[31:0]
+@28
+top.ysyxSoCFull.asic.apbdelay_delayer.io_in_penable
+top.ysyxSoCFull.asic.apbdelay_delayer.io_in_pready
+@24
+top.ysyxSoCFull.asic.apbdelay_delayer.counter[15:0]
+@28
+top.ysyxSoCFull.asic.apbdelay_delayer.io_out_psel
+@24
+top.ysyxSoCFull.asic.apbdelay_delayer.io_out_pready
+top.ysyxSoCFull.asic.apbdelay_delayer.c_state[1:0]
+@25
+top.ysyxSoCFull.asic.apbdelay_delayer.n_state[1:0]
+@200
+-WBU
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_in_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_in_ready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_in_bits_exe2wb_gpr_waddr[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_in_bits_exe2wb_gpr_wdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_in_bits_exe2wb_gpr_we
+@22
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_in_bits_diff_inst[31:0]
+[color] 1
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_in_bits_diff_pc[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_out_valid
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_pipe_out_ready
+@22
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_gpr_waddr[3:0]
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_gpr_wdata[31:0]
+@28
+top.ysyxSoCFull.asic.cpu.cpu.core.wbu.io_gpr_we
+@200
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+[pattern_trace] 1
+[pattern_trace] 0
