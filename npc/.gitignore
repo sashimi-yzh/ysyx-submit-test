@@ -1,0 +1,24 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.scala
+!*.[cSh]
+!*.v
+!*.vh
+!*.nxdc
+!*.cpp
+!*.cc
+!.gitignore
+!.scalafmt.conf
+!build.sc
+!README.md
+build/
+
+# mill
+out/
+.bsp/
+.idea/
+.idea_modules/
+test_run_dir/

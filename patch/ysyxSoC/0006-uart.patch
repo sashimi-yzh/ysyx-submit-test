@@ -1,0 +1,32 @@
+From 0552cf28aa5083202e2b5061c657ad69a5b3e9e7 Mon Sep 17 00:00:00 2001
+From: Tanghongwei <tanghongwei2024@outlook.com>
+Date: Thu, 18 Sep 2025 18:30:26 +0800
+Subject: [PATCH 6/8] uart
+
+---
+ perip/uart16550/rtl/uart_tfifo.v | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 71329116..bc715ff7 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -212,6 +212,7 @@ begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
+                 $write("%c", data_in);
++                $fflush();
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -222,6 +223,7 @@ begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
+                 $write("%c", data_in);
++                $fflush();
+                 end
+         default: ;
+         endcase
+-- 
+2.34.1
+

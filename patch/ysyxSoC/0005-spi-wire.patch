@@ -1,0 +1,33 @@
+From 9cdab6c7d00285cb042d407f57c0a44c18529011 Mon Sep 17 00:00:00 2001
+From: Tanghongwei <tanghongwei2024@outlook.com>
+Date: Sun, 14 Sep 2025 09:17:08 +0800
+Subject: [PATCH 5/8] spi-wire
+
+---
+ .gitignore                  | 1 +
+ perip/spi/rtl/spi_top_apb.v | 2 +-
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/.gitignore b/.gitignore
+index 89f9ac04..7a00e174 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1 +1,2 @@
++rocket-chip/
+ out/
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 5bcbd4b3..2c4ce980 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -58,7 +58,7 @@ assign in_prdata  = data[31:0];
+   localparam READ_DATA   = 3'h7;
+ 
+   wire         spi_master_psel;
+-  wire         flash_xip_psel;
++  reg          flash_xip_psel;
+   wire [31: 0] apb_paddr;
+   wire         apb_psel;
+   wire         apb_penable;
+-- 
+2.34.1
+

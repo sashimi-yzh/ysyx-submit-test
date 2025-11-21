@@ -1,0 +1,24 @@
+From 47dd102bede72cd31a852ee6de8e26d21b58558f Mon Sep 17 00:00:00 2001
+From: Tanghongwei <tanghongwei2024@outlook.com>
+Date: Sat, 13 Sep 2025 22:01:11 +0800
+Subject: [PATCH 3/8] spi
+
+---
+ perip/spi/rtl/spi_top_apb.v | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 83a62a99..5bcbd4b3 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -71,7 +71,6 @@ assign in_prdata  = data[31:0];
+   wire         apb_pslverr;
+   wire         flash_xip_sel;
+   reg  [31: 0] flash_xip_paddr;
+-  reg          flash_xip_psel;
+   reg          flash_xip_penable;
+   wire [ 2: 0] flash_xip_pprot;
+   reg          flash_xip_pwrite;
+-- 
+2.34.1
+
