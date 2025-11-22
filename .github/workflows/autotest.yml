@@ -261,6 +261,16 @@ jobs:
           echo ".git_commit:" >> Makefile
           echo -e "\t@echo git tracer is disabled" >> Makefile
 
+      - name: Check patch size
+        if: steps.cache-dir.outputs.cache-hit != 'true'
+        run: |
+          SIZE=`du -sb $YSYX_HOME/patch | grep -o '^[0-9]*'`
+          SIZE_LIMIT=1048576 # 1MB
+          if [[ $SIZE -gt $SIZE_LIMIT ]] ; then
+            echo "Patch size($SIZE) is larger than the limit($SIZE_LIMIT)."
+            false
+          fi
+
       - name: Clone other repos
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
@@ -609,10 +619,8 @@ jobs:
         run: |
           AREA_BUDGET=16500
           AREA_OLD_BUDGET=25000
-          AREA_OK=`echo "$AREA <= $AREA_BUDGET" | bc`
-          AREA_OLD_OK=`echo "$AREA_OLD <= $AREA_OLD_BUDGET" | bc`
-          if [[ $AREA_OK == "0" ]] ; then
-            if [[ $AREA_OLD_OK == "0" ]] ; then
+          if [[ $AREA -gt $AREA_BUDGET ]] ; then
+            if [[ $AREA_OLD -gt $AREA_OLD_BUDGET ]] ; then
               echo "Area($AREA) is larger than the budget($AREA_BUDGET)."
               echo "Area for old version of yosys-sta($AREA_OLD) is larger than the budget($AREA_OLD_BUDGET)."
               false
