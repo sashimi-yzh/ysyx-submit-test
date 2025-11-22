@@ -1,0 +1,17 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.v
+!*.cc
+!*.cpp
+!.gitignore
+!README.md
+build/
+!*.nxdc
+!*.scala
+!*.vh
+!*.sh
+!build.sc

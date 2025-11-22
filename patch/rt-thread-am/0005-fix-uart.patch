@@ -1,0 +1,25 @@
+From 6058434e5037b28ab0a4d6bc50e161e371de2453 Mon Sep 17 00:00:00 2001
+From: Furina318 <1145676148@qq.com>
+Date: Sun, 28 Sep 2025 16:14:36 +0800
+Subject: [PATCH 5/6] fix uart
+
+---
+ bsp/abstract-machine/src/uart.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 08a463d1b..c553a3e6d 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -38,7 +38,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *const pp = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *const pp = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\nam_microbench test\n";
+   static const char *p = pp;
+   static bool exhausted = false;
+ 
+-- 
+2.34.1
+

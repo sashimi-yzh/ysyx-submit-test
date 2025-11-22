@@ -1,0 +1,48 @@
+From 9e94f8be7de62ac9c51d82f80602e423013159c3 Mon Sep 17 00:00:00 2001
+From: Furina318 <1145676148@qq.com>
+Date: Sat, 20 Sep 2025 23:10:04 +0800
+Subject: [PATCH 4/6] uart done
+
+---
+ bsp/abstract-machine/src/uart.c | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index a1d6b9dd6..08a463d1b 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -37,8 +38,21 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\nam_microbench test\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  static const char *const pp = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *p = pp;
++  static bool exhausted = false;
++
++  // return (*p != '\0' ? *(p ++) : -1);
++
++  if (exhausted) {
++    return io_read(AM_UART_RX).data;
++  }
++  if (*p != '\0') {
++    return *(p++);
++  } else {
++    exhausted = true;
++    return io_read(AM_UART_RX).data;
++  }
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

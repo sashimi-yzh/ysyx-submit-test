@@ -1,0 +1,119 @@
+From bbca8fe175ecb1413f221e8ecf5b209d2437eeea Mon Sep 17 00:00:00 2001
+From: Furina318 <1145676148@qq.com>
+Date: Thu, 18 Sep 2025 20:24:48 +0800
+Subject: [PATCH 1/6] rtt before CI
+
+---
+ bsp/abstract-machine/src/context.c | 67 +++++++++++++++++++++++++++---
+ bsp/abstract-machine/src/uart.c    |  2 +-
+ 2 files changed, 62 insertions(+), 7 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..853494545 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -4,6 +4,17 @@
+ 
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD: {
++      rt_thread_t self= rt_thread_self();
++      rt_ubase_t *args = (void*)self->user_data;
++      Context **from = (Context **)args[0], **to = (Context **)args[1];
++      if (from!=NULL)
++        *from = c;//将当前上下文的指针写入from指向的上下文指针变量中
++      c = *to;//切换到to指向的上下文指针变量所指向的上下文
++      break;
++    }
++    case EVENT_IRQ_TIMER: break;
++    case EVENT_IRQ_IODEV: break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -13,19 +24,63 @@ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
+-}
++// void rt_hw_context_switch_to(rt_ubase_t to) {
++//   assert(0);
++// }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t self = rt_thread_self();//获取当前正在运行的线程控制块指针（即当前线程的句柄
++  rt_ubase_t pre_user_data = self->user_data;//保存当前线程的 user_data 字段到临时变量 prev_user_data
++  rt_ubase_t user_data[2] = {from, to};//创建一个临时数组 user_data,存储上下文切换的源（from）和目标（to）参数
++  self->user_data = (rt_ubase_t)user_data;
++  yield();//需要额外将当前上下文的指针写入from指向的上下文指针变量中,为了进行切换, 通过yield()触发一次自陷
++  self->user_data = pre_user_data;
++  // assert(0);
++}
++
++void rt_hw_context_switch_to(rt_ubase_t to) {
++  rt_hw_context_switch(0, to);//用于切换到to指向的上下文指针变量所指向的上下文
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++static void rt_entry(void *parameter){
++  uintptr_t *get = (void *)parameter; //获取参数
++  void (*tentry)(void *) = (void *)get[2]; 
++  void (*texit)() = (void *)get[1];
++  tentry((void *)get[0]);           //线程调用的真正入口(参数为parameter)
++  texit();                          //线程退出函数，清理资源
++}
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++ 
++  stack_addr = (rt_uint8_t*)((rt_ubase_t)stack_addr & ~0xf);//地址低四位请零,使其向下对齐16字节边界
++  // stack_addr = (void *)(uintptr_t)stack_addr & (~(sizeof(uintptr_t) - 1));
++  // 这里的stack_addr是栈底, 也就是栈顶的地址, 但是需要的是栈底的地址, 所以要减去sizeof(uintptr_t) * 3.其实可以用结构体保存
++  uintptr_t *get = (void *)(stack_addr - sizeof(uintptr_t)*3);
++  
++  get[2] = (uintptr_t)tentry;
++  get[1] = (uintptr_t)texit; 
++  get[0] = (uintptr_t)parameter; 
++  
++  Context *c = kcontext((Area){0, stack_addr - sizeof(uintptr_t)*3}, rt_entry, get);
++  return (rt_uint8_t *)c;
+ }
++
++// 高地址
++// +------------------+ <-- 原始 stack_addr (栈底)
++// |                  |
++// |   线程栈空间      |
++// |                  |
++// +------------------+ <-- 对齐后的 stack_addr
++// |    参数区        |
++// +------------------+
++// |    texit指针     | <-- get[1]
++// +------------------+
++// |    tentry指针    | <-- get[2]
++// +------------------+ <-- get = stack_addr - 3*ptr
++// |                  | 
++// |   上下文结构      | <-- kcontext创建的Context
++// |                  |
++// 低地址
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..a1d6b9dd6 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -37,7 +37,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\nam_microbench test\n";
+   return (*p != '\0' ? *(p ++) : -1);
+ }
+ 
+-- 
+2.34.1
+
