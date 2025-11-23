@@ -1,0 +1,170 @@
+From 90d5be7d3963af852e5c78aef2ccf3436e57b8cc Mon Sep 17 00:00:00 2001
+From: 211180120-Yu Bingyao <211180120@smail.nju.edu.cn>
+Date: Sat, 4 Oct 2025 19:28:22 +0800
+Subject: [PATCH 2/2] =?UTF-8?q?=E4=BF=AE=E6=94=B9rtt=E8=BE=93=E5=85=A5?=
+ =?UTF-8?q?=E7=A8=8B=E5=BA=8F=E8=BF=90=E8=A1=8C=E7=BB=93=E6=9D=9F=E6=8A=A5?=
+ =?UTF-8?q?=E9=94=99?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/context.c | 107 +++++++++++++++--------------
+ bsp/abstract-machine/src/uart.c    |   4 +-
+ 2 files changed, 56 insertions(+), 55 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 3293c9b0b..4c328e6c0 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -3,77 +3,78 @@
+ #include <rtthread.h>
+ 
+ static Context* ev_handler(Event e, Context *c) {
+-  switch (e.event) {
+-    case EVENT_YIELD:
+-    {
+-      rt_thread_t cp = rt_thread_self();
+-      rt_ubase_t to = cp->user_data;
+-      c = *(Context **)to;
+-      // c->mepc += 4;
+-      break;
++    switch (e.event) {
++        case EVENT_YIELD: {
++            rt_ubase_t* user_data = (rt_ubase_t*)(rt_thread_self()->user_data);
++            Context** to_ptr = (Context**)user_data[0];
++            Context** from_ptr = (Context**)user_data[1];
++            
++            Context* Cpret = *to_ptr;
++            if (from_ptr) {
++                *from_ptr = c;
++            }
++            return Cpret;
++        }
++        case EVENT_IRQ_TIMER: 
++            return c;
++        default: 
++            printf("Unhandled event ID = %d\n", e.event); 
++            assert(0);
+     }
+-    case EVENT_IRQ_TIMER: break;
+-    case EVENT_IRQ_IODEV: break;
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+-  }
+-  return c;
++    return NULL;
+ }
+ 
+-typedef struct{
+-  void * (*task_entry)(void * args);
+-  void * parameter;
+-  void * (*task_exit)();
++typedef struct {
++    void *(*task_entry)(void *args);
++    void *parameter;
++    void *(*task_exit)();
+ } w_args;
+ 
+ void __am_cte_init() {
+-  cte_init(ev_handler);
++    cte_init(ev_handler);
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  rt_thread_t pcb = rt_thread_self();
+-  rt_ubase_t user_data_saver = pcb->user_data;
+-  pcb->user_data = to;
+-  yield();
+-  pcb->user_data = user_data_saver;
++    rt_thread_t pcb = rt_thread_self();
++    rt_ubase_t tmp = pcb->user_data;
++    
++    rt_ubase_t user_data[2] = {to, 0};
++    pcb->user_data = (rt_ubase_t)user_data;
++    
++    yield();
++    pcb->user_data = tmp;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  rt_thread_t pcb = rt_thread_self();
+-  rt_ubase_t user_data_saver = pcb->user_data;
+-  pcb->user_data = to;
+-  from = (rt_ubase_t)pcb->sp;
+-  yield();
+-  pcb->user_data = user_data_saver;
++    rt_thread_t pcb = rt_thread_self();
++    rt_ubase_t tmp = pcb->user_data;
++    
++    rt_ubase_t user_data[2] = {to, from};
++    pcb->user_data = (rt_ubase_t)user_data;
++    
++    yield();
++    pcb->user_data = tmp;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+-  assert(0);
++    assert(0);
+ }
+ 
+ void wrap(void *arg) {
+-  w_args *stack_bottom = (w_args *)arg;
+-
+-  void * exit_func=stack_bottom->task_exit;
+-  
+-  ((void(*)())stack_bottom->task_entry) (stack_bottom->parameter);// 调用任务入口函数
+-  ((void(*)())exit_func) ();
++    w_args *stack_bottom = (w_args *)arg;
++    void *exit_func = stack_bottom->task_exit;
++    stack_bottom->task_entry(stack_bottom->parameter);
++    ((void(*)())exit_func)();
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-
+-  stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
+-
+-  Area stack;
+-  stack.start = stack_addr - 0;
+-  stack.end = stack_addr;
+-
+-  w_args *stack_bottom = (w_args *)(stack.end - sizeof(Context) - sizeof(w_args));
+-
+-  Context *cp = kcontext(stack, wrap, (void *)stack_bottom);
+-  
+-  stack_bottom->parameter=parameter;
+-  stack_bottom->task_entry=tentry;
+-  stack_bottom->task_exit=texit;
+-
+-  return (rt_uint8_t *)cp;
+-}
++    stack_addr = (rt_uint8_t*)((uintptr_t)stack_addr / sizeof(uintptr_t) * sizeof(uintptr_t));
++    
++    w_args* arg = (w_args*)((uintptr_t)stack_addr - sizeof(Context) - sizeof(w_args));
++    arg->task_entry = tentry; 
++    arg->parameter = parameter; 
++    arg->task_exit = texit;
++    
++    Context* Cptr = kcontext((Area){0, stack_addr}, wrap, arg);
++    return (rt_uint8_t*)Cptr;
++}
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 85c50731d..e5961936b 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -40,8 +40,8 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ static int _uart_getc(struct rt_serial_device *serial) {
+   //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_fceux_am mario\n";
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  //return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+-  return (*p != '\0' ? *(p ++) : -1);
++  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  //return (*p != '\0' ? *(p ++) : -1);
+ 
+ }
+ 
+-- 
+2.34.1
+
