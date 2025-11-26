@@ -297,8 +297,8 @@ jobs:
       - name: Setup tools
         if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
-          wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-04-24/oss-cad-suite-linux-x64-20250424.tgz
-          tar xf oss-cad-suite-linux-x64-20250424.tgz
+          wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-11-24/oss-cad-suite-linux-x64-20251124.tgz
+          tar xf oss-cad-suite-linux-x64-20251124.tgz
           OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
           echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
 
