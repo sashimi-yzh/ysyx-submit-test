@@ -1,0 +1,39 @@
+From 76e3ec3a1af353a42b5d63e1e7a3fd7d21c3eaca Mon Sep 17 00:00:00 2001
+From: huhao <huhao1226968736@outlook.com>
+Date: Fri, 24 Oct 2025 21:21:03 +0800
+Subject: [PATCH 3/3] for ci new submission
+
+---
+ perip/amba/apb_delayer.v  | 2 +-
+ perip/amba/axi4_delayer.v | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index e39b7199..c4db6024 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -26,7 +26,7 @@ module apb_delayer(
+   // localparam CPU_MHZ = 270.5;
+   // localparam DEV_MHZ = 100;
+   // R = (r - 1) * s
+-  localparam R = 32'd7004488 - 32'd1048576; // r = 2.73767  s=2^20
++  localparam R = 0; //32'd7004488 - 32'd1048576; // r = 2.73767  s=2^20
+   // F = t1' - t0 = (t1 - t0) * r
+   // wite = F - (t1 - t0) = (t1 - t0) * (r - 1) = (t1 - t0) * R / s
+ 
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 106124d0..7c860980 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -65,7 +65,7 @@ module axi4_delayer(
+   // localparam CPU_MHZ = 270.5;
+   // localparam DEV_MHZ = 100;
+   // R = (r - 1) * s
+-  localparam R = 32'd7004488 - 32'd1048576; // r = 2.73767  s=2^20
++  localparam R = 32'd1048576;// 32'd7004488 - 32'd1048576; // r = 2.73767  s=2^20
+   // F = t1' - t0 = (t1 - t0) * r
+   // wite = F - (t1 - t0) = (t1 - t0) * (r - 1) = (t1 - t0) * R / s
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,34 @@
+From d44fc25e90bc20532924ccc4c833e5b24d991789 Mon Sep 17 00:00:00 2001
+From: huhao <huhao1226968736@outlook.com>
+Date: Thu, 27 Nov 2025 20:28:57 +0800
+Subject: [PATCH 4/4] btest correct
+
+---
+ bsp/abstract-machine/Makefile | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 0d01d4d2d..61f2f3201 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -9,14 +9,11 @@ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+ 
+-ifeq ($(ARCH),riscv32e-npc)
+-LDFLAGS += -T extra_.ld
+-CFLAGS += -DNPC_NEMU
+-else ifeq ($(ARCH),riscv32e-nemu)
++ifeq ($(ARCH),riscv32e-ysyxsoc)
++LDFLAGS += -T extra.ld
++else
+ LDFLAGS += -T extra_.ld
+ CFLAGS += -DNPC_NEMU
+-else ifeq ($(ARCH),riscv32e-ysyxsoc)
+-LDFLAGS += -T extra.ld
+ endif
+ 
+ -include $(FILE_MK)
+-- 
+2.34.1
+
