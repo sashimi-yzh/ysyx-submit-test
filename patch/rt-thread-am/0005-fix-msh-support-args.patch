@@ -1,0 +1,134 @@
+From e50ec1759caab1abcc613e560ac22386d7bf320b Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Sun, 16 Nov 2025 19:10:22 +0800
+Subject: [PATCH 5/5] fix(msh): support args
+
+---
+ bsp/abstract-machine/src/context.c | 30 +++++++++++++++++++++---------
+ components/finsh/msh.c             | 13 ++++++++++---
+ 2 files changed, 31 insertions(+), 12 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index a00960462..de41c0b51 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -1,6 +1,7 @@
+ #include <am.h>
+ #include <klib.h>
+ #include <rtthread.h>
++#include "rtdef.h"
+ 
+ typedef struct 
+ {
+@@ -9,16 +10,24 @@ typedef struct
+   void *parameter;
+ } kcontext_args;
+ 
++typedef struct {
++  rt_ubase_t to;
++  rt_ubase_t from;
++} rt_switch_node;
++
+ static Context* ev_handler(Event e, Context *c) {
+   Context *res = NULL;
+   switch (e.event) {
+     case EVENT_YIELD:  
+-      rt_thread_t self = rt_thread_self();
+-      res = *(Context**)self->user_data; 
++      rt_switch_node* tf = (rt_switch_node*)(rt_thread_self()->user_data);
++      if (tf->from != 0) *((void**)tf->from) = c;
++      res = *((void**)tf->to); 
+       break;      // yield
+     case EVENT_IRQ_TIMER:  
++    case EVENT_IRQ_IODEV: 
+       res = c;
+       break;
++
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return res;
+@@ -30,24 +39,28 @@ void warp_kcontext_entry(void* args){
+    kcontext_args *kargs = (kcontext_args *) args;
+    kargs->entry(kargs->parameter);
+    kargs->exit();
++   rt_free(kargs);
+ }
+ 
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  rt_thread_t self = rt_thread_self();
+-  rt_ubase_t user_data = self->user_data;
+-  self->user_data = to;
++void rt_hw_context_switch_to(rt_ubase_t to)
++{
++  rt_thread_t curr = rt_thread_self();
++  rt_ubase_t tmp_data = curr->user_data;
++  rt_switch_node tf = {to, 0};
++  curr->user_data = (rt_ubase_t)&tf;
+   yield();
+-  self->user_data = user_data;
++  curr->user_data = tmp_data;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+   rt_thread_t self = rt_thread_self();
+   rt_ubase_t user_data = self->user_data;
+-  self->user_data = to;
++  rt_switch_node tf = {to, from};
++  self->user_data = (rt_ubase_t)&tf;
+   yield();
+   self->user_data = user_data;
+   return;
+@@ -61,7 +74,6 @@ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t t
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+   
+-  
+   rt_uint8_t *stk = stack_addr+sizeof(uintptr_t);
+   stk  = (rt_uint8_t *)ALIGN((uintptr_t)stk, 8);
+   stk -= sizeof(kcontext_args);
+diff --git a/components/finsh/msh.c b/components/finsh/msh.c
+index a63e34ddf..e632b8b1e 100644
+--- a/components/finsh/msh.c
++++ b/components/finsh/msh.c
+@@ -278,16 +278,23 @@ static int _msh_exec_cmd(char *cmd, rt_size_t length, int *retp)
+         cmd0_size ++;
+     if (cmd0_size == 0)
+         return -RT_ERROR;
++    // kuikuikuizzZ 2025.11.15
++    char tmp_cmd[cmd0_size +1];
++    rt_memcpy(tmp_cmd, cmd, cmd0_size);
++    tmp_cmd[cmd0_size] = '\0';
+ 
+-    cmd_func = msh_get_cmd(cmd, cmd0_size);
++    cmd_func = msh_get_cmd(tmp_cmd, cmd0_size);
+     if (cmd_func == RT_NULL)
++    { 
+         return -RT_ERROR;
++    }
+ 
+     /* split arguments */
+     rt_memset(argv, 0x00, sizeof(argv));
+     argc = msh_split(cmd, length, argv);
+-    if (argc == 0)
++    if (argc == 0){
+         return -RT_ERROR;
++    }
+ 
+     /* exec this command */
+     *retp = cmd_func(argc, argv);
+@@ -538,7 +545,7 @@ int msh_exec(char *cmd, rt_size_t length)
+         }
+         *tcmd = '\0';
+     }
+-    rt_kprintf("%s: command not found.\n", cmd);
++    rt_kprintf("%s: command not found.%s \n", cmd);
+     return -1;
+ }
+ 
+-- 
+2.43.0
+

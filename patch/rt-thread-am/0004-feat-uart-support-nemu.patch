@@ -1,0 +1,27 @@
+From 63455880ef374ce530c841da256f1ef2f5ab7ce5 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Wed, 5 Nov 2025 21:45:36 +0800
+Subject: [PATCH 4/5] feat(uart): support nemu
+
+---
+ bsp/abstract-machine/src/uart.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 2520d9967..9aaf7ae6b 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -40,7 +40,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ static int _uart_getc(struct rt_serial_device *serial) {
+   // static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   static const char *p = "\n";
+-  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data );
++  int ret = -1;
++  if(io_read(AM_UART_CONFIG).present) ret = io_read(AM_UART_RX).data;
++  return (*p != '\0' ? *(p ++) : ret );
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.43.0
+

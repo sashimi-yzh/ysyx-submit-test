@@ -1,0 +1,38 @@
+From 51b87a30401daa838103bac8e447d09c75ccdb82 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Sun, 28 Sep 2025 13:09:45 +0800
+Subject: [PATCH 21/23] feat(soc): adapt to nvboard no gui
+
+---
+ perip/uart16550/rtl/uart_tfifo.v | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 7132911..ee1c856 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,7 +211,9 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
+-                $write("%c", data_in);
++                `ifndef CONFIG_NVBOARD
++                    $write("%c", data_in);
++                `endif
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -221,7 +223,9 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
+-                $write("%c", data_in);
++                `ifndef CONFIG_NVBOARD
++                    $write("%c", data_in);
++                `endif
+                 end
+         default: ;
+         endcase
+-- 
+2.43.0
+

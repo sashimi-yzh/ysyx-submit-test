@@ -1,0 +1,2 @@
+# CONFIG_TRACE is not set
+CONFIG_DEVICE=y

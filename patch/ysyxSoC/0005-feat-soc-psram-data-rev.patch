@@ -1,0 +1,48 @@
+From cde1cc636f281ce9b6aab53bbead1dc2251cf055 Mon Sep 17 00:00:00 2001
+From: "wuwenhui.wuwh" <wuwenhui.wuwh@bytedance.com>
+Date: Thu, 31 Jul 2025 14:49:26 +0800
+Subject: [PATCH 05/23] feat(soc): psram data rev
+
+---
+ src/device/PSRAM.scala | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index de241f2..9d100f8 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -143,6 +143,13 @@ class psramChisel extends RawModule {
+   val ren           =   (state === s_wait) && (counter === wait_cycle) // when wait cycle is over, ren is high
+   val wen           =   wen_reg && ((counter === data_cycle) || reset)  // wen is high when data cycle is over
+   val is_quad_cmd = (cmd === SPI_CMD_QPI_ENTER) || (cmd === SPI_CMD_QPI_EXIT) 
++  val rev_data      =  Cat(psram_array.io.rdata(7,0),psram_array.io.rdata(15,8),
++                          psram_array.io.rdata(23,16),psram_array.io.rdata(31,24))
++  val rev_din      =  MuxLookup(length,din_data)(Seq(
++    1.U -> din_data,
++    2.U -> Cat(din_data(31,16),din_data(7,0),din_data(15,8)),
++    4.U -> Cat(din_data(7,0),din_data(15,8),din_data(23,16),din_data(31,24))
++  ))
+   
+   // when read psram dout is valid, dout_en is high 
+   wen_reg          := (cmd === SPI_CMD_QUAD_WRITE) && (state === s_data)
+@@ -152,7 +159,7 @@ class psramChisel extends RawModule {
+   cmd       :=  Mux(state === s_cmd,Mux(is_qpi,Cat(cmd(3,0),din(3,0)),Cat(cmd(6,0),din(0))),cmd) // command
+   addr      :=  Mux(state === s_addr,Cat(addr(19,0),din(3,0)),addr)
+   din_data  :=  Mux(state === s_data,Cat(din_data(27,0),din(3,0)),din_data)
+-  dout_data :=  Mux(state === s_data ,Cat(dout_data(27,0),0.U(4.W)),Mux(ren,psram_array.io.rdata,dout_data)) // dout_data is 32 bits
++  dout_data :=  Mux(state === s_data ,Cat(dout_data(27,0),0.U(4.W)),Mux(ren,rev_data,dout_data)) // dout_data is 32 bits
+   
+ 
+   switch(state) {
+@@ -171,7 +178,7 @@ class psramChisel extends RawModule {
+   psram_array.io.addr   :=    addr
+   psram_array.io.ren    :=    ren
+   psram_array.io.wen    :=    wen
+-  psram_array.io.wdata  :=    din_data
++  psram_array.io.wdata  :=    rev_din
+ }
+ 
+ class APBPSRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-- 
+2.43.0
+

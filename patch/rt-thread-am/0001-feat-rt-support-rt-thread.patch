@@ -1,0 +1,96 @@
+From c838b2f385d1b90ab2d8a5cd15650a72fb056391 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Wed, 6 Aug 2025 21:25:56 +0800
+Subject: [PATCH 1/5] feat(rt): support rt-thread
+
+---
+ bsp/abstract-machine/src/context.c | 54 +++++++++++++++++++++++++++---
+ 1 file changed, 49 insertions(+), 5 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..a00960462 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,11 +2,34 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++typedef struct 
++{
++  void (*entry)(void*);
++  void (*exit)(void) ;
++  void *parameter;
++} kcontext_args;
++
+ static Context* ev_handler(Event e, Context *c) {
++  Context *res = NULL;
+   switch (e.event) {
++    case EVENT_YIELD:  
++      rt_thread_t self = rt_thread_self();
++      res = *(Context**)self->user_data; 
++      break;      // yield
++    case EVENT_IRQ_TIMER:  
++      res = c;
++      break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+-  return c;
++  return res;
++}
++
++
++
++void warp_kcontext_entry(void* args){
++   kcontext_args *kargs = (kcontext_args *) args;
++   kargs->entry(kargs->parameter);
++   kargs->exit();
+ }
+ 
+ void __am_cte_init() {
+@@ -14,18 +37,39 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t self = rt_thread_self();
++  rt_ubase_t user_data = self->user_data;
++  self->user_data = to;
++  yield();
++  self->user_data = user_data;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t self = rt_thread_self();
++  rt_ubase_t user_data = self->user_data;
++  self->user_data = to;
++  yield();
++  self->user_data = user_data;
++  return;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++#define ALIGN(A,N) ((A)  & ~((N) - 1))
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  
++  
++  rt_uint8_t *stk = stack_addr+sizeof(uintptr_t);
++  stk  = (rt_uint8_t *)ALIGN((uintptr_t)stk, 8);
++  stk -= sizeof(kcontext_args);
++  kcontext_args *args = (kcontext_args*)stk;
++  args->parameter = parameter;
++  args->entry = (void (*)(void*))tentry;
++  args->exit = (void (*)(void))texit; 
++  Area stack_area = {.end=stk};   // which size? 32k? 
++  Context *context = kcontext(stack_area,(void*)warp_kcontext_entry,args);
++  return (rt_uint8_t *)context;
+ }
+-- 
+2.43.0
+

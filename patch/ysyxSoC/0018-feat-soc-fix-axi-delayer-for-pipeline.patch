@@ -1,0 +1,118 @@
+From 05f03475bfcca8cec4e1f21a0fe679f97565f7f5 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Sat, 6 Sep 2025 20:14:02 +0800
+Subject: [PATCH 18/23] feat(soc): fix axi delayer for pipeline
+
+---
+ Makefile                   |  4 ++--
+ src/amba/AXI4Delayer.scala | 40 +++++++++++++++++++++-----------------
+ 2 files changed, 24 insertions(+), 20 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 88ed778..df3f120 100644
+--- a/Makefile
++++ b/Makefile
+@@ -18,8 +18,8 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
+ verilog: $(V_FILE_FINAL)
+-	cp $(V_FILE_FINAL) $(NPC_HOME)/svsrc/
+-	cp -r $(wildcard $(SOC_HOME)/perip/*/*.v $(SOC_HOME)/perip/psram/efabless/*.v $(SOC_HOME)/perip/sdram/core_sdram_axi4/*.v )  $(NPC_HOME)/svsrc/
++	cp $(V_FILE_FINAL) $(NPC_HOME)/build/
++	cp -r $(wildcard $(SOC_HOME)/perip/*/*.v $(SOC_HOME)/perip/psram/efabless/*.v $(SOC_HOME)/perip/sdram/core_sdram_axi4/*.v )  $(NPC_HOME)/build/
+ 
+ clean:
+ 	-rm -rf build/
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 82a12d5..561026e 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -26,25 +26,29 @@ class AXI4DelayerChisel extends Module {
+ 
+   val s_idle :: s_transmit :: s_wait :: s_resp :: Nil = Enum(4)
+   val state = RegInit(s_idle)
+-  // B2 freq 350MHz, device typical 100MHz
++  // B2 freq 350 MHz, device typical 100MHz
++  // B4 freq 550 MHz, device typical 100MHz  
+   // s = 2^16, r= 3.5 , s_r = 229376
+   val s_r = 229376.U(32.W)
+   val cnt = RegInit(0.U(32.W))
+-  val axi_start = io.in.ar.valid || io.in.aw.valid
++  val axi_start = (io.in.ar.valid && io.in.ar.ready) || (io.in.aw.valid && io.in.aw.ready)
+   val axi_finsh = (io.out.r.valid &&  io.out.r.ready) || (io.out.b.valid && io.out.b.ready)
+   val is_read = RegEnable(io.in.ar.valid,io.in.ar.valid || state === s_idle)
+   val is_write = RegEnable(io.in.aw.valid,io.in.aw.valid || state === s_idle)
+ 
+-  val rvalid   =  RegEnable(io.out.r.valid ,io.out.r.valid || state === s_idle)
+-  val rdata    =  RegEnable(io.out.r.bits.data  ,io.out.r.valid && state === s_transmit)
+-  val rresp    =  RegEnable(io.out.r.bits.resp  ,io.out.r.valid && state === s_transmit)
+-  val rid      =  RegEnable(io.out.r.bits.id    ,io.out.r.valid && state === s_transmit)
+-  val rlast    =  RegEnable(io.out.r.bits.last  ,io.out.r.valid && state === s_transmit)
++  val rvalid  =  RegEnable(io.out.r.valid ,io.out.r.valid || state === s_idle )
++  val rdata   =  RegEnable(io.out.r.bits.data  ,(io.out.r.valid &&  io.out.r.ready) && state === s_transmit)
++  val rresp   =  RegEnable(io.out.r.bits.resp  ,(io.out.r.valid &&  io.out.r.ready) && state === s_transmit)
++  val rid     =  RegEnable(io.out.r.bits.id    ,(io.out.r.valid &&  io.out.r.ready) && state === s_transmit)
++  val rlast   =  RegEnable(io.out.r.bits.last  ,(io.out.r.valid &&  io.out.r.ready) && state === s_transmit)
+ 
++  // val wdata   =  Mux(io.in.w.valid,io.in.w.bits.data,RegEnable(io.in.w.bits.data ,io.in.w.valid && io.in.w.ready ))
++  // val wstrb   =  Mux(io.in.w.valid,io.in.w.bits.strb,RegEnable(io.in.w.bits.strb ,io.in.w.valid && io.in.w.ready ))
++  // val wlast   =  Mux(io.in.w.valid,io.in.w.bits.last,RegEnable(io.in.w.bits.last ,io.in.w.valid && io.in.w.ready ))
+   
+   val bvalid  = RegEnable(io.out.b.valid ,io.out.b.valid || state === s_idle)
+-  val bresp   = RegEnable(io.out.b.bits.resp  ,io.out.b.valid)
+-  val bid     = RegEnable(io.out.b.bits.id    ,io.out.b.valid)
++  val bresp   = RegEnable(io.out.b.bits.resp  ,(io.out.b.valid &&  io.out.b.ready)&& state === s_transmit)
++  val bid     = RegEnable(io.out.b.bits.id    ,(io.out.b.valid &&  io.out.b.ready)&& state === s_transmit)
+ 
+ 
+   switch (state) {
+@@ -67,7 +71,7 @@ class AXI4DelayerChisel extends Module {
+   }
+ 
+   io.out := DontCare
+-  io.out.ar.valid   := Mux(state===s_idle || state===s_transmit,io.in.ar.valid,false.B)
++  io.out.ar.valid   := Mux(state===s_idle ,io.in.ar.valid,false.B)
+   io.out.ar.bits.addr    := io.in.ar.bits.addr 
+   io.out.ar.bits.id      := io.in.ar.bits.id   
+   io.out.ar.bits.len     := io.in.ar.bits.len  
+@@ -75,7 +79,7 @@ class AXI4DelayerChisel extends Module {
+   io.out.ar.bits.burst   := io.in.ar.bits.burst
+   io.in.ar.ready    := io.out.ar.ready
+ 
+-  io.out.aw.valid   := Mux(state===s_idle || state===s_transmit,io.in.aw.valid,false.B)
++  io.out.aw.valid   := Mux(state===s_idle ,io.in.aw.valid,false.B)
+   io.out.aw.bits.addr    := io.in.aw.bits.addr  
+   io.out.aw.bits.id      := io.in.aw.bits.id    
+   io.out.aw.bits.len     := io.in.aw.bits.len   
+@@ -83,10 +87,10 @@ class AXI4DelayerChisel extends Module {
+   io.out.aw.bits.burst   := io.in.aw.bits.burst 
+   io.in.aw.ready    := io.out.aw.ready 
+ 
+-  io.out.w.valid    := Mux(state===s_idle || state===s_transmit,io.in.w.valid,false.B)
+-  io.out.w.bits.data     := io.in.w.bits.data    
+-  io.out.w.bits.strb     := io.in.w.bits.strb    
+-  io.out.w.bits.last     := io.in.w.bits.last    
++  io.out.w.valid    := Mux(state===s_idle ,io.in.w.valid,false.B)
++  io.out.w.bits.data     := io.in.w.bits.data
++  io.out.w.bits.strb     := io.in.w.bits.strb  
++  io.out.w.bits.last     := io.in.w.bits.last  
+   io.in.w.ready     := io.out.w.ready   
+ 
+   io.out.b.ready    := Mux(state===s_idle || state===s_transmit,io.in.b.ready,false.B)
+@@ -94,10 +98,10 @@ class AXI4DelayerChisel extends Module {
+   io.in.b.bits.resp      := bresp   
+   io.in.b.bits.id        := bid  
+   
+-  io.out.r.ready    := Mux(state===s_transmit,true.B,false.B)
++  io.out.r.ready    := Mux(state===s_idle || state===s_transmit,io.in.r.ready,false.B)
+   io.in.r.valid     := Mux(state === s_resp, rvalid, false.B)
+-  io.in.r.bits.data      := rdata 
+-  io.in.r.bits.resp      := rresp 
++  io.in.r.bits.data      := rdata
++  io.in.r.bits.resp      := rresp   
+   io.in.r.bits.id        := rid   
+   io.in.r.bits.last      := rlast 
+ }
+-- 
+2.43.0
+

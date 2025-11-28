@@ -1,0 +1,177 @@
+From 9666b3b90d1373daede13b91532470a0a392c57e Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Tue, 19 Aug 2025 20:32:17 +0800
+Subject: [PATCH 16/23] feat(soc): support sdram axi
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi.v      | 12 ++---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 12 ++---
+ perip/sdram/sdram_top_apb.v                  |  2 +
+ perip/sdram/sdram_top_axi.v                  | 56 +++++++++++++++++---
+ src/Top.scala                                |  2 +-
+ 5 files changed, 64 insertions(+), 20 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f5..7fcda7b 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+-    ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [  2:0]  sdram_ba_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -86,9 +86,9 @@ module sdram_axi
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ             = 50;
+-parameter SDRAM_ADDR_W          = 24;
++parameter SDRAM_ADDR_W          = 25;
+ parameter SDRAM_COL_W           = 9;
+-parameter SDRAM_READ_LATENCY    = 2;
++parameter SDRAM_READ_LATENCY    = 0;
+ 
+ //-----------------------------------------------------------------
+ // AXI Interface
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cd677d8..241e15a 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -287,12 +287,12 @@ begin
+         next_state_r = STATE_IDLE;
+ 
+         // Another pending write request (with no refresh pending)
+-        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
+-        begin
+-            // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+-                next_state_r = STATE_WRITE0;
+-        end
++        // if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
++        // begin
++        //     // Open row hit
++        //     if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++        //         next_state_r = STATE_WRITE0;
++        // end
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index e9f4915..c2952f9 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -47,6 +47,8 @@ localparam CMD_LOAD_MODE     = 4'b0000;
+   wire [31:0] sdram_dq;
+   wire [3:0]  cmd;
+   reg last_ba2;
++  // word extend implements on ba, original ba[1:0],
++  // ba[2] is word extend bit.
+   wire ba2 ;
+   
+   always @(posedge clock) begin
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fd..dcb1e6e 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -38,19 +38,61 @@ module sdram_top_axi(
+   output        sdram_cas,
+   output        sdram_we,
+   output [12:0] sdram_a,
+-  output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 2:0] sdram_ba,
++  output [ 3:0] sdram_dqm,
++  inout  [15:0] sdram_dq_0,
++  inout  [15:0] sdram_dq_1,
++  inout  [15:0] sdram_dq_2,
++  inout  [15:0] sdram_dq_3
+ );
++//-----------------------------------------------------------------
++// Defines / Local params
++//-----------------------------------------------------------------
++localparam CMD_W             = 4;
++localparam CMD_NOP           = 4'b0111;
++localparam CMD_ACTIVE        = 4'b0011;
++localparam CMD_READ          = 4'b0101;
++localparam CMD_WRITE         = 4'b0100;
++localparam CMD_TERMINATE     = 4'b0110;
++localparam CMD_PRECHARGE     = 4'b0010;
++localparam CMD_REFRESH       = 4'b0001;
++localparam CMD_LOAD_MODE     = 4'b0000;
+ 
++//-----------------------------------------------------------------
++// Registers / Wires
++//-----------------------------------------------------------------
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  wire [31:0] sdram_dq;
++  wire [3:0]  cmd;
++  reg last_ba2;
++  // word extend implements on ba, original ba[1:0],
++  // ba[2] is word extend bit.
++  wire ba2 ;
++  
++  always @(posedge clock) begin
++    if (reset) begin
++      last_ba2 <= 1'b1;
++    end
++    if (cmd == CMD_WRITE || cmd == CMD_READ || cmd == CMD_ACTIVE)
++      last_ba2 <= sdram_ba[2];
++    else 
++      last_ba2 <= last_ba2;
++    end
++  
++  assign cmd = {sdram_cs,sdram_ras, sdram_cas, sdram_we};
++  assign ba2 = (cmd == CMD_WRITE || cmd == CMD_READ || cmd == CMD_ACTIVE) ?  sdram_ba[2] : last_ba2;
++  assign sdram_dq_0 = sdram_dout_en ? (!ba2 ? sdram_dout[15:0]  :16'bz) : 16'bz;
++  assign sdram_dq_1 = sdram_dout_en ? (!ba2 ? sdram_dout[31:16] :16'bz) : 16'bz;
++  assign sdram_dq_2 = sdram_dout_en ? ( ba2 ? sdram_dout[15:0]  :16'bz) : 16'bz;
++  assign sdram_dq_3 = sdram_dout_en ? ( ba2 ? sdram_dout[31:16] :16'bz) : 16'bz;
++  assign sdram_dq   = ba2 ? {sdram_dq_3,sdram_dq_2} : {sdram_dq_1,sdram_dq_0}  ;
++
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+-    .SDRAM_READ_LATENCY(2)
++    .SDRAM_READ_LATENCY(0)
+   ) u_sdram_axi(
+     .clk_i(clock),
+     .rst_i(reset),
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a..2913155 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.43.0
+

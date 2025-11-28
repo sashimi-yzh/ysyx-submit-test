@@ -1,0 +1,52 @@
+From 6b82ec13b18a185b5bf2d9a565966fc6974ea538 Mon Sep 17 00:00:00 2001
+From: kuikuikuizzZ <kimmmywu@gmail.com>
+Date: Thu, 25 Sep 2025 21:01:07 +0800
+Subject: [PATCH 19/23] chore(soc): update update-firtool.sh
+
+---
+ Makefile                | 4 ++--
+ patch/update-firtool.sh | 7 ++-----
+ 2 files changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index df3f120..4b93df3 100644
+--- a/Makefile
++++ b/Makefile
+@@ -18,8 +18,8 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
+ verilog: $(V_FILE_FINAL)
+-	cp $(V_FILE_FINAL) $(NPC_HOME)/build/
+-	cp -r $(wildcard $(SOC_HOME)/perip/*/*.v $(SOC_HOME)/perip/psram/efabless/*.v $(SOC_HOME)/perip/sdram/core_sdram_axi4/*.v )  $(NPC_HOME)/build/
++# 	cp $(V_FILE_FINAL) $(NPC_HOME)/build/
++# 	cp -r $(wildcard $(SOC_HOME)/perip/*/*.v $(SOC_HOME)/perip/psram/efabless/*.v $(SOC_HOME)/perip/sdram/core_sdram_axi4/*.v )  $(NPC_HOME)/build/
+ 
+ clean:
+ 	-rm -rf build/
+diff --git a/patch/update-firtool.sh b/patch/update-firtool.sh
+index 78c39f6..cc91e5a 100755
+--- a/patch/update-firtool.sh
++++ b/patch/update-firtool.sh
+@@ -50,7 +50,7 @@ update_firtool() {
+                 echo "Unsupported darwin architecture"
+                 echo "Please build firtool from source, see: https://github.com/llvm/circt?tab=readme-ov-file#setting-this-up"
+                 echo "Then copy the built firtool binary to $firtool_patch_dir/firtool-$firtool_update_version/bin/firtool"
+-                # exit 1
++                exit 1
+             else
+                 firtool_arch="macos-x64"
+             fi
+@@ -70,7 +70,4 @@ update_firtool() {
+ 
+ # Call update_firtool with version and patch directory
+ # e.g. update_firtool 1.105.0 `pwd`/patch/firtool
+-# update_firtool $1 $2
+-if $(uname -s) == "Linux"; then 
+-    update_firtool $1 $2
+-fi
+\ No newline at end of file
++update_firtool $1 $2
+\ No newline at end of file
+-- 
+2.43.0
+

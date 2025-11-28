@@ -1,0 +1,366 @@
+From ac30bd0b722782f8360fcbf57552beb5ac0f6760 Mon Sep 17 00:00:00 2001
+From: "wuwenhui.wuwh" <wuwenhui.wuwh@bytedance.com>
+Date: Tue, 5 Aug 2025 16:38:02 +0800
+Subject: [PATCH 10/23] feat(sdram): add word extend
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 11 ++-
+ perip/sdram/sdram_top_apb.v                  | 48 +++++++++--
+ src/device/SDRAM.scala                       | 87 +++++++++++++++-----
+ src/util/TriState.scala                      | 19 +++++
+ 4 files changed, 132 insertions(+), 33 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 70fc6fd..c021671 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -57,7 +57,7 @@ module sdram_axi_core
+     ,output          sdram_we_o
+     ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+-    ,output [  1:0]  sdram_ba_o
++    ,output [  2:0]  sdram_ba_o
+     ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+@@ -68,14 +68,14 @@ module sdram_axi_core
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ              = 50;
+-parameter SDRAM_ADDR_W           = 24;
++parameter SDRAM_ADDR_W           = 26;
+ parameter SDRAM_COL_W            = 9;
+ parameter SDRAM_READ_LATENCY     = 2;
+ 
+ //-----------------------------------------------------------------
+ // Defines / Local params
+ //-----------------------------------------------------------------
+-localparam SDRAM_BANK_W          = 2;
++localparam SDRAM_BANK_W          = 3;
+ localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+@@ -178,8 +178,8 @@ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
+ wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
+-wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+-wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+3+1];
++wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+3:SDRAM_COL_W+2-1];
+ 
+ //-----------------------------------------------------------------
+ // SDRAM State Machine
+@@ -498,7 +498,6 @@ begin
+     cke_q           <= 1'b0;
+     dqm_q           <= {SDRAM_DQM_W{1'b0}};
+     data_rd_en_q    <= 1'b1;
+-    dqm_buffer_q    <= {SDRAM_DQM_W{1'b0}};
+ 
+     for (idx=0;idx<SDRAM_BANKS;idx=idx+1)
+         active_row_q[idx] <= {SDRAM_ROW_W{1'b0}};
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 1e10e6e..e9f4915 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -19,19 +19,53 @@ module sdram_top_apb (
+   output        sdram_cas,
+   output        sdram_we,
+   output [12:0] sdram_a,
+-  output [ 1:0] sdram_ba,
++  output [ 2:0] sdram_ba,
+   output [ 3:0] sdram_dqm,
+   inout  [15:0] sdram_dq_0,
+-  inout  [15:0] sdram_dq_1
++  inout  [15:0] sdram_dq_1,
++  inout  [15:0] sdram_dq_2,
++  inout  [15:0] sdram_dq_3
+ );
++//-----------------------------------------------------------------
++// Defines / Local params
++//-----------------------------------------------------------------
++localparam CMD_W             = 4;
++localparam CMD_NOP           = 4'b0111;
++localparam CMD_ACTIVE        = 4'b0011;
++localparam CMD_READ          = 4'b0101;
++localparam CMD_WRITE         = 4'b0100;
++localparam CMD_TERMINATE     = 4'b0110;
++localparam CMD_PRECHARGE     = 4'b0010;
++localparam CMD_REFRESH       = 4'b0001;
++localparam CMD_LOAD_MODE     = 4'b0000;
+ 
++//-----------------------------------------------------------------
++// Registers / Wires
++//-----------------------------------------------------------------
+   wire sdram_dout_en;
+   wire [31:0] sdram_dout;
+   wire [31:0] sdram_dq;
+-  assign sdram_dq_0 = sdram_dout_en ? sdram_dout[15:0]  : 16'bz;
+-  assign sdram_dq_1 = sdram_dout_en ? sdram_dout[31:16] : 16'bz;
+-  assign sdram_dq   = {sdram_dq_1,sdram_dq_0};
+-
++  wire [3:0]  cmd;
++  reg last_ba2;
++  wire ba2 ;
++  
++  always @(posedge clock) begin
++    if (reset) begin
++      last_ba2 <= 1'b1;
++    end
++    if (cmd == CMD_WRITE || cmd == CMD_READ || cmd == CMD_ACTIVE)
++      last_ba2 <= sdram_ba[2];
++    else 
++      last_ba2 <= last_ba2;
++    end
++  
++  assign cmd = {sdram_cs,sdram_ras, sdram_cas, sdram_we};
++  assign ba2 = (cmd == CMD_WRITE || cmd == CMD_READ || cmd == CMD_ACTIVE) ?  sdram_ba[2] : last_ba2;
++  assign sdram_dq_0 = sdram_dout_en ? (!ba2 ? sdram_dout[15:0]  :16'bz) : 16'bz;
++  assign sdram_dq_1 = sdram_dout_en ? (!ba2 ? sdram_dout[31:16] :16'bz) : 16'bz;
++  assign sdram_dq_2 = sdram_dout_en ? ( ba2 ? sdram_dout[15:0]  :16'bz) : 16'bz;
++  assign sdram_dq_3 = sdram_dout_en ? ( ba2 ? sdram_dout[31:16] :16'bz) : 16'bz;
++  assign sdram_dq   = ba2 ? {sdram_dq_3,sdram_dq_2} : {sdram_dq_1,sdram_dq_0}  ;
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+   wire req_accept;
+@@ -51,7 +85,7 @@ module sdram_top_apb (
+   wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
+   sdram_axi_core #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(0)
+   ) u_sdram_ctrl(
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index 7382541..6b66a69 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -23,6 +23,7 @@ class SDRAMIO extends Bundle {
+   val ba  = Output(UInt(2.W))
+   val dqm = Output(UInt(2.W))
+   val b   = Output(Bool())
++  val w   = Output(Bool())
+   val dq  = Analog(16.W)
+ }
+ 
+@@ -34,9 +35,9 @@ class SDRAMPadIO extends Bundle {
+   val cas = Output(Bool())
+   val we  = Output(Bool())
+   val a   = Output(UInt(13.W))
+-  val ba  = Output(UInt(2.W))
++  val ba  = Output(UInt(3.W))
+   val dqm = Output(UInt(4.W))
+-  val dq = Vec(2,Analog(16.W))
++  val dq = Vec(4,Analog(16.W))
+ }
+ 
+ class sdramPmemIO extends Bundle {
+@@ -44,8 +45,9 @@ class sdramPmemIO extends Bundle {
+   val reset       = Input(Bool())
+   val row         = Input(UInt(13.W))
+   val col         = Input(UInt(9.W))
+-  val ba          = Input(UInt(2.W))
++  val ba          = Input(UInt(3.W))
+   val b           = Input(Bool())
++  val word        = Input(Bool())
+   val wen         = Input(Bool())
+   val ren         = Input(Bool())
+   val dqm         = Input(UInt(2.W))
+@@ -82,40 +84,43 @@ class sdramPmem extends BlackBox with HasBlackBoxInline {
+       |  input                wen,
+       |  input                ren,
+       |  input                b,
++      |  input                word,
+       |  input       [12:0]   row,
+       |  input       [8:0]    col,
+-      |  input       [1:0]    ba,
++      |  input       [2:0]    ba,
+       |  input       [1:0]    dqm,
+       |  input       [15:0]   wdata,
+       |  output reg  [15:0]   rdata
+       |);
+-      |import "DPI-C" function void sdram_read (input int bit_ext, input int row, input int col, input int ba, input int dqm , output int data);
+-      |import "DPI-C" function void sdram_write(input int bit_ext, input int row, input int col, input int ba, input int dqm , input int data);
++      |import "DPI-C" function void sdram_read (input int word_ext,input int bit_ext, input int row, input int col, input int ba, input int dqm , output int data);
++      |import "DPI-C" function void sdram_write(input int word_ext,input int bit_ext, input int row, input int col, input int ba, input int dqm , input int data);
+       |  wire [31:0] row_ext ;
+       |  wire [31:0] col_ext; 
+       |  wire [31:0] ba_ext; 
+       |  wire [31:0] dqm_ext;
+       |  wire [31:0] wdata_ext; 
+       |  wire [31:0] bit_ext;
++      |  wire [31:0] word_ext;
+       |  reg [31:0] rdata_ext;
+       |  
+       |  assign bit_ext   = {31'd0,b};
++      |  assign word_ext  = {31'd0,word};
+       |  assign row_ext   = {19'd0,row};
+       |  assign col_ext   = {23'd0,col};
+-      |  assign ba_ext    = {30'd0,ba};
++      |  assign ba_ext    = {29'd0,ba};
+       |  assign dqm_ext   = {30'd0,dqm};
+       |  assign wdata_ext = {16'd0,wdata};
+       |  assign rdata     = rdata_ext[15:0];
+       |  always @(*) begin
+       |    if (ren ) 
+-      |      sdram_read(bit_ext,row_ext,col_ext,ba_ext,dqm_ext, rdata_ext);
++      |      sdram_read(word_ext,bit_ext,row_ext,col_ext,ba_ext,dqm_ext, rdata_ext);
+       |    else
+       |      rdata_ext = 32'd0;
+       |  end
+       |  // always @(posedge clock) begin
+       |  always @(negedge clock) begin
+       |   if (wen)
+-      |      sdram_write(bit_ext,row_ext,col_ext,ba_ext,dqm_ext, wdata_ext);
++      |      sdram_write(word_ext,bit_ext,row_ext,col_ext,ba_ext,dqm_ext, wdata_ext);
+       |  end
+       |endmodule
+     """.stripMargin)
+@@ -130,30 +135,69 @@ class sdramPad extends RawModule{
+   
+   val sdram0 = Module(new sdramChisel)
+   val sdram1 = Module(new sdramChisel)
++  val sdram2 = Module(new sdramChisel)
++  val sdram3 = Module(new sdramChisel)
++
++  val cmd = Cat(io.cs,io.ras,io.cas,io.we)
++  val update_ba2 = cmd === SDRAM_CMD_WRITE || cmd === SDRAM_CMD_READ || cmd === SDRAM_CMD_ACTIVE
++  val is_load_mode = cmd === SDRAM_CMD_LOAD_MODE
++  val last_ba2 = SCKRegInit(false.B,io.clk,!io.cke)
++  val ba2 = Mux(update_ba2, io.ba(2),last_ba2)
++
++  last_ba2  := Mux(update_ba2, io.ba(2),last_ba2)
+ 
++  
+   sdram0.io.clk  := io.clk  
+   sdram0.io.cke  := io.cke  
+-  sdram0.io.cs   := io.cs    
++  sdram0.io.cs   := (io.cs || ba2) && !is_load_mode  
+   sdram0.io.ras  := io.ras  
+   sdram0.io.cas  := io.cas  
+   sdram0.io.we   := io.we    
+   sdram0.io.a    := io.a    
+-  sdram0.io.ba   := io.ba    
++  sdram0.io.ba   := io.ba(1,0)
++  sdram0.io.w    := ba2  
+   sdram0.io.b    := 0.U 
+   sdram0.io.dqm  := io.dqm(1,0)  
+   sdram0.io.dq   <> io.dq(0)
+ 
+   sdram1.io.clk  := io.clk  
+   sdram1.io.cke  := io.cke  
+-  sdram1.io.cs   := io.cs    
++  sdram1.io.cs   := (io.cs || ba2) && !is_load_mode  
+   sdram1.io.ras  := io.ras  
+   sdram1.io.cas  := io.cas  
+   sdram1.io.we   := io.we    
+   sdram1.io.a    := io.a    
+-  sdram1.io.ba   := io.ba   
+-  sdram1.io.b   := 1.U 
++  sdram1.io.ba   := io.ba(1,0)
++  sdram1.io.w    := ba2
++  sdram1.io.b    := 1.U 
+   sdram1.io.dqm  := io.dqm(3,2) 
+   sdram1.io.dq   <> io.dq(1)
++
++  sdram2.io.clk  := io.clk  
++  sdram2.io.cke  := io.cke  
++  sdram2.io.cs   := (io.cs || !ba2) && !is_load_mode  
++  sdram2.io.ras  := io.ras  
++  sdram2.io.cas  := io.cas  
++  sdram2.io.we   := io.we    
++  sdram2.io.a    := io.a    
++  sdram2.io.ba   := io.ba(1,0)
++  sdram2.io.w    := ba2
++  sdram2.io.b    := 0.U 
++  sdram2.io.dqm  := io.dqm(1,0)  
++  sdram2.io.dq   <> io.dq(2)
++
++  sdram3.io.clk  := io.clk  
++  sdram3.io.cke  := io.cke  
++  sdram3.io.cs   := (io.cs || !ba2) && !is_load_mode  
++  sdram3.io.ras  := io.ras  
++  sdram3.io.cas  := io.cas  
++  sdram3.io.we   := io.we    
++  sdram3.io.a    := io.a    
++  sdram3.io.ba   := io.ba(1,0)
++  sdram3.io.w    := ba2
++  sdram3.io.b    := 1.U 
++  sdram3.io.dqm  := io.dqm(3,2) 
++  sdram3.io.dq   <> io.dq(3)
+ }
+ 
+ class sdramChisel (read_max_length:Int = 4) extends RawModule {
+@@ -183,7 +227,7 @@ class sdramChisel (read_max_length:Int = 4) extends RawModule {
+   // val dq              =     SCKRegInit(0.U(16.W),io.clk,reset)
+ 
+   val read_col_vec    =     NegReg(Vec(read_max_length,UInt(9.W)),io.clk,reset)
+-  val read_ba_vec     =     NegReg(Vec(read_max_length,UInt(2.W)),io.clk,reset)
++  val read_ba_vec     =     NegReg(Vec(read_max_length,UInt(3.W)),io.clk,reset)
+   val read_cmd_vec    =     NegReg(Vec(read_max_length,UInt(4.W)),io.clk,reset)
+   val read_dqm_vec    =     NegReg(Vec(read_max_length,UInt(2.W)),io.clk,reset)
+   val read_valid_vec  =     NegReg(Vec(read_max_length,Bool()),io.clk,reset)
+@@ -210,8 +254,8 @@ class sdramChisel (read_max_length:Int = 4) extends RawModule {
+  
+   val ren            =  state === s_read && read_bl_vec(read_cas) =/= 0.U
+   val wen            =  (is_write) || ( last_write   && bl_cnt =/= 0.U)
+-  val ba             =  Mux(is_read || state === s_read,read_ba_vec(read_cas),  io.ba)
+-  val dqm            =  Mux(is_read || state === s_read,read_dqm_vec(read_cas), io.dqm)
++  val ba             =  Mux(is_write, io.ba, Mux(is_read || state === s_read,read_ba_vec(read_cas),io.ba))
++  val dqm            =  Mux(is_write, io.dqm, Mux(is_read || state === s_read,read_dqm_vec(read_cas), io.dqm))
+   val read_cmd       =  Mux(is_read || state === s_read,read_cmd_vec(read_cas), cmd)
+   val w_offset       =  Mux(is_write, 0.U, burst_length - bl_cnt)     
+   val r_offset       =  burst_length-read_bl_vec(read_cas)
+@@ -226,15 +270,18 @@ class sdramChisel (read_max_length:Int = 4) extends RawModule {
+   row               :=  Mux(is_active    , io.a,      row) 
+   col_reg           :=  Mux(is_write || is_read, io.a(8,0), col_reg)
+   last_cmd          :=  Mux(is_nop,last_cmd,cmd)
++  read_bl           :=  Mux(is_read, burst_length, 
++                            Mux(read_bl_vec(0) === 0.U, 0.U,read_bl_vec(0)-1.U)) 
++
+   read_valid_vec    :=  Mux(state === s_read || is_read, VecInit(!is_nop +:read_valid_vec.init  ),  VecInit(Seq.fill(read_max_length)(false.B)))
+   read_cmd_vec      :=  Mux(state === s_read || is_read, VecInit( cmd    +:read_cmd_vec.init    )   ,  VecInit(Seq.fill(read_max_length)(0.U(4.W))))
+   read_dqm_vec      :=  Mux(state === s_read || is_read, VecInit(io.dqm  +:read_dqm_vec.init    ) ,  VecInit(Seq.fill(read_max_length)(0.U(2.W))))
+-  read_ba_vec       :=  Mux(state === s_read || is_read, VecInit(io.ba   +:read_ba_vec.init     )  ,  VecInit(Seq.fill(read_max_length)(0.U(2.W))))
++  read_ba_vec       :=  Mux(state === s_read || is_read, VecInit(io.ba   +:read_ba_vec.init     )  ,  VecInit(Seq.fill(read_max_length)(0.U(3.W))))
+   read_col_vec      :=  Mux(state === s_read || is_read, VecInit(read_col   +:read_col_vec.init)    ,  VecInit(Seq.fill(read_max_length)(0.U(9.W))))
+   read_bl_vec       :=  Mux(state === s_read || is_read, VecInit(read_bl  +:read_bl_vec.init     )  ,  VecInit(Seq.fill(read_max_length)(0.U(3.W))))
+-  read_bl           :=  Mux(is_read, burst_length, 
+-                            Mux(read_bl_vec(0) === 0.U, 0.U,read_bl_vec(0)-1.U)) 
++  
+   pmem.io.b       := io.b
++  pmem.io.word    := io.w 
+   pmem.io.row     := row
+   pmem.io.col     := col + offset
+   pmem.io.ba      := ba
+diff --git a/src/util/TriState.scala b/src/util/TriState.scala
+index 16e687f..99627b9 100644
+--- a/src/util/TriState.scala
++++ b/src/util/TriState.scala
+@@ -36,3 +36,22 @@ object TriStateInBuf {
+     buf.io.din
+   }
+ }
++
++class AnalogSwitch extends Module {
++  val io = IO(new Bundle {
++    val sel      = Input(Bool())               // 选择信号
++    val analogIn = Vec(2, Analog(16.W)) // 两组输入信号
++    val analogOut = Analog(16.W)               // 输出信号
++  })
++
++  // 禁止未选中的输入驱动总线
++  io.analogIn(0) <> DontCare
++  io.analogIn(1) <> DontCare
++
++  // 条件连接：仅选中的输入与输出连通
++  when (io.sel) {
++    io.analogIn(1) <> io.analogOut  // sel=true 时连接第二路
++  } .otherwise {
++    io.analogIn(0) <> io.analogOut  // sel=false 时连接第一路
++  }
++}
+-- 
+2.43.0
+
