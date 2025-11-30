@@ -1,0 +1,90 @@
+From f8d2fb80c652906c093103e43ba4f1df2576d05b Mon Sep 17 00:00:00 2001
+From: 11111-dongfengjun <dongfengjun2024@163.com>
+Date: Mon, 13 Oct 2025 13:05:50 +0800
+Subject: [PATCH 3/3] CI
+
+---
+ bsp/abstract-machine/src/context.c | 48 +++++++++++++-----------------
+ 1 file changed, 21 insertions(+), 27 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index e74ab8af6..76070d045 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -3,18 +3,17 @@
+ #include <rtthread.h>
+ 
+ static Context* event_handler(Event e, Context *c) {
+-  rt_thread_t current_thread = rt_thread_self();
+-  uintptr_t *saved_context_ptr; 
+   switch (e.event) {
+     case EVENT_YIELD:
+-      rt_ubase_t *thread_data = (rt_ubase_t *)current_thread->user_data;  
+-      if(thread_data[2] != 0) {
+-				saved_context_ptr = (uintptr_t *)thread_data[2];
+-        *saved_context_ptr = (uintptr_t)c;
+-      }      
+-      current_thread->user_data = thread_data[0];
+-			c = (Context *)*(uintptr_t *)thread_data[1];
+-      break;
++			rt_thread_t cp = rt_thread_self();
++			rt_ubase_t *user_data = (rt_ubase_t *)cp->user_data;
++			rt_ubase_t to = user_data[0];
++			rt_ubase_t from = user_data[1];
++			if(from != 0) {
++				*(uintptr_t *)from = (uintptr_t)c;
++			}
++			c = *(Context **)to;
++			break;
+ 		case EVENT_ERROR:
+ 			break;
+     default:
+@@ -29,25 +28,20 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-    rt_thread_t current_thread = rt_thread_self();
+-    rt_ubase_t *thread_switch_data = (rt_ubase_t *)((Context *)to - 2);
+-    thread_switch_data[0] = current_thread->user_data;
+-    thread_switch_data[1] = to;
+-    thread_switch_data[2] = 0;
+-    current_thread->user_data = (rt_ubase_t)thread_switch_data;
+-    
+-    yield();
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t user_data_replicator = pcb->user_data;
++  pcb->user_data = (rt_ubase_t)&to;
++  yield();
++  pcb->user_data = user_data_replicator;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-    rt_thread_t current_thread = rt_thread_self();
+-    rt_ubase_t *thread_switch_data = (rt_ubase_t *)((Context *)to - 2);
+-    thread_switch_data[0] = current_thread->user_data;
+-    thread_switch_data[1] = to;
+-    thread_switch_data[2] = from;
+-    current_thread->user_data = (rt_ubase_t)thread_switch_data;
+-    
+-    yield();
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t user_data_replicator = pcb->user_data;
++	rt_ubase_t switch_data[2] = {to,from};
++	pcb->user_data = (rt_ubase_t)&switch_data;
++  yield();
++  pcb->user_data = user_data_replicator;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+@@ -55,7 +49,7 @@ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t t
+ }
+ 
+ void wrap(void *arg) {
+-    uintptr_t *args = (uintptr_t *)arg;
++		uintptr_t *args = (uintptr_t *)arg;
+     void (*tentry)(void *) = (void (*)(void *))args[0];
+     void *parameter = (void *)args[1];
+     void (*texit)() = (void (*)())args[2];
+-- 
+2.43.0
+

@@ -1,0 +1,25 @@
+From 9504e359434bfac14713f7de15c4b7735427c800 Mon Sep 17 00:00:00 2001
+From: 11111-dongfengjun <dongfengjun2024@163.com>
+Date: Sun, 21 Sep 2025 19:18:55 +0800
+Subject: [PATCH 2/3] CI
+
+---
+ bsp/abstract-machine/src/uart.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 8a1178a69..134b5b562 100755
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -38,7 +38,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";//添加命令启动AM程序
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";//添加命令启动AM程序
+   return (*p != '\0' ? *(p ++) : io_read(AM_UART_CONFIG).present ? io_read(AM_UART_RX).data : -1);
+ }
+ 
+-- 
+2.43.0
+
