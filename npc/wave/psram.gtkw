@@ -1,0 +1,216 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Thu Aug 28 04:54:50 2025
+[*]
+[dumpfile] "/home/yunhai/ysyx-workbench/npc/waveform.fst"
+[dumpfile_mtime] "Thu Aug 28 04:54:36 2025"
+[dumpfile_size] 28548
+[savefile] "/home/yunhai/ysyx-workbench/npc/psram.gtkw"
+[timestart] 0
+[size] 1858 1001
+[pos] -51 -51
+*-6.651088 242 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.ysyxSoCFull.
+[treeopen] TOP.ysyxSoCFull.asic.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.
+[treeopen] TOP.ysyxSoCFull.asic.lpsram.
+[treeopen] TOP.ysyxSoCFull.asic.lpsram.mpsram.
+[treeopen] TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.
+[sst_width] 482
+[signals_width] 341
+[sst_expanded] 1
+[sst_vpaned_height] 298
+@28
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.rst_i
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.reset
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_IF.clk
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_IF.pc[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_IF.inst_o[31:0]
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_araddr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_arvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_rdata[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_rvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_awaddr[31:0]
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_wdata[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_awvalid
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_bvalid
+@200
+-
+@800200
+-psram apb controller
+@22
+TOP.ysyxSoCFull.asic.lpsram.auto_in_paddr[31:0]
+@28
+TOP.ysyxSoCFull.asic.lpsram.auto_in_psel
+TOP.ysyxSoCFull.asic.lpsram.auto_in_penable
+@22
+TOP.ysyxSoCFull.asic.lpsram.auto_in_prdata[31:0]
+@28
+TOP.ysyxSoCFull.asic.lpsram.auto_in_pready
+TOP.ysyxSoCFull.asic.lpsram.auto_in_pslverr
+@c00022
+TOP.ysyxSoCFull.asic.lpsram.auto_in_pstrb[3:0]
+@28
+(0)TOP.ysyxSoCFull.asic.lpsram.auto_in_pstrb[3:0]
+(1)TOP.ysyxSoCFull.asic.lpsram.auto_in_pstrb[3:0]
+(2)TOP.ysyxSoCFull.asic.lpsram.auto_in_pstrb[3:0]
+(3)TOP.ysyxSoCFull.asic.lpsram.auto_in_pstrb[3:0]
+@1401200
+-group_end
+@c00022
+TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+@28
+(0)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(1)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(2)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(3)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(4)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(5)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(6)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(7)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(8)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(9)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(10)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(11)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(12)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(13)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(14)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(15)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(16)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(17)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(18)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(19)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(20)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(21)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(22)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(23)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(24)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(25)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(26)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(27)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(28)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(29)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(30)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+(31)TOP.ysyxSoCFull.asic.lpsram.auto_in_pwdata[31:0]
+@1401200
+-group_end
+@28
+TOP.ysyxSoCFull.asic.lpsram.auto_in_pwrite
+TOP.ysyxSoCFull.asic.lpsram.clock
+TOP.ysyxSoCFull.asic.lpsram.qspi_bundle_ce_n
+@c00022
+TOP.ysyxSoCFull.asic.lpsram.qspi_bundle_dio[3:0]
+@28
+(0)TOP.ysyxSoCFull.asic.lpsram.qspi_bundle_dio[3:0]
+(1)TOP.ysyxSoCFull.asic.lpsram.qspi_bundle_dio[3:0]
+(2)TOP.ysyxSoCFull.asic.lpsram.qspi_bundle_dio[3:0]
+(3)TOP.ysyxSoCFull.asic.lpsram.qspi_bundle_dio[3:0]
+@1401200
+-group_end
+@28
+TOP.ysyxSoCFull.asic.lpsram.qspi_bundle_sck
+TOP.ysyxSoCFull.asic.lpsram.reset
+@1000200
+-psram apb controller
+@200
+-
+@24
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MR.counter[7:0]
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MR.byte_index[1:0]
+@28
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.clk
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.wb_we
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.mw_done
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.wb_valid
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.state
+@200
+-
+@24
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.size[2:0]
+@28
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.sck
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.ce_n
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.wr
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.done
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.state
+@24
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.counter[7:0]
+@28
+TOP.ysyxSoCFull.asic.lpsram.mpsram.u0.MW.done
+@800200
+-psram
+@28
+TOP.ysyxSoCFull.psram.sck
+TOP.ysyxSoCFull.psram.ce_n
+@c00022
+TOP.ysyxSoCFull.psram.dio[3:0]
+@28
+(0)TOP.ysyxSoCFull.psram.dio[3:0]
+(1)TOP.ysyxSoCFull.psram.dio[3:0]
+(2)TOP.ysyxSoCFull.psram.dio[3:0]
+(3)TOP.ysyxSoCFull.psram.dio[3:0]
+@1401200
+-group_end
+@22
+TOP.ysyxSoCFull.psram.control[3:0]
+TOP.ysyxSoCFull.psram.counter[3:0]
+@28
+TOP.ysyxSoCFull.psram.state[2:0]
+TOP.ysyxSoCFull.psram.is_qpi
+@22
+TOP.ysyxSoCFull.psram.cmd[7:0]
+TOP.ysyxSoCFull.psram.addr[23:0]
+@c00023
+TOP.ysyxSoCFull.psram.data[31:0]
+@29
+(0)TOP.ysyxSoCFull.psram.data[31:0]
+(1)TOP.ysyxSoCFull.psram.data[31:0]
+(2)TOP.ysyxSoCFull.psram.data[31:0]
+(3)TOP.ysyxSoCFull.psram.data[31:0]
+(4)TOP.ysyxSoCFull.psram.data[31:0]
+(5)TOP.ysyxSoCFull.psram.data[31:0]
+(6)TOP.ysyxSoCFull.psram.data[31:0]
+(7)TOP.ysyxSoCFull.psram.data[31:0]
+(8)TOP.ysyxSoCFull.psram.data[31:0]
+(9)TOP.ysyxSoCFull.psram.data[31:0]
+(10)TOP.ysyxSoCFull.psram.data[31:0]
+(11)TOP.ysyxSoCFull.psram.data[31:0]
+(12)TOP.ysyxSoCFull.psram.data[31:0]
+(13)TOP.ysyxSoCFull.psram.data[31:0]
+(14)TOP.ysyxSoCFull.psram.data[31:0]
+(15)TOP.ysyxSoCFull.psram.data[31:0]
+(16)TOP.ysyxSoCFull.psram.data[31:0]
+(17)TOP.ysyxSoCFull.psram.data[31:0]
+(18)TOP.ysyxSoCFull.psram.data[31:0]
+(19)TOP.ysyxSoCFull.psram.data[31:0]
+(20)TOP.ysyxSoCFull.psram.data[31:0]
+(21)TOP.ysyxSoCFull.psram.data[31:0]
+(22)TOP.ysyxSoCFull.psram.data[31:0]
+(23)TOP.ysyxSoCFull.psram.data[31:0]
+(24)TOP.ysyxSoCFull.psram.data[31:0]
+(25)TOP.ysyxSoCFull.psram.data[31:0]
+(26)TOP.ysyxSoCFull.psram.data[31:0]
+(27)TOP.ysyxSoCFull.psram.data[31:0]
+(28)TOP.ysyxSoCFull.psram.data[31:0]
+(29)TOP.ysyxSoCFull.psram.data[31:0]
+(30)TOP.ysyxSoCFull.psram.data[31:0]
+(31)TOP.ysyxSoCFull.psram.data[31:0]
+@1401201
+-group_end
+@22
+TOP.ysyxSoCFull.psram.rdata[31:0]
+@1000200
+-psram
+@200
+-
+[pattern_trace] 1
+[pattern_trace] 0

@@ -1,0 +1,92 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Sun Nov 30 11:52:30 2025
+[*]
+[dumpfile] "/home/yunhai/ysyx-workbench/npc/wave/waveform.fst"
+[dumpfile_mtime] "Sun Nov 30 05:35:54 2025"
+[dumpfile_size] 45693581
+[savefile] "/home/yunhai/ysyx-workbench/npc/wave/ps2.gtkw"
+[timestart] 0
+[size] 2560 1333
+[pos] -27 -24
+*-6.600000 261 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.ysyxSoCFull.
+[treeopen] TOP.ysyxSoCFull.asic.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.
+[treeopen] TOP.ysyxSoCFull.asic.lkeyboard.
+[sst_width] 486
+[signals_width] 322
+[sst_expanded] 1
+[sst_vpaned_height] 563
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.clock
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_araddr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_arvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_rdata[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_rvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_awaddr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_awvalid
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_bvalid
+@200
+-
+@28
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.clock
+@29
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.ps2_clk
+@28
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.ps2_data
+@22
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[0][7:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[1][7:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[2][7:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[3][7:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[4][7:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[5][7:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[6][7:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.fifo[7][7:0]
+@24
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.w_ptr[3:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.r_ptr[3:0]
+@28
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.valid
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.ps2_clk_d[2:0]
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.sampling
+@c00022
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.count[3:0]
+@28
+(0)TOP.ysyxSoCFull.asic.lkeyboard.mps2.count[3:0]
+(1)TOP.ysyxSoCFull.asic.lkeyboard.mps2.count[3:0]
+(2)TOP.ysyxSoCFull.asic.lkeyboard.mps2.count[3:0]
+(3)TOP.ysyxSoCFull.asic.lkeyboard.mps2.count[3:0]
+@1401200
+-group_end
+@200
+-
+@800022
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+@28
+(0)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(1)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(2)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(3)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(4)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(5)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(6)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(7)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(8)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+(9)TOP.ysyxSoCFull.asic.lkeyboard.mps2.buffer[9:0]
+@1001202
+-group_end
+@28
+TOP.ysyxSoCFull.asic.lkeyboard.mps2.reset
+[pattern_trace] 1
+[pattern_trace] 0

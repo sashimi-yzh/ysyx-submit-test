@@ -1,0 +1,40 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Thu Nov 27 15:02:53 2025
+[*]
+[dumpfile] "/home/yunhai/ysyx-workbench/npc/wave/waveform.vcd"
+[dumpfile_mtime] "Thu Nov 27 14:50:54 2025"
+[dumpfile_size] 277323
+[savefile] "/home/yunhai/ysyx-workbench/npc/wave/network.gtkw"
+[timestart] 46580
+[size] 2560 1333
+[pos] -27 -24
+*-12.900001 881100 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_fullsoc.
+[treeopen] tb_fullsoc.u_dut.
+[treeopen] tb_fullsoc.u_dut.u_ysyx_25050136.
+[treeopen] tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.
+[treeopen] tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.
+[sst_width] 443
+[signals_width] 193
+[sst_expanded] 1
+[sst_vpaned_height] 414
+@22
+tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.if_ic_pc[31:0]
+tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.ic_id_pc[31:0]
+tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.id_ex_pc[31:0]
+@28
+tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.if_flush[0]
+@200
+-
+@29
+tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_ICACHE.ic_idle[0]
+@200
+-
+-
+@22
+tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_IMEM2AXI.real_addr[31:0]
+@28
+tb_fullsoc.u_dut.u_ysyx_25050136.u_ysyx_25050136_NPC.u_ysyx_25050136_IMEM2AXI.m_arvalid_o[0]
+[pattern_trace] 1
+[pattern_trace] 0

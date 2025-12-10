@@ -1,0 +1,65 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Mon Dec  8 05:30:29 2025
+[*]
+[dumpfile] "/home/yunhai/ysyx-workbench/npc/wave/a.fst"
+[dumpfile_mtime] "Mon Dec  8 05:22:55 2025"
+[dumpfile_size] 5500428
+[savefile] "/home/yunhai/ysyx-workbench/npc/wave/moretest.gtkw"
+[timestart] 1660000000
+[size] 2560 1333
+[pos] -27 -24
+*0.000000 1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] asic_system.
+[treeopen] asic_system.u_asic_top.
+[treeopen] asic_system.u_asic_top.u_soc0_top.
+[sst_width] 297
+[signals_width] 174
+[sst_expanded] 1
+[sst_vpaned_height] 414
+@c00200
+-cpu
+@800200
+-if
+@1000200
+-if
+@800200
+-ic
+@1000200
+-ic
+@800200
+-id
+@1000200
+-id
+@800200
+-ex
+@1000200
+-ex
+@800200
+-wb
+@1000200
+-wb
+@1401200
+-cpu
+@c00200
+-axi4
+@800200
+-inst
+@1000200
+-inst
+@800200
+-mem_r
+@1000200
+-mem_r
+@800200
+-top_r
+@1000200
+-top_r
+@800200
+-mem_w
+@1000200
+-mem_w
+@1401200
+-axi4
+[pattern_trace] 1
+[pattern_trace] 0
