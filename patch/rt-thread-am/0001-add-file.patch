@@ -1,0 +1,265 @@
+From c339746e25a05b50eafd21692db7f10508208146 Mon Sep 17 00:00:00 2001
+From: 221220000-Zhang San <zhangsan@foo.com>
+Date: Thu, 2 Oct 2025 16:49:37 +0800
+Subject: [PATCH] "add file"
+
+---
+ bsp/abstract-machine/Makefile         |  4 +-
+ bsp/abstract-machine/extra_ysyxsoc.ld | 59 +++++++++++++++++
+ bsp/abstract-machine/src/context.c    | 93 ++++++++++++++++++++++++---
+ bsp/abstract-machine/src/uart.c       | 18 +++++-
+ 4 files changed, 159 insertions(+), 15 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra_ysyxsoc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..c40343207 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,7 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++LDFLAGS += -T $(if $(findstring ysyxSoC,$(ARCH)),extra_ysyxsoc.ld,extra.ld)
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+@@ -37,4 +37,4 @@ $(AM_APPS_MK): integrate-am-apps.py
+ 	python3 $^ ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE)
+ endif
+ 
+-.PHONY: init menuconfig update
++.PHONY: init menuconfig update
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/extra_ysyxsoc.ld b/bsp/abstract-machine/extra_ysyxsoc.ld
+new file mode 100644
+index 000000000..1652f6cf3
+--- /dev/null
++++ b/bsp/abstract-machine/extra_ysyxsoc.ld
+@@ -0,0 +1,59 @@
++MEMORY {
++  sram  : ORIGIN = 0x0f000000, LENGTH = 8K
++  mrom  : ORIGIN = 0x20000000, LENGTH = 4K
++  flash : ORIGIN = 0x30000000, LENGTH = 16M
++  psram : ORIGIN = 0x80000000, LENGTH = 4M
++  sdram : ORIGIN = 0xa0000000, LENGTH = 64M
++}
++
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } > sdram AT> flash
++  _data_extra_start_VMA = ADDR(.data.extra);
++  _data_extra_end_VMA = _data_extra_start_VMA + SIZEOF(.data.extra);
++  _data_extra_start_LMA = LOADADDR(.data.extra);
++  _data_extra_end_LMA = _data_extra_start_LMA + SIZEOF(.data.extra);
++}
++INSERT AFTER .data;
++
++SECTIONS {
++  .bss.extra (NOLOAD) : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > sdram
++  _bss_extra_start = ADDR(.bss.extra);
++  _bss_extra_end = _bss_extra_start + SIZEOF(.bss.extra);
++}
++INSERT AFTER .bss;
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..f4d4f803a 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -1,31 +1,104 @@
++
+ #include <am.h>
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-static Context* ev_handler(Event e, Context *c) {
++typedef struct CallContext {
++  void *tentry;
++  void *parameter;
++  void *texit;
++} CallContext_t;
++
++static void kthread(void *arg) {
++  CallContext_t * ctx = arg;
++  ((void (*)(void *))(ctx->tentry))(ctx->parameter); //转换为函数指针
++  ((void (*)(void))(ctx->texit))();
++  while (1) {
++    ;
++  }
++}
++
++static Context *ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++  case EVENT_YIELD:
++    rt_thread_t current = rt_thread_self();
++    rt_ubase_t *data = (rt_ubase_t *)current->user_data;
++    rt_ubase_t to = data[1];
++    rt_ubase_t from = data[0];
++    if (from != 0) {
++      *((Context **)from) = c;
++    }
++    c = *((Context **)to);
++    break;
++  case EVENT_IRQ_TIMER:
++    break;
++  default:
++    printf("Unhandled event ID = %d\n", e.event);
++    assert(0);
+   }
+   return c;
+ }
+ 
+-void __am_cte_init() {
+-  cte_init(ev_handler);
++void __am_cte_init(void) { 
++  cte_init(ev_handler); 
+ }
+-
++/*
++to和from都是指向上下文指针变量的指针(二级指针). rt_hw_context_switch_to()用于切换到to指向的上下文指针
++变量所指向的上下文, 而rt_hw_context_switch()还需要额外将当前上下文的指针写入from指向的上下文指针变量中. 
++为了进行切换, 我们可以通过yield()触发一次自陷, 在事件处理回调函数ev_handler()中识别出EVENT_YIELD事件后, 
++再处理to和from. 同样地, 我们需要思考如何将to和from这两个参数传给ev_handler()
++*/
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_ubase_t temp;
++  rt_ubase_t data[2];
++  rt_thread_t current = rt_thread_self();
++  temp = current->user_data;
++  data[0] = 0;
++  data[1] = to;
++  current->user_data = (rt_ubase_t)data;
++  yield();
++  current->user_data = temp;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_ubase_t temp;
++  rt_ubase_t data[2];
++  rt_thread_t current = rt_thread_self();
++  temp = current->user_data;
++  data[0] = from;
++  data[1] = to;
++  current->user_data = (rt_ubase_t)data;
++  yield();
++  current->user_data = temp;
+ }
+ 
++
++
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+-
++/*
++以stack_addr为栈底创建一个入口为tentry, 参数为parameter的上下文, 并返回这个上下文结构的指针. 
++此外, 若上下文对应的内核线程从tentry返回, 则调用texit, RT-Thread会保证代码不会从texit中返回
++*/
++/*
++CTE的kcontext()要求不能从入口返回, 因此需要一种新的方式来支持texit的功能. 一种方式是构造一个包
++裹函数, 让包裹函数来调用tentry, 并在tentry返回后调用texit, 然后将这个包裹函数作为kcontext()的真正入口
++*/
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  uintptr_t aligned_addr = (uintptr_t)stack_addr;
++  aligned_addr &= ~(sizeof(uintptr_t) - 1); // 向下对齐到 sizeof(uintptr_t)
++  rt_uint8_t *sp = (rt_uint8_t *)aligned_addr;
++  sp -= sizeof(CallContext_t);
++
++  CallContext_t * callCtx = (CallContext_t *)sp;
++  *callCtx = (CallContext_t){
++      .tentry = tentry,
++      .parameter = parameter,
++      .texit = texit,
++  };
++
++  Context * ctx = kcontext((Area){.start = NULL, .end = sp}, kthread, callCtx);
++
++  return (rt_uint8_t *)ctx;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..5b2fe28ad 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -36,11 +37,22 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+   return 1;
+ }
+ 
++
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
+-}
+ 
++  static bool exhausted = false;
++
++  if (exhausted) {
++    return io_read(AM_UART_RX).data;
++  }
++  if (*p != '\0') {
++    return *(p++);
++  } else {
++    exhausted = true;
++    return io_read(AM_UART_RX).data;
++  }
++}
+ const struct rt_uart_ops _uart_ops = {
+   _uart_configure,
+   _uart_control,
+@@ -76,4 +88,4 @@ int rt_hw_uart_init(void) {
+ /* WEAK for SDK 0.5.6 */
+ rt_weak void uart_debug_init(int uart_channel)
+ {
+-}
++}
+\ No newline at end of file
+-- 
+2.34.1
+
