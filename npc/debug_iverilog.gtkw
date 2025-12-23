@@ -1,0 +1,262 @@
+[*]
+[*] GTKWave Analyzer v3.3.104 (w)1999-2020 BSI
+[*] Mon Oct  6 09:26:57 2025
+[*]
+[dumpfile] "(null)"
+[savefile] "/home/yangpengcheng/桌面/debug_iverilog.gtkw"
+[timestart] 96366
+[size] 1920 1029
+[pos] -1 -1
+*-3.229252 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_top.
+[treeopen] tb_top.cpu.
+[treeopen] tb_top.cpu.core.
+[treeopen] tb_top.cpu.core.exu.
+[treeopen] tb_top.cpu.core.idu.
+[treeopen] tb_top.cpu.core.isu.
+[sst_width] 335
+[signals_width] 423
+[sst_expanded] 1
+[sst_vpaned_height] 293
+@28
+tb_top.cpu.clock
+tb_top.cpu.reset
+@200
+-
+@22
+tb_top.mem.mem_axi_araddr[31:0]
+@28
+tb_top.mem.mem_axi_arvalid
+tb_top.mem.mem_axi_arready
+@22
+tb_top.mem.mem_axi_rdata[31:0]
+@28
+tb_top.mem.mem_axi_rvalid
+tb_top.mem.mem_axi_rready
+@200
+-
+@22
+tb_top.mem.mem_axi_awaddr[31:0]
+@28
+tb_top.mem.mem_axi_awvalid
+tb_top.mem.mem_axi_awready
+tb_top.mem.mem_axi_bvalid
+tb_top.mem.mem_axi_bready
+@200
+-
+@28
+tb_top.cpu.xbar.isdmem
+tb_top.cpu.xbar.isimem
+@200
+-
+-IFU
+@28
+tb_top.cpu.core.ifu.io_pipe_in_valid
+tb_top.cpu.core.ifu.io_pipe_in_ready
+@22
+[color] 2
+tb_top.cpu.core.ifu.io_pipe_out_bits_if2id_inst[31:0]
+[color] 2
+tb_top.cpu.core.ifu.io_pipe_out_bits_if2id_reg_pc[31:0]
+@28
+tb_top.cpu.core.ifu.io_pipe_out_valid
+tb_top.cpu.core.ifu.io_pipe_out_ready
+@24
+[color] 3
+tb_top.cpu.core.ifu.c_state[2:0]
+[color] 3
+tb_top.cpu.core.ifu.n_state[2:0]
+@200
+-
+-
+-IDU
+@28
+tb_top.cpu.core.idu.io_pipe_in_valid
+tb_top.cpu.core.idu.io_pipe_in_ready
+@22
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_bjtpe[3:0]
+@28
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_ch1tpe
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_ch2tpe[1:0]
+@22
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_csr_addr[11:0]
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_imm[31:0]
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_processtpe[3:0]
+@28
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_processunit[2:0]
+@22
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_rd_addr[3:0]
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_reg_pc[31:0]
+@28
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_rfwe
+@22
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_rs1_addr[3:0]
+tb_top.cpu.core.idu.io_pipe_out_bits_id2is_rs2_addr[3:0]
+@28
+tb_top.cpu.core.idu.io_pipe_out_valid
+tb_top.cpu.core.idu.io_pipe_out_ready
+@22
+[color] 2
+tb_top.cpu.core.idu.io_pipe_out_bits_diff_inst[31:0]
+[color] 2
+tb_top.cpu.core.idu.io_pipe_out_bits_diff_pc[31:0]
+@200
+-
+-
+-DEBUG
+@28
+tb_top.cpu.core.isu.gpr_ext.R0_en
+@22
+tb_top.cpu.core.isu.gpr_ext.R0_addr[3:0]
+tb_top.cpu.core.isu._gpr_ext_R0_data[31:0]
+tb_top.cpu.core.isu.rs2_data[31:0]
+@200
+-
+@28
+tb_top.cpu.core.isu.gpr_ext.R1_en
+@22
+tb_top.cpu.core.isu.gpr_ext.R1_addr[3:0]
+tb_top.cpu.core.isu._gpr_ext_R1_data[31:0]
+tb_top.cpu.core.isu.rs1_data[31:0]
+@200
+-
+@22
+tb_top.cpu.core.isu.io_pipe_in_bits_id2is_rs1_addr[3:0]
+tb_top.cpu.core.isu.io_pipe_in_bits_id2is_rs2_addr[3:0]
+@c00028
+tb_top.cpu.core.isu.busy[15:0]
+@28
+(0)tb_top.cpu.core.isu.busy[15:0]
+(1)tb_top.cpu.core.isu.busy[15:0]
+(2)tb_top.cpu.core.isu.busy[15:0]
+(3)tb_top.cpu.core.isu.busy[15:0]
+(4)tb_top.cpu.core.isu.busy[15:0]
+(5)tb_top.cpu.core.isu.busy[15:0]
+(6)tb_top.cpu.core.isu.busy[15:0]
+(7)tb_top.cpu.core.isu.busy[15:0]
+(8)tb_top.cpu.core.isu.busy[15:0]
+(9)tb_top.cpu.core.isu.busy[15:0]
+(10)tb_top.cpu.core.isu.busy[15:0]
+(11)tb_top.cpu.core.isu.busy[15:0]
+(12)tb_top.cpu.core.isu.busy[15:0]
+(13)tb_top.cpu.core.isu.busy[15:0]
+(14)tb_top.cpu.core.isu.busy[15:0]
+(15)tb_top.cpu.core.isu.busy[15:0]
+@1401200
+-group_end
+@28
+tb_top.cpu.core.isu.rs2ForEX
+tb_top.cpu.core.isu.rs1ForWB
+(3)tb_top.cpu.core.isu.busy[15:0]
+@200
+-
+@22
+tb_top.cpu.core.isu.io_pipe_in_bits_id2is_rd_addr[3:0]
+@28
+tb_top.cpu.core.isu.wbClearMask[15:0]
+tb_top.cpu.core.isu.isuFireSetMask[15:0]
+@200
+-
+@28
+tb_top.cpu.core.isu.io_for_ex_gpr_we
+tb_top.cpu.core.isu.io_for_wb_gpr_we
+@c00022
+tb_top.cpu.core.isu.io_for_wb_gpr_waddr[3:0]
+@28
+(0)tb_top.cpu.core.isu.io_for_wb_gpr_waddr[3:0]
+(1)tb_top.cpu.core.isu.io_for_wb_gpr_waddr[3:0]
+(2)tb_top.cpu.core.isu.io_for_wb_gpr_waddr[3:0]
+(3)tb_top.cpu.core.isu.io_for_wb_gpr_waddr[3:0]
+@1401200
+-group_end
+@22
+tb_top.cpu.core.isu.io_for_ex_gpr_waddr[3:0]
+@200
+-
+-
+-ISU
+@28
+tb_top.cpu.core.isu.io_pipe_in_valid
+tb_top.cpu.core.isu.io_pipe_in_ready
+@22
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_bjtpe[3:0]
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_ch1[31:0]
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_ch2[31:0]
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_ch3[31:0]
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_processtpe[3:0]
+@28
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_processunit[2:0]
+@22
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_rd_addr[3:0]
+@28
+tb_top.cpu.core.isu.io_pipe_out_bits_is2exe_rfwe
+@29
+tb_top.cpu.core.isu.io_pipe_out_valid
+@28
+tb_top.cpu.core.isu.io_pipe_out_ready
+@22
+[color] 2
+tb_top.cpu.core.isu.io_pipe_out_bits_diff_inst[31:0]
+[color] 2
+tb_top.cpu.core.isu.io_pipe_out_bits_diff_pc[31:0]
+@28
+tb_top.cpu.core.isu.out_valid
+tb_top.cpu.core.isu.c_state
+tb_top.cpu.core.isu.n_state
+tb_top.cpu.core.isu.isudone
+@200
+-
+-
+-EXU
+@28
+tb_top.cpu.core.exu.io_pipe_in_valid
+tb_top.cpu.core.exu.io_pipe_in_ready
+@22
+tb_top.cpu.core.exu.io_pipe_out_bits_exe2wb_gpr_waddr[3:0]
+tb_top.cpu.core.exu.io_pipe_out_bits_exe2wb_gpr_wdata[31:0]
+@28
+tb_top.cpu.core.exu.io_pipe_out_bits_exe2wb_gpr_we
+tb_top.cpu.core.exu.io_pipe_out_valid
+tb_top.cpu.core.exu.io_pipe_out_ready
+@22
+[color] 2
+tb_top.cpu.core.exu.io_pipe_out_bits_diff_inst[31:0]
+[color] 2
+tb_top.cpu.core.exu.io_pipe_out_bits_diff_pc[31:0]
+@200
+-
+-lsu
+@22
+tb_top.cpu.core.exu.lsu.io_dmem_dmem_awaddr[31:0]
+@28
+tb_top.cpu.core.exu.lsu.io_dmem_dmem_awvalid
+tb_top.cpu.core.exu.lsu.io_dmem_dmem_awready
+@200
+-
+-
+-WBU
+@28
+tb_top.cpu.core.wbu.io_pipe_in_valid
+tb_top.cpu.core.wbu.io_pipe_in_ready
+tb_top.cpu.core.wbu.io_pipe_out_valid
+tb_top.cpu.core.wbu.io_pipe_out_ready
+@22
+[color] 2
+tb_top.cpu.core.wbu.io_pipe_in_bits_diff_inst[31:0]
+[color] 2
+tb_top.cpu.core.wbu.io_pipe_in_bits_diff_pc[31:0]
+@28
+tb_top.cpu.core.wbu.io_gpr_we
+@22
+tb_top.cpu.core.wbu.io_gpr_waddr[3:0]
+tb_top.cpu.core.wbu.io_gpr_wdata[31:0]
+@200
+-
+-
+-
+-
+-
+-
+-
+[pattern_trace] 1
+[pattern_trace] 0

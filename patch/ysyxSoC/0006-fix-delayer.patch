@@ -1,0 +1,229 @@
+From 6782498b427575c43ead6a1e6e394f10dcb345d5 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Fri, 10 Oct 2025 16:32:11 +0800
+Subject: [PATCH 6/7] fix delayer
+
+---
+ src/amba/APBDelayer.scala  |  54 +++++++--------
+ src/amba/AXI4Delayer.scala | 134 ++++++++++++++++++-------------------
+ 2 files changed, 94 insertions(+), 94 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index d6f7e059..bd003e17 100755
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -24,39 +24,39 @@ class APBDelayerChisel extends Module {
+     val io = IO(new APBDelayerIO)
+     io.out <> io.in
+ 
+-    val r_mul_s = 9.U//s=2 r=4.5 target freq 450MHz
+-    val counter = RegInit(0.U(16.W))
++    // val r_mul_s = 9.U//s=2 r=4.5 target freq 450MHz
++    // val counter = RegInit(0.U(16.W))
+ 
+-    val s_IDLE :: s_wait :: s_delay :: Nil = Enum(3)
+-    val c_state = RegInit(s_IDLE)
+-    val n_state = WireDefault(c_state)
+-    dontTouch(n_state)
++    // val s_IDLE :: s_wait :: s_delay :: Nil = Enum(3)
++    // val c_state = RegInit(s_IDLE)
++    // val n_state = WireDefault(c_state)
++    // dontTouch(n_state)
+ 
+-    c_state := n_state//first phase
++    // c_state := n_state//first phase
+ 
+-    n_state := MuxLookup(c_state, s_IDLE)(Seq(//second phase
+-        s_IDLE   ->  Mux(io.in.psel, s_wait, s_IDLE),
+-        s_wait   ->  Mux(io.out.pready, s_delay, s_wait),
+-        s_delay  ->  Mux(io.in.pready, s_IDLE, s_delay)
+-    ))
++    // n_state := MuxLookup(c_state, s_IDLE)(Seq(//second phase
++    //     s_IDLE   ->  Mux(io.in.psel, s_wait, s_IDLE),
++    //     s_wait   ->  Mux(io.out.pready, s_delay, s_wait),
++    //     s_delay  ->  Mux(io.in.pready, s_IDLE, s_delay)
++    // ))
+ 
+-    switch(n_state){//third phase
+-        is(s_IDLE){
+-            counter := 0.U
+-        }
+-        is(s_wait){
+-            counter := counter + r_mul_s
+-        }
+-        is(s_delay){
+-            counter := Mux(io.out.psel, (counter >> 1) - 1.U, counter - 1.U)
+-        }
+-    }
++    // switch(n_state){//third phase
++    //     is(s_IDLE){
++    //         counter := 0.U
++    //     }
++    //     is(s_wait){
++    //         counter := counter + r_mul_s
++    //     }
++    //     is(s_delay){
++    //         counter := Mux(io.out.psel, (counter >> 1) - 1.U, counter - 1.U)
++    //     }
++    // }
+ 
+-    val rdata = RegEnable(io.out.prdata, io.out.pready)
++    // val rdata = RegEnable(io.out.prdata, io.out.pready)
+ 
+-    io.out.psel := Mux(c_state === s_delay, false.B, io.in.psel)
+-    io.in.pready := Mux(c_state === s_delay && counter === 0.U, true.B, false.B)
+-    io.in.prdata := Mux(c_state === s_delay, rdata, io.out.prdata)
++    // io.out.psel := Mux(c_state === s_delay, false.B, io.in.psel)
++    // io.in.pready := Mux(c_state === s_delay && counter === 0.U, true.B, false.B)
++    // io.in.prdata := Mux(c_state === s_delay, rdata, io.out.prdata)
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 07811133..4ca93deb 100755
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -24,73 +24,73 @@ class AXI4DelayerChisel extends Module {
+     val io = IO(new AXI4DelayerIO)
+     io.out <> io.in
+ 
+-    val is_read = RegInit(false.B)
+-    val is_write = RegInit(false.B)
+-
+-    val temp_rdata = RegInit(VecInit(Seq.fill(8)(0.U(32.W))))
+-
+-    val r_mul_s = 2.U//s=2 r=4.5 target freq 450MHz
+-    val counter = RegInit(0.U(16.W))
+-    val burst_counter = RegInit(VecInit(Seq.fill(8)(0.U(16.W))))
+-    val burst_counter_index = RegInit(0.U(4.W))
+-    val burst_counter_index_in = RegInit(0.U(4.W))
+-
+-    val burst_len = RegEnable(io.out.ar.bits.len, io.out.ar.fire)
+-
+-    val s_IDLE :: s_wait_read :: s_wait_write :: s_delay :: Nil = Enum(4)
+-    val c_state = RegInit(s_IDLE)
+-    val n_state = WireDefault(c_state)
+-    dontTouch(n_state)
+-
+-    c_state := n_state//first phase
+-
+-    n_state := MuxLookup(c_state, s_IDLE)(Seq(//second phase
+-        s_IDLE           ->  Mux(io.in.ar.valid | io.in.aw.valid, Mux(io.in.ar.valid, s_wait_read, s_wait_write), s_IDLE),
+-        s_wait_read      ->  Mux(burst_counter_index === burst_len + 1.U, s_delay, s_wait_read),
+-        s_wait_write     ->  Mux(io.out.b.valid, s_delay, s_wait_write),
+-        s_delay          ->  Mux(counter === 0.U, s_IDLE, s_delay)
+-    ))
+-
+-    switch(n_state){//third phase
+-        is(s_IDLE){
+-            counter := 0.U
+-        }
+-        is(s_wait_read){
+-            counter := counter + r_mul_s
+-        }
+-        is(s_wait_write){
+-            counter := counter + r_mul_s
+-        }
+-        is(s_delay){
+-            counter := Mux(c_state =/= s_delay, (counter >> 1) - 1.U, counter - 1.U)
+-            for(i <- 0 until 8){
+-                burst_counter(i) := Mux(c_state =/= s_delay, (burst_counter(i) >> 1) - 1.U, burst_counter(i) - 1.U)
+-            }
+-        }
+-    }
+-
+-    is_read := Mux(io.in.ar.valid, true.B, Mux(c_state === s_IDLE, false.B, is_read))
+-    is_write := Mux(io.in.aw.valid, true.B, Mux(c_state === s_IDLE, false.B, is_write))
+-
+-    when(c_state === s_IDLE){
+-        burst_counter_index := 0.U
+-    }.elsewhen(n_state === s_wait_read && io.out.r.valid){
+-        burst_counter_index := burst_counter_index + 1.U
+-        burst_counter(burst_counter_index) := counter + r_mul_s
+-        temp_rdata(burst_counter_index) := io.out.r.bits.data
+-    }
+-
+-    burst_counter_index_in := Mux(io.in.ar.valid, 0.U, Mux(io.in.r.fire && burst_counter_index_in < burst_len, burst_counter_index_in + 1.U, burst_counter_index_in))
+-
+-    when(is_write){
+-        io.in.b.valid := counter === 0.U && c_state === s_delay
+-    }
+-    when(is_read){
+-        io.in.r.valid := Mux(c_state === s_delay && burst_counter(burst_counter_index_in) === 0.U, true.B, false.B)
+-        io.in.r.bits.last := burst_counter_index_in === burst_len
+-    }
+-
+-    io.in.r.bits.data := Mux(c_state === s_IDLE, 0.U, Mux(is_read, temp_rdata(burst_counter_index_in), 0.U))
++    // val is_read = RegInit(false.B)
++    // val is_write = RegInit(false.B)
++
++    // val temp_rdata = RegInit(VecInit(Seq.fill(8)(0.U(32.W))))
++
++    // val r_mul_s = 9.U//s=2 r=4.5 target freq 450MHz
++    // val counter = RegInit(0.U(16.W))
++    // val burst_counter = RegInit(VecInit(Seq.fill(8)(0.U(16.W))))
++    // val burst_counter_index = RegInit(0.U(4.W))
++    // val burst_counter_index_in = RegInit(0.U(4.W))
++
++    // val burst_len = RegEnable(io.out.ar.bits.len, io.out.ar.fire)
++
++    // val s_IDLE :: s_wait_read :: s_wait_write :: s_delay :: Nil = Enum(4)
++    // val c_state = RegInit(s_IDLE)
++    // val n_state = WireDefault(c_state)
++    // dontTouch(n_state)
++
++    // c_state := n_state//first phase
++
++    // n_state := MuxLookup(c_state, s_IDLE)(Seq(//second phase
++    //     s_IDLE           ->  Mux(io.in.ar.valid | io.in.aw.valid, Mux(io.in.ar.valid, s_wait_read, s_wait_write), s_IDLE),
++    //     s_wait_read      ->  Mux(burst_counter_index === burst_len + 1.U, s_delay, s_wait_read),
++    //     s_wait_write     ->  Mux(io.out.b.valid, s_delay, s_wait_write),
++    //     s_delay          ->  Mux(counter === 0.U, s_IDLE, s_delay)
++    // ))
++
++    // switch(n_state){//third phase
++    //     is(s_IDLE){
++    //         counter := 0.U
++    //     }
++    //     is(s_wait_read){
++    //         counter := counter + r_mul_s
++    //     }
++    //     is(s_wait_write){
++    //         counter := counter + r_mul_s
++    //     }
++    //     is(s_delay){
++    //         counter := Mux(c_state =/= s_delay, (counter >> 1) - 1.U, counter - 1.U)
++    //         for(i <- 0 until 8){
++    //             burst_counter(i) := Mux(c_state =/= s_delay, (burst_counter(i) >> 1) - 1.U, burst_counter(i) - 1.U)
++    //         }
++    //     }
++    // }
++
++    // is_read := Mux(io.in.ar.valid, true.B, Mux(c_state === s_IDLE, false.B, is_read))
++    // is_write := Mux(io.in.aw.valid, true.B, Mux(c_state === s_IDLE, false.B, is_write))
++
++    // when(c_state === s_IDLE){
++    //     burst_counter_index := 0.U
++    // }.elsewhen(n_state === s_wait_read && io.out.r.valid){
++    //     burst_counter_index := burst_counter_index + 1.U
++    //     burst_counter(burst_counter_index) := counter + r_mul_s
++    //     temp_rdata(burst_counter_index) := io.out.r.bits.data
++    // }
++
++    // burst_counter_index_in := Mux(io.in.ar.valid, 0.U, Mux(io.in.r.fire && burst_counter_index_in < burst_len, burst_counter_index_in + 1.U, burst_counter_index_in))
++
++    // when(is_write){
++    //     io.in.b.valid := counter === 0.U && c_state === s_delay
++    // }
++    // when(is_read){
++    //     io.in.r.valid := Mux(c_state === s_delay && burst_counter(burst_counter_index_in) === 0.U, true.B, false.B)
++    //     io.in.r.bits.last := burst_counter_index_in === burst_len
++    // }
++
++    // io.in.r.bits.data := Mux(c_state === s_IDLE, 0.U, Mux(is_read, temp_rdata(burst_counter_index_in), 0.U))
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+-- 
+2.34.1
+

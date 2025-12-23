@@ -1,0 +1,31 @@
+From 786248604e9d3066e208aa967af3d5c70f7c72c4 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Tue, 23 Dec 2025 22:13:08 +0800
+Subject: [PATCH 9/9] fix integrate-am-app.py
+
+---
+ bsp/abstract-machine/integrate-am-apps.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 7c63aad45..8968df387 100755
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -7,11 +7,11 @@ from pathlib import Path
+ AM_HOME = Path(os.environ["AM_HOME"])
+ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+-#  AM_KERNELS_HOME / "kernels" / "hello",
++  AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+-#  AM_KERNELS_HOME / "kernels" / "typing-game",
++  AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-#  AM_KERNELS_HOME / ".." / "fceux-am",
++  AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+-- 
+2.34.1
+

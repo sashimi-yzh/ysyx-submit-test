@@ -1,0 +1,43 @@
+From 378b712fe71746f8a0406bee557fa80968cf2ae0 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Thu, 9 Oct 2025 00:15:02 +0800
+Subject: [PATCH 4/9] fix uart again
+
+---
+ bsp/abstract-machine/src/uart.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 485d9076b..cb11ef4a9 100755
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -39,7 +39,6 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ 
+ 
+-#ifdef CONFIG_YSYXSOC
+ static int _uart_getc(struct rt_serial_device *serial) {
+     static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+     // AM_UART_RX_T cfg;
+@@ -48,12 +47,12 @@ static int _uart_getc(struct rt_serial_device *serial) {
+     // return (*p != '\0' ? *(p ++) : cfg.data);
+     return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+-#else
+-static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
+-}
+-#endif
++
++// static int _uart_getc(struct rt_serial_device *serial) {
++//   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++//   return (*p != '\0' ? *(p ++) : -1);
++// }
++
+ 
+ const struct rt_uart_ops _uart_ops = {
+   _uart_configure,
+-- 
+2.34.1
+

@@ -1,0 +1,2028 @@
+From 590dcfd498646ebd4221bbd15e6ade9a8ed1d96f Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Tue, 7 Oct 2025 14:15:51 +0800
+Subject: [PATCH 1/7] this is ysyxSoC commit
+
+---
+ .gitignore                                   |   0
+ .gitmodules                                  |   0
+ .mill-version                                |   2 +-
+ Makefile                                     |   1 +
+ build.sc                                     |   0
+ patch/rocket-chip.patch                      |   0
+ perip/.gitignore                             |   0
+ perip/amba/apb_delayer.v                     |   0
+ perip/amba/axi4_delayer.v                    |   0
+ perip/bitrev/bitrev.v                        |   0
+ perip/flash/flash.v                          |   0
+ perip/gpio/gpio_top_apb.v                    |   0
+ perip/ps2/ps2_top_apb.v                      |   0
+ perip/psram/efabless/EF_PSRAM_CTRL.v         |  56 +++-
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v      |  82 +++++-
+ perip/psram/efabless/LICENSE                 |   0
+ perip/psram/psram.v                          |   0
+ perip/psram/psram_top_apb.v                  |  10 +-
+ perip/sdram/core_sdram_axi4/LICENSE          |   0
+ perip/sdram/core_sdram_axi4/README.md        |   0
+ perip/sdram/core_sdram_axi4/sdram_axi.v      |  10 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  61 +++--
+ perip/sdram/core_sdram_axi4/sdram_axi_pmem.v |   0
+ perip/sdram/sdram.v                          |   0
+ perip/sdram/sdram_top_apb.v                  |  12 +-
+ perip/sdram/sdram_top_axi.v                  |  12 +-
+ perip/spi/doc/spi.pdf                        | Bin
+ perip/spi/rtl/spi_clgen.v                    |   0
+ perip/spi/rtl/spi_defines.v                  |   0
+ perip/spi/rtl/spi_shift.v                    |   0
+ perip/spi/rtl/spi_top.v                      |   0
+ perip/spi/rtl/spi_top_apb.v                  |   2 +-
+ perip/uart16550/doc/UART_spec.pdf            | Bin
+ perip/uart16550/rtl/raminfr.v                |   0
+ perip/uart16550/rtl/uart_defines.v           |   0
+ perip/uart16550/rtl/uart_receiver.v          |   0
+ perip/uart16550/rtl/uart_regs.v              |   0
+ perip/uart16550/rtl/uart_rfifo.v             |   0
+ perip/uart16550/rtl/uart_sync_flops.v        |   0
+ perip/uart16550/rtl/uart_tfifo.v             |   0
+ perip/uart16550/rtl/uart_top_apb.v           |   0
+ perip/uart16550/rtl/uart_transmitter.v       |   0
+ perip/vga/vga_top_apb.v                      |   0
+ spec/cpu-interface.md                        |   0
+ src/CPU.scala                                |   0
+ src/SoC.scala                                |   6 +-
+ src/Top.scala                                |   2 +-
+ src/amba/APBDelayer.scala                    |  40 ++-
+ src/amba/AXI4Delayer.scala                   |  74 +++++-
+ src/amba/AXI4ToAPB.scala                     |   0
+ src/chiplink/Bundles.scala                   |   0
+ src/chiplink/CAM.scala                       |   0
+ src/chiplink/ChipLink.scala                  |   0
+ src/chiplink/Parameters.scala                |   0
+ src/chiplink/Partial.scala                   |   0
+ src/chiplink/RX.scala                        |   0
+ src/chiplink/SinkA.scala                     |   0
+ src/chiplink/SinkB.scala                     |   0
+ src/chiplink/SinkC.scala                     |   0
+ src/chiplink/SinkD.scala                     |   0
+ src/chiplink/SinkE.scala                     |   0
+ src/chiplink/SourceA.scala                   |   0
+ src/chiplink/SourceB.scala                   |   0
+ src/chiplink/SourceC.scala                   |   0
+ src/chiplink/SourceD.scala                   |   0
+ src/chiplink/SourceE.scala                   |   0
+ src/chiplink/StuckSnooper.scala              |   0
+ src/chiplink/TX.scala                        |   0
+ src/device/BitRev.scala                      |  14 +
+ src/device/ChipLinkBridge.scala              |   0
+ src/device/GPIO.scala                        |  64 ++++-
+ src/device/Keyboard.scala                    | 100 ++++++-
+ src/device/MROM.scala                        |   0
+ src/device/PSRAM.scala                       | 146 +++++++++-
+ src/device/SDRAM.scala                       | 263 ++++++++++++++++++-
+ src/device/SPI.scala                         |  48 ++++
+ src/device/Uart16550.scala                   |   0
+ src/device/VGA.scala                         | 128 ++++++++-
+ src/util/TriState.scala                      |   0
+ 79 files changed, 1046 insertions(+), 87 deletions(-)
+ mode change 100644 => 100755 .gitignore
+ mode change 100644 => 100755 .gitmodules
+ mode change 100644 => 100755 Makefile
+ mode change 100644 => 100755 build.sc
+ mode change 100644 => 100755 patch/rocket-chip.patch
+ mode change 100644 => 100755 perip/.gitignore
+ mode change 100644 => 100755 perip/amba/apb_delayer.v
+ mode change 100644 => 100755 perip/amba/axi4_delayer.v
+ mode change 100644 => 100755 perip/bitrev/bitrev.v
+ mode change 100644 => 100755 perip/flash/flash.v
+ mode change 100644 => 100755 perip/gpio/gpio_top_apb.v
+ mode change 100644 => 100755 perip/ps2/ps2_top_apb.v
+ mode change 100644 => 100755 perip/psram/efabless/EF_PSRAM_CTRL.v
+ mode change 100644 => 100755 perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+ mode change 100644 => 100755 perip/psram/efabless/LICENSE
+ mode change 100644 => 100755 perip/psram/psram.v
+ mode change 100644 => 100755 perip/psram/psram_top_apb.v
+ mode change 100644 => 100755 perip/sdram/core_sdram_axi4/LICENSE
+ mode change 100644 => 100755 perip/sdram/core_sdram_axi4/README.md
+ mode change 100644 => 100755 perip/sdram/core_sdram_axi4/sdram_axi.v
+ mode change 100644 => 100755 perip/sdram/core_sdram_axi4/sdram_axi_core.v
+ mode change 100644 => 100755 perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+ mode change 100644 => 100755 perip/sdram/sdram.v
+ mode change 100644 => 100755 perip/sdram/sdram_top_apb.v
+ mode change 100644 => 100755 perip/sdram/sdram_top_axi.v
+ mode change 100644 => 100755 perip/spi/doc/spi.pdf
+ mode change 100644 => 100755 perip/spi/rtl/spi_clgen.v
+ mode change 100644 => 100755 perip/spi/rtl/spi_defines.v
+ mode change 100644 => 100755 perip/spi/rtl/spi_shift.v
+ mode change 100644 => 100755 perip/spi/rtl/spi_top.v
+ mode change 100644 => 100755 perip/spi/rtl/spi_top_apb.v
+ mode change 100644 => 100755 perip/uart16550/doc/UART_spec.pdf
+ mode change 100644 => 100755 perip/uart16550/rtl/raminfr.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_defines.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_receiver.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_regs.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_rfifo.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_sync_flops.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_tfifo.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_top_apb.v
+ mode change 100644 => 100755 perip/uart16550/rtl/uart_transmitter.v
+ mode change 100644 => 100755 perip/vga/vga_top_apb.v
+ mode change 100644 => 100755 spec/cpu-interface.md
+ mode change 100644 => 100755 src/CPU.scala
+ mode change 100644 => 100755 src/SoC.scala
+ mode change 100644 => 100755 src/Top.scala
+ mode change 100644 => 100755 src/amba/APBDelayer.scala
+ mode change 100644 => 100755 src/amba/AXI4Delayer.scala
+ mode change 100644 => 100755 src/amba/AXI4ToAPB.scala
+ mode change 100644 => 100755 src/chiplink/Bundles.scala
+ mode change 100644 => 100755 src/chiplink/CAM.scala
+ mode change 100644 => 100755 src/chiplink/ChipLink.scala
+ mode change 100644 => 100755 src/chiplink/Parameters.scala
+ mode change 100644 => 100755 src/chiplink/Partial.scala
+ mode change 100644 => 100755 src/chiplink/RX.scala
+ mode change 100644 => 100755 src/chiplink/SinkA.scala
+ mode change 100644 => 100755 src/chiplink/SinkB.scala
+ mode change 100644 => 100755 src/chiplink/SinkC.scala
+ mode change 100644 => 100755 src/chiplink/SinkD.scala
+ mode change 100644 => 100755 src/chiplink/SinkE.scala
+ mode change 100644 => 100755 src/chiplink/SourceA.scala
+ mode change 100644 => 100755 src/chiplink/SourceB.scala
+ mode change 100644 => 100755 src/chiplink/SourceC.scala
+ mode change 100644 => 100755 src/chiplink/SourceD.scala
+ mode change 100644 => 100755 src/chiplink/SourceE.scala
+ mode change 100644 => 100755 src/chiplink/StuckSnooper.scala
+ mode change 100644 => 100755 src/chiplink/TX.scala
+ mode change 100644 => 100755 src/device/BitRev.scala
+ mode change 100644 => 100755 src/device/ChipLinkBridge.scala
+ mode change 100644 => 100755 src/device/GPIO.scala
+ mode change 100644 => 100755 src/device/Keyboard.scala
+ mode change 100644 => 100755 src/device/MROM.scala
+ mode change 100644 => 100755 src/device/PSRAM.scala
+ mode change 100644 => 100755 src/device/SDRAM.scala
+ mode change 100644 => 100755 src/device/SPI.scala
+ mode change 100644 => 100755 src/device/Uart16550.scala
+ mode change 100644 => 100755 src/device/VGA.scala
+ mode change 100644 => 100755 src/util/TriState.scala
+
+diff --git a/.gitignore b/.gitignore
+old mode 100644
+new mode 100755
+diff --git a/.gitmodules b/.gitmodules
+old mode 100644
+new mode 100755
+diff --git a/.mill-version b/.mill-version
+index 7fd0b1e8..e01e0ddd 100644
+--- a/.mill-version
++++ b/.mill-version
+@@ -1 +1 @@
+-0.12.4
+\ No newline at end of file
++0.12.4
+diff --git a/Makefile b/Makefile
+old mode 100644
+new mode 100755
+index c30262ea..4f8f16c0
+--- a/Makefile
++++ b/Makefile
+@@ -15,6 +15,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	mv $(V_FILE_GEN) $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
++	sed -i 's/ysyx_00000000 cpu/ysyx_24080032 cpu/g' $@
+ 
+ verilog: $(V_FILE_FINAL)
+ 
+diff --git a/build.sc b/build.sc
+old mode 100644
+new mode 100755
+diff --git a/patch/rocket-chip.patch b/patch/rocket-chip.patch
+old mode 100644
+new mode 100755
+diff --git a/perip/.gitignore b/perip/.gitignore
+old mode 100644
+new mode 100755
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+old mode 100644
+new mode 100755
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+old mode 100644
+new mode 100755
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+old mode 100644
+new mode 100755
+diff --git a/perip/flash/flash.v b/perip/flash/flash.v
+old mode 100644
+new mode 100755
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+old mode 100644
+new mode 100755
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+old mode 100644
+new mode 100755
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+old mode 100644
+new mode 100755
+index b6e737e9..e8192ed9
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -42,6 +42,7 @@
+ `default_nettype        none
+ 
+ module PSRAM_READER (
++    input qpi_en,
+     input   wire            clk,
+     input   wire            rst_n,
+     input   wire [23:0]     addr,
+@@ -60,7 +61,7 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    wire [7:0]  FINAL_COUNT = qpi_en ? 13 + size*2 : 19 + size*2; // was 27: Always read 1 word
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -115,11 +116,29 @@ module PSRAM_READER (
+     // Sample with the negedge of sck
+     wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
+-            if(sck)
+-                data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+-
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
++        if(qpi_en) begin
++            if(counter >= 14 && counter <= FINAL_COUNT)
++                if(sck)
++                    data[byte_index-1] <= {data[byte_index-1][3:0], din};
++        end
++        else begin
++            if(counter >= 20 && counter <= FINAL_COUNT)
++                if(sck)
++                    data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
++        end
++
++    assign dout     =   qpi_en ? 
++                        (counter == 0) ? CMD_EBH[7:4] :
++                        (counter == 1) ? CMD_EBH[3:0] :
++                        (counter == 2) ? saddr[23:20] :
++                        (counter == 3) ? saddr[19:16] :
++                        (counter == 4) ? saddr[15:12] :
++                        (counter == 5) ? saddr[11:8]  :
++                        (counter == 6) ? saddr[7:4]   :
++                        (counter == 7) ? saddr[3:0]   :
++                        4'd0 :
++
++                        (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+                         (counter == 8)  ?   saddr[23:20]        :
+                         (counter == 9)  ?   saddr[19:16]        :
+                         (counter == 10) ?   saddr[15:12]        :
+@@ -128,7 +147,7 @@ module PSRAM_READER (
+                         (counter == 13) ?   saddr[3:0]          :
+                         4'h0;
+ 
+-    assign douten   = (counter < 14);
++    assign douten   = qpi_en ? (counter < 8) : (counter < 14);
+ 
+     assign done     = (counter == FINAL_COUNT+1);
+ 
+@@ -143,6 +162,7 @@ endmodule
+ 
+ // Using 38H Command
+ module PSRAM_WRITER (
++    input qpi_en,
+     input   wire            clk,
+     input   wire            rst_n,
+     input   wire [23:0]     addr,
+@@ -161,7 +181,7 @@ module PSRAM_WRITER (
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    wire[7:0]        FINAL_COUNT = qpi_en ? 7 + size*2 : 13 + size*2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,7 +232,25 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
++    assign dout     =   qpi_en ? 
++                        (counter == 0)  ?   CMD_38H[7:4]        :
++                        (counter == 1)  ?   CMD_38H[3:0]        :
++                        (counter == 2)  ?   saddr[23:20]        :
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4)  ?   saddr[15:12]        :
++                        (counter == 5)  ?   saddr[11:8]         :
++                        (counter == 6)  ?   saddr[7:4]          :
++                        (counter == 7)  ?   saddr[3:0]          :
++                        (counter == 8)  ?   line[7:4]           :
++                        (counter == 9)  ?   line[3:0]           :
++                        (counter == 10) ?   line[15:12]         :
++                        (counter == 11) ?   line[11:8]          :
++                        (counter == 12) ?   line[23:20]         :
++                        (counter == 13) ?   line[19:16]         :
++                        (counter == 14) ?   line[31:28]         :
++                        line[27:24] :
++                        
++                        (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+                         (counter == 8)  ?   saddr[23:20]        :
+                         (counter == 9)  ?   saddr[19:16]        :
+                         (counter == 10) ?   saddr[15:12]        :
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+old mode 100644
+new mode 100755
+index 7b5296db..9b6251fd
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -32,15 +32,16 @@ module EF_PSRAM_CTRL_wb (
+     input   wire        we_i,
+ 
+     // External Interface to Quad I/O
+-    output  wire            sck,
+-    output  wire            ce_n,
++    output  reg            sck,
++    output  reg            ce_n,
+     input   wire [3:0]      din,
+-    output  wire [3:0]      dout,
+-    output  wire [3:0]      douten
++    output  reg [3:0]      dout,
++    output  reg [3:0]      douten
+ );
+ 
+-    localparam  ST_IDLE = 1'b0,
+-                ST_WAIT = 1'b1;
++    localparam  ST_IDLE = 2'b00,
++                ST_WAIT = 2'b01,
++                ST_QPI  = 2'b10;
+ 
+     wire        mr_sck;
+     wire        mr_ce_n;
+@@ -67,17 +68,30 @@ module EF_PSRAM_CTRL_wb (
+     wire        wb_we           =   we_i & wb_valid;
+     wire        wb_re           =   ~we_i & wb_valid;
+     //wire[3:0]   wb_byte_sel     =   sel_i & {4{wb_we}};
++/////////////////////////////////////////////////////////////////////////////////////ATTENTION!!!!////////////////////////////////////////////////////////////////////////////////////
++    wire qpi_en = 1; //set to 0 if you want the normal spi mode instead of QPI mode
++/////////////////////////////////////////////////////////////////////////////////////ATTENTION!!!!////////////////////////////////////////////////////////////////////////////////////
++    wire [4:0] FINAL_COUNT = 5'b00111;
++    wire qpi_done = cnt_qpi == FINAL_COUNT + 1;
+ 
+     // The FSM
+-    reg         state, nstate;
++    reg         [1:0] state, nstate;
+     always @ (posedge clk_i or posedge rst_i)
+         if(rst_i)
+-            state <= ST_IDLE;
++            if(qpi_en)
++                state <= ST_QPI;
++            else
++                state <= ST_IDLE;
+         else
+             state <= nstate;
+ 
+     always @* begin
+         case(state)
++            ST_QPI  :
++                if(qpi_done)
++                    nstate = ST_IDLE;
++                else
++                    nstate = ST_QPI;
+             ST_IDLE :
+                 if(wb_valid)
+                     nstate = ST_WAIT;
+@@ -89,6 +103,8 @@ module EF_PSRAM_CTRL_wb (
+                     nstate = ST_IDLE;
+                 else
+                     nstate = ST_WAIT;
++            default :
++                nstate = ST_IDLE;
+         endcase
+     end
+ 
+@@ -131,6 +147,7 @@ module EF_PSRAM_CTRL_wb (
+     assign mw_wr    = ( (state==ST_IDLE ) & wb_we );
+ 
+     PSRAM_READER MR (
++        .qpi_en(qpi_en),
+         .clk(clk_i),
+         .rst_n(~rst_i),
+         .addr({adr_i[23:2],2'b0}),
+@@ -147,6 +164,7 @@ module EF_PSRAM_CTRL_wb (
+     );
+ 
+     PSRAM_WRITER MW (
++        .qpi_en(qpi_en),
+         .clk(clk_i),
+         .rst_n(~rst_i),
+         .addr({adr_i[23:0]}),
+@@ -161,10 +179,50 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mw_doe)
+     );
+ 
+-    assign sck  = wb_we ? mw_sck  : mr_sck;
+-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
+-    assign dout = wb_we ? mw_dout : mr_dout;
+-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
++    reg sck_qpi;
++    reg ce_n_qpi;
++    reg [4:0] cnt_qpi;
++    wire [7:0] QPI_CMD = 8'h35;
++
++    always @(posedge clk_i or posedge rst_i)begin
++        if(rst_i)
++            cnt_qpi <= 5'b0;
++        else if(state == ST_QPI & sck & !qpi_done)
++            cnt_qpi <= cnt_qpi + 1;
++    end
++
++    always @(posedge clk_i or posedge rst_i)begin
++        if(rst_i)
++            ce_n_qpi <= 1'b1;
++        else if(state == ST_QPI)
++            ce_n_qpi <= 1'b0;
++        else
++            ce_n_qpi <= wb_we ? mw_ce_n : mr_ce_n;
++    end
++
++    always @(posedge clk_i or posedge rst_i)begin
++        if(rst_i)
++            sck_qpi <= 1'b0;
++        else if(state == ST_QPI && !ce_n)
++            sck_qpi <= ~sck_qpi;
++        else
++            sck_qpi <= wb_we ? mw_sck  : mr_sck;
++    end
++
++    assign sck  = nstate == ST_QPI ? sck_qpi : wb_we ? mw_sck  : mr_sck;
++    assign ce_n = nstate == ST_QPI ? ce_n_qpi : wb_we ? mw_ce_n : mr_ce_n;
++    assign dout = nstate == ST_QPI ? 
++                  (cnt_qpi == 0) ? {3'd0, QPI_CMD[7]} :
++                  (cnt_qpi == 1) ? {3'd0, QPI_CMD[6]} :
++                  (cnt_qpi == 2) ? {3'd0, QPI_CMD[5]} :
++                  (cnt_qpi == 3) ? {3'd0, QPI_CMD[4]} :
++                  (cnt_qpi == 4) ? {3'd0, QPI_CMD[3]} :
++                  (cnt_qpi == 5) ? {3'd0, QPI_CMD[2]} :
++                  (cnt_qpi == 6) ? {3'd0, QPI_CMD[1]} :
++                  (cnt_qpi == 7) ? {3'd0, QPI_CMD[0]} :
++                  4'd0 :
++                  wb_we ? mw_dout : mr_dout;
++    assign douten  = nstate == ST_QPI ? {4{cnt_qpi < 8}} : wb_we ? {4{mw_doe}}  : {4{mr_doe}};
+ 
+     assign mw_din = din;
+     assign mr_din = din;
+diff --git a/perip/psram/efabless/LICENSE b/perip/psram/efabless/LICENSE
+old mode 100644
+new mode 100755
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+old mode 100644
+new mode 100755
+diff --git a/perip/psram/psram_top_apb.v b/perip/psram/psram_top_apb.v
+old mode 100644
+new mode 100755
+index 0ba9c2f2..b3547bb5
+--- a/perip/psram/psram_top_apb.v
++++ b/perip/psram/psram_top_apb.v
+@@ -19,12 +19,20 @@ module psram_top_apb (
+ 
+   wire [3:0] din, dout, douten;
+   wire ack;
++
++//if dont have to change between big endian and little endian, just delete it
++/////////////////////////////////////////////////////////////////////////////////////ATTENTION!!!!////////////////////////////////////////////////////////////////////////////////////
++                                        wire [31:0]in_prdata_t;
++                                        assign in_prdata = {in_prdata_t[7:0], in_prdata_t[15:8], in_prdata_t[23:16], in_prdata_t[31:24]};
++/////////////////////////////////////////////////////////////////////////////////////ATTENTION!!!!////////////////////////////////////////////////////////////////////////////////////
++                                     
++
+   EF_PSRAM_CTRL_wb u0 (
+     .clk_i(clock),
+     .rst_i(reset),
+     .adr_i(in_paddr),
+     .dat_i(in_pwdata),
+-    .dat_o(in_prdata),
++    .dat_o(in_prdata_t),//if dont have to change between big endian and little endian, just write in_prdata, otherwise in_prdata_t
+     .sel_i(in_pstrb),
+     .cyc_i(in_psel),
+     .stb_i(in_psel),
+diff --git a/perip/sdram/core_sdram_axi4/LICENSE b/perip/sdram/core_sdram_axi4/LICENSE
+old mode 100644
+new mode 100755
+diff --git a/perip/sdram/core_sdram_axi4/README.md b/perip/sdram/core_sdram_axi4/README.md
+old mode 100644
+new mode 100755
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+old mode 100644
+new mode 100755
+index 64641f58..136951d3
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i//16bits to 32bits
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    ,output [  3:0]  sdram_dqm_o//2bits to 4bits
++    ,output [ 13:0]  sdram_addr_o//13bits to 14bits
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o//16bits to 32bits
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -86,7 +86,7 @@ module sdram_axi
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ             = 50;
+-parameter SDRAM_ADDR_W          = 24;
++parameter SDRAM_ADDR_W          = 25;//24 to 25
+ parameter SDRAM_COL_W           = 9;
+ parameter SDRAM_READ_LATENCY    = 2;
+ 
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+old mode 100644
+new mode 100755
+index cedbf77b..02d493c7
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -42,7 +42,7 @@ module sdram_axi_core
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_accept_o
+@@ -55,10 +55,10 @@ module sdram_axi_core
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    ,output [  3:0]  sdram_dqm_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -68,7 +68,7 @@ module sdram_axi_core
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ              = 50;
+-parameter SDRAM_ADDR_W           = 24;
++parameter SDRAM_ADDR_W           = 25;
+ parameter SDRAM_COL_W            = 9;
+ parameter SDRAM_READ_LATENCY     = 2;
+ 
+@@ -76,7 +76,7 @@ parameter SDRAM_READ_LATENCY     = 2;
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+@@ -94,7 +94,7 @@ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+ // Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -112,7 +112,7 @@ localparam STATE_REFRESH     = 4'd9;
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -284,7 +284,14 @@ begin
+     //-----------------------------------------
+     STATE_WRITE0 :
+     begin
+-        next_state_r = STATE_WRITE1;
++        next_state_r = STATE_IDLE;
++
++        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
++        begin
++            // Open row hit
++            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++                next_state_r = STATE_WRITE0;
++        end
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+@@ -483,7 +490,7 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+@@ -537,7 +544,7 @@ begin
+         else if (refresh_timer_q == 10)
+         begin
+             command_q <= CMD_LOAD_MODE;
+-            addr_q    <= MODE_REG;
++            addr_q    <= {1'b0, MODE_REG};
+         end
+         // Other cycles during init - just NOP
+         else
+@@ -616,14 +623,14 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w;
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w;
++        // dqm_buffer_q    <= ~ram_wr_w[3:2];
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+@@ -663,16 +670,18 @@ else
+ 
+ // Buffer upper 16-bits of write data so write command can be accepted
+ // in WRITE0. Also buffer lower 16-bits of read data.
+-always @ (posedge clk_i or posedge rst_i)
+-if (rst_i)
+-    data_buffer_q <= 16'b0;
+-else if (state_q == STATE_WRITE0)
+-    data_buffer_q <= ram_write_data_w[31:16];
+-else if (rd_q[SDRAM_READ_LATENCY+1])
+-    data_buffer_q <= sample_data_q;
++// always @ (posedge clk_i or posedge rst_i)
++// if (rst_i)
++//     data_buffer_q <= 16'b0;
++// else if (state_q == STATE_WRITE0)
++//     data_buffer_q <= ram_write_data_w[31:16];
++// else if (rd_q[SDRAM_READ_LATENCY+1])
++//     data_buffer_q <= sample_data_q;
++
++// // Read data output
++// assign ram_read_data_w = {sample_data_q, data_buffer_q};
++assign ram_read_data_w = sample_data_q;
+ 
+-// Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
+ 
+ //-----------------------------------------------------------------
+ // ACK
+@@ -684,9 +693,9 @@ if (rst_i)
+     ack_q   <= 1'b0;
+ else
+ begin
+-    if (state_q == STATE_WRITE1)
++    if (state_q == STATE_WRITE0 && next_state_r == STATE_WRITE0)
+         ack_q <= 1'b1;
+-    else if (rd_q[SDRAM_READ_LATENCY+1])
++    else if (rd_q[SDRAM_READ_LATENCY])
+         ack_q <= 1'b1;
+     else
+         ack_q <= 1'b0;
+@@ -695,7 +704,7 @@ end
+ assign ram_ack_w = ack_q;
+ 
+ // Accept command in READ or WRITE0 states
+-assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE0);
++assign ram_accept_w = (state_q == STATE_READ || (state_q == STATE_WRITE0 && next_state_r == STATE_WRITE0));
+ 
+ //-----------------------------------------------------------------
+ // SDRAM I/O
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v b/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+old mode 100644
+new mode 100755
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+old mode 100644
+new mode 100755
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+old mode 100644
+new mode 100755
+index 3bc5b93b..d01c19ab
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -18,15 +18,15 @@ module sdram_top_apb (
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+@@ -47,7 +47,7 @@ module sdram_top_apb (
+   wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
+   sdram_axi_core #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(2)
+   ) u_sdram_ctrl(
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+old mode 100644
+new mode 100755
+index f0fd6fdb..507233d7
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -37,18 +37,18 @@ module sdram_top_axi(
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(2)
+   ) u_sdram_axi(
+diff --git a/perip/spi/doc/spi.pdf b/perip/spi/doc/spi.pdf
+old mode 100644
+new mode 100755
+diff --git a/perip/spi/rtl/spi_clgen.v b/perip/spi/rtl/spi_clgen.v
+old mode 100644
+new mode 100755
+diff --git a/perip/spi/rtl/spi_defines.v b/perip/spi/rtl/spi_defines.v
+old mode 100644
+new mode 100755
+diff --git a/perip/spi/rtl/spi_shift.v b/perip/spi/rtl/spi_shift.v
+old mode 100644
+new mode 100755
+diff --git a/perip/spi/rtl/spi_top.v b/perip/spi/rtl/spi_top.v
+old mode 100644
+new mode 100755
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+old mode 100644
+new mode 100755
+index 92d37516..ac68fd09
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-//`define FAST_FLASH
++// `define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+diff --git a/perip/uart16550/doc/UART_spec.pdf b/perip/uart16550/doc/UART_spec.pdf
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/raminfr.v b/perip/uart16550/rtl/raminfr.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_defines.v b/perip/uart16550/rtl/uart_defines.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_receiver.v b/perip/uart16550/rtl/uart_receiver.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_regs.v b/perip/uart16550/rtl/uart_regs.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_rfifo.v b/perip/uart16550/rtl/uart_rfifo.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_sync_flops.v b/perip/uart16550/rtl/uart_sync_flops.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_top_apb.v b/perip/uart16550/rtl/uart_top_apb.v
+old mode 100644
+new mode 100755
+diff --git a/perip/uart16550/rtl/uart_transmitter.v b/perip/uart16550/rtl/uart_transmitter.v
+old mode 100644
+new mode 100755
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+old mode 100644
+new mode 100755
+diff --git a/spec/cpu-interface.md b/spec/cpu-interface.md
+old mode 100644
+new mode 100755
+diff --git a/src/CPU.scala b/src/CPU.scala
+old mode 100644
+new mode 100755
+diff --git a/src/SoC.scala b/src/SoC.scala
+old mode 100644
+new mode 100755
+index 1c65cd87..e82b3ad1
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -135,14 +135,14 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     val flash = Module(new flash)
+     flash.io <> masic.spi
+     flash.io.ss := masic.spi.ss(0)
+-    val bitrev = Module(new bitrev)
++    val bitrev = Module(new bitrevChisel)
+     bitrev.io <> masic.spi
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+ 
+-    val psram = Module(new psram)
++    val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+-    val sdram = Module(new sdram)
++    val sdram = Module(new sdramChisel)
+     sdram.io <> masic.sdram
+ 
+     val externalPins = IO(new Bundle{
+diff --git a/src/Top.scala b/src/Top.scala
+old mode 100644
+new mode 100755
+index c00378a6..2913155b
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+old mode 100644
+new mode 100755
+index 0cfc3d0c..d6f7e059
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -21,8 +21,42 @@ class apb_delayer extends BlackBox {
+ }
+ 
+ class APBDelayerChisel extends Module {
+-  val io = IO(new APBDelayerIO)
+-  io.out <> io.in
++    val io = IO(new APBDelayerIO)
++    io.out <> io.in
++
++    val r_mul_s = 9.U//s=2 r=4.5 target freq 450MHz
++    val counter = RegInit(0.U(16.W))
++
++    val s_IDLE :: s_wait :: s_delay :: Nil = Enum(3)
++    val c_state = RegInit(s_IDLE)
++    val n_state = WireDefault(c_state)
++    dontTouch(n_state)
++
++    c_state := n_state//first phase
++
++    n_state := MuxLookup(c_state, s_IDLE)(Seq(//second phase
++        s_IDLE   ->  Mux(io.in.psel, s_wait, s_IDLE),
++        s_wait   ->  Mux(io.out.pready, s_delay, s_wait),
++        s_delay  ->  Mux(io.in.pready, s_IDLE, s_delay)
++    ))
++
++    switch(n_state){//third phase
++        is(s_IDLE){
++            counter := 0.U
++        }
++        is(s_wait){
++            counter := counter + r_mul_s
++        }
++        is(s_delay){
++            counter := Mux(io.out.psel, (counter >> 1) - 1.U, counter - 1.U)
++        }
++    }
++
++    val rdata = RegEnable(io.out.prdata, io.out.pready)
++
++    io.out.psel := Mux(c_state === s_delay, false.B, io.in.psel)
++    io.in.pready := Mux(c_state === s_delay && counter === 0.U, true.B, false.B)
++    io.in.prdata := Mux(c_state === s_delay, rdata, io.out.prdata)
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +65,7 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new apb_delayer)
++      val delayer = Module(new APBDelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+old mode 100644
+new mode 100755
+index b60bb57d..d8f9f656
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -21,8 +21,76 @@ class axi4_delayer extends BlackBox {
+ }
+ 
+ class AXI4DelayerChisel extends Module {
+-  val io = IO(new AXI4DelayerIO)
+-  io.out <> io.in
++    val io = IO(new AXI4DelayerIO)
++    io.out <> io.in
++
++    val is_read = RegInit(false.B)
++    val is_write = RegInit(false.B)
++
++    val temp_rdata = RegInit(VecInit(Seq.fill(8)(0.U(32.W))))
++
++    val r_mul_s = 9.U//s=2 r=4.5 target freq 450MHz
++    val counter = RegInit(0.U(16.W))
++    val burst_counter = RegInit(VecInit(Seq.fill(8)(0.U(16.W))))
++    val burst_counter_index = RegInit(0.U(4.W))
++    val burst_counter_index_in = RegInit(0.U(4.W))
++
++    val burst_len = RegEnable(io.out.ar.bits.len, io.out.ar.fire)
++
++    val s_IDLE :: s_wait_read :: s_wait_write :: s_delay :: Nil = Enum(4)
++    val c_state = RegInit(s_IDLE)
++    val n_state = WireDefault(c_state)
++    dontTouch(n_state)
++
++    c_state := n_state//first phase
++
++    n_state := MuxLookup(c_state, s_IDLE)(Seq(//second phase
++        s_IDLE           ->  Mux(io.in.ar.valid | io.in.aw.valid, Mux(io.in.ar.valid, s_wait_read, s_wait_write), s_IDLE),
++        s_wait_read      ->  Mux(burst_counter_index === burst_len + 1.U, s_delay, s_wait_read),
++        s_wait_write     ->  Mux(io.out.b.valid, s_delay, s_wait_write),
++        s_delay          ->  Mux(counter === 0.U, s_IDLE, s_delay)
++    ))
++
++    switch(n_state){//third phase
++        is(s_IDLE){
++            counter := 0.U
++        }
++        is(s_wait_read){
++            counter := counter + r_mul_s
++        }
++        is(s_wait_write){
++            counter := counter + r_mul_s
++        }
++        is(s_delay){
++            counter := Mux(c_state =/= s_delay, (counter >> 1) - 1.U, counter - 1.U)
++            for(i <- 0 until 8){
++                burst_counter(i) := Mux(c_state =/= s_delay, (burst_counter(i) >> 1) - 1.U, burst_counter(i) - 1.U)
++            }
++        }
++    }
++
++    is_read := Mux(io.in.ar.valid, true.B, Mux(c_state === s_IDLE, false.B, is_read))
++    is_write := Mux(io.in.aw.valid, true.B, Mux(c_state === s_IDLE, false.B, is_write))
++
++    when(c_state === s_IDLE){
++        burst_counter_index := 0.U
++    }.elsewhen(n_state === s_wait_read && io.out.r.valid){
++        burst_counter_index := burst_counter_index + 1.U
++        burst_counter(burst_counter_index) := counter + r_mul_s
++        temp_rdata(burst_counter_index) := io.out.r.bits.data
++    }
++
++    burst_counter_index_in := Mux(io.in.ar.valid, 0.U, Mux(io.in.r.fire && burst_counter_index_in < burst_len, burst_counter_index_in + 1.U, burst_counter_index_in))
++
++    when(is_write){
++        io.in.b.valid := counter === 0.U && c_state === s_delay
++    }
++    when(is_read){
++        io.in.r.valid := Mux(c_state === s_delay && burst_counter(burst_counter_index_in) === 0.U, true.B, false.B)
++        io.in.r.bits.last := burst_counter_index_in === burst_len
++    }
++
++    io.in.r.bits.data := Mux(c_state === s_IDLE, 0.U, Mux(is_read, temp_rdata(burst_counter_index_in), 0.U))
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +99,7 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new axi4_delayer)
++      val delayer = Module(new AXI4DelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+diff --git a/src/amba/AXI4ToAPB.scala b/src/amba/AXI4ToAPB.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/Bundles.scala b/src/chiplink/Bundles.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/CAM.scala b/src/chiplink/CAM.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/ChipLink.scala b/src/chiplink/ChipLink.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/Parameters.scala b/src/chiplink/Parameters.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/Partial.scala b/src/chiplink/Partial.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/RX.scala b/src/chiplink/RX.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SinkA.scala b/src/chiplink/SinkA.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SinkB.scala b/src/chiplink/SinkB.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SinkC.scala b/src/chiplink/SinkC.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SinkD.scala b/src/chiplink/SinkD.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SinkE.scala b/src/chiplink/SinkE.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SourceA.scala b/src/chiplink/SourceA.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SourceB.scala b/src/chiplink/SourceB.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SourceC.scala b/src/chiplink/SourceC.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SourceD.scala b/src/chiplink/SourceD.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/SourceE.scala b/src/chiplink/SourceE.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/StuckSnooper.scala b/src/chiplink/StuckSnooper.scala
+old mode 100644
+new mode 100755
+diff --git a/src/chiplink/TX.scala b/src/chiplink/TX.scala
+old mode 100644
+new mode 100755
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+old mode 100644
+new mode 100755
+index 6bd3d572..012d776e
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -10,4 +10,18 @@ class bitrev extends BlackBox {
+ class bitrevChisel extends RawModule { // we do not need clock and reset
+   val io = IO(Flipped(new SPIIO(1)))
+   io.miso := true.B
++  withClockAndReset(io.sck.asClock, io.ss.asBool.asAsyncReset){
++    val cnt = RegInit(8.U)
++    val temp = RegInit(0.U(8.W))
++    when(io.ss === true.B){
++        io.miso := true.B
++    }.elsewhen(io.ss === false.B && cnt =/= 0.U){
++        temp := Cat(temp(6,0), io.mosi.asUInt)
++        io.miso := false.B
++        cnt := cnt - 1.U
++    }.elsewhen(io.ss === false.B && cnt === 0.U){
++        temp := Cat(0.U, temp(7,1))
++        io.miso := temp(0)
++    }
++  }
+ }
+diff --git a/src/device/ChipLinkBridge.scala b/src/device/ChipLinkBridge.scala
+old mode 100644
+new mode 100755
+diff --git a/src/device/GPIO.scala b/src/device/GPIO.scala
+old mode 100644
+new mode 100755
+index f770e96a..737af6f1
+--- a/src/device/GPIO.scala
++++ b/src/device/GPIO.scala
+@@ -25,8 +25,68 @@ class gpio_top_apb extends BlackBox {
+   val io = IO(new GPIOCtrlIO)
+ }
+ 
++object SEGCMD{
++    val num0 = "b00000010".U
++    val num1 = "b10011111".U
++    val num2 = "b00100101".U
++    val num3 = "b00001101".U
++    val num4 = "b10011001".U
++    val num5 = "b01001001".U
++    val num6 = "b01000001".U
++    val num7 = "b00011111".U
++    val num8 = "b00000001".U
++    val num9 = "b00001001".U
++    val numa = "b00010001".U
++    val numb = "b11000001".U
++    val numc = "b01100011".U
++    val numd = "b10000101".U
++    val nume = "b01100001".U
++    val numf = "b01110001".U
++}
++
+ class gpioChisel extends Module {
+-  val io = IO(new GPIOCtrlIO)
++    val io = IO(new GPIOCtrlIO)
++
++    import SEGCMD._
++
++    val gpio_led = RegInit(0.U(16.W))
++    val gpio_sw = RegInit(0.U(16.W))
++    val gpio_seg = RegInit(0.U(32.W))
++
++    io.gpio.out := gpio_led
++    gpio_sw := io.gpio.in
++    for(i <- 0 until 8){
++        io.gpio.seg(i) := MuxLookup(gpio_seg(4 * i + 3, 4 * i), num0)(Seq(
++            0.U    ->   num0,
++            1.U    ->   num1,
++            2.U    ->   num2,
++            3.U    ->   num3,
++            4.U    ->   num4,
++            5.U    ->   num5,
++            6.U    ->   num6,
++            7.U    ->   num7,
++            8.U    ->   num8,
++            9.U    ->   num9,
++            10.U   ->   numa,
++            11.U   ->   numb,
++            12.U   ->   numc,
++            13.U   ->   numd,
++            14.U   ->   nume,
++            15.U   ->   numf
++        ))
++    }
++    
++
++    val addr = io.in.paddr(3, 0)
++    io.in.pready := io.in.penable
++    io.in.pslverr := 0.U
++    io.in.prdata := 0.U
++
++    when(io.in.psel){
++        gpio_led := Mux(addr === 0.U && io.in.pwrite, io.in.pwdata, gpio_led)
++        gpio_seg := Mux(addr === 8.U && io.in.pwrite, io.in.pwdata, gpio_seg)
++        io.in.prdata := Mux(addr === 4.U && ~io.in.pwrite, gpio_sw, 0.U)
++    }
+ }
+ 
+ class APBGPIO(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -43,7 +103,7 @@ class APBGPIO(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModu
+     val (in, _) = node.in(0)
+     val gpio_bundle = IO(new GPIOIO)
+ 
+-    val mgpio = Module(new gpio_top_apb)
++    val mgpio = Module(new gpioChisel)
+     mgpio.io.clock := clock
+     mgpio.io.reset := reset
+     mgpio.io.in <> in
+diff --git a/src/device/Keyboard.scala b/src/device/Keyboard.scala
+old mode 100644
+new mode 100755
+index 5bd7f5b4..b05a3802
+--- a/src/device/Keyboard.scala
++++ b/src/device/Keyboard.scala
+@@ -25,7 +25,103 @@ class ps2_top_apb extends BlackBox {
+ }
+ 
+ class ps2Chisel extends Module {
+-  val io = IO(new PS2CtrlIO)
++    val io = IO(new PS2CtrlIO)
++    val ps2ChiselHelper = Module(new ps2ChiselHelper)
++    
++    val ready_r = RegNext(ps2ChiselHelper.io.ready)
++    val ready_rise = ps2ChiselHelper.io.ready & ~ready_r
++    val nextdata_n = RegInit(true.B)
++    nextdata_n := Mux(ready_rise, false.B, true.B)
++    val addr = io.in.paddr(3, 0)
++    
++    val fifo = RegInit(VecInit(Seq.fill(16)(0.U(8.W))))
++    val ptr = RegInit(0.U(4.W))
++    dontTouch(fifo)
++    dontTouch(ptr)
++    when(ready_rise){
++        fifo(ptr) := ps2ChiselHelper.io.data
++        ptr := Mux(ptr <= 14.U, ptr + 1.U, ptr)
++    }
++    when(io.in.psel && addr === 0.U && ~io.in.pwrite && io.in.pready){
++        for(i <- 0 until 15){
++            fifo(i) := fifo(i + 1)
++        }
++        ptr := Mux(ptr >= 1.U, ptr - 1.U, ptr)
++    }
++
++    ps2ChiselHelper.io.clk := clock
++    ps2ChiselHelper.io.reset := reset
++    ps2ChiselHelper.io.ps2_clk := io.ps2.clk
++    ps2ChiselHelper.io.ps2_data := io.ps2.data
++    ps2ChiselHelper.io.nextdata_n := nextdata_n
++
++    io.in.pready := io.in.penable
++    io.in.pslverr := 0.U
++    io.in.prdata := Mux(io.in.psel && addr === 0.U && ~io.in.pwrite, fifo(0), 0.U)
++}   
++
++class ps2ChiselHelper extends BlackBox with HasBlackBoxInline {
++    val io = IO(new Bundle{
++        val clk = Input(Clock())
++        val reset = Input(Reset())
++        val ps2_clk = Input(Bool())
++        val ps2_data = Input(Bool())
++        val nextdata_n = Input(Bool())
++        val data = Output(UInt(8.W))
++        val ready = Output(Bool())
++    })
++    setInline("ps2ChiselHelper.v",
++    """module ps2ChiselHelper(
++      |    input clk,
++      |    input reset,
++      |    input ps2_clk,
++      |    input ps2_data,
++      |    input nextdata_n,
++      |    output [7:0] data,
++      |    output reg ready
++      |);
++      |reg [9:0] buffer;
++      |reg [7:0] fifo[7:0];
++      |reg [2:0] w_ptr,r_ptr;
++      |reg [3:0] count;
++      |reg [2:0] ps2_clk_sync;
++      |always @(posedge clk) begin
++      |    ps2_clk_sync <=  {ps2_clk_sync[1:0],ps2_clk};
++      |end
++      |wire sampling = ps2_clk_sync[2] & ~ps2_clk_sync[1];
++      |always @(posedge clk) begin
++      |    if (reset) begin
++      |        count <= 0; w_ptr <= 0; r_ptr <= 0; ready<= 0;
++      |    end
++      |    else begin
++      |        if ( ready ) begin
++      |            if(nextdata_n == 1'b0)
++      |            begin
++      |                r_ptr <= r_ptr + 3'b1;
++      |                if(w_ptr==(r_ptr+1'b1))
++      |                    ready <= 1'b0;
++      |            end
++      |        end
++      |        if (sampling) begin
++      |          if (count == 4'd10) begin
++      |            if ((buffer[0] == 0) &&
++      |                (ps2_data)       &&
++      |                (^buffer[9:1])) begin
++      |                fifo[w_ptr] <= buffer[8:1];
++      |                w_ptr <= w_ptr+3'b1;
++      |                ready <= 1'b1;
++      |            end
++      |            count <= 0;
++      |          end else begin
++      |            buffer[count] <= ps2_data;
++      |            count <= count + 3'b1;
++      |          end
++      |        end
++      |    end
++      |end
++      |assign data = fifo[r_ptr];
++      |endmodule
++    """.stripMargin)
+ }
+ 
+ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -42,7 +138,7 @@ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends Lazy
+     val (in, _) = node.in(0)
+     val ps2_bundle = IO(new PS2IO)
+ 
+-    val mps2 = Module(new ps2_top_apb)
++    val mps2 = Module(new ps2Chisel)
+     mps2.io.clock := clock
+     mps2.io.reset := reset
+     mps2.io.in <> in
+diff --git a/src/device/MROM.scala b/src/device/MROM.scala
+old mode 100644
+new mode 100755
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+old mode 100644
+new mode 100755
+index 09d889e4..79df6321
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -29,8 +29,150 @@ class psram extends BlackBox {
+ }
+ 
+ class psramChisel extends RawModule {
+-  val io = IO(Flipped(new QSPIIO))
+-  val di = TriStateInBuf(io.dio, 0.U, false.B) // change this if you need
++    val io = IO(Flipped(new QSPIIO))
++    /*added by ypc 2024.11.27 start*/
++    withClockAndReset(io.sck.asClock, io.ce_n.asAsyncReset){
++        val psramChiselHelper = Module(new psramChiselHelper)
++        val cmd = RegInit(0.U(8.W))
++        val addr = RegInit(0.U(24.W))
++        val wdata = RegInit(0.U(32.W))
++        val wstrb = Wire(UInt(8.W))
++
++        val qpi_en = Reg(Bool())
++
++        val dout = Wire(UInt(4.W))
++        val out_en = Wire(Bool())
++        val di = TriStateInBuf(io.dio, dout, out_en) // change this if you need
++
++        val cnt = withClock((io.sck).asClock){ RegInit(0.U(5.W)) }
++        cnt := cnt + 1.U
++
++        val s_IDLE :: s_cmd :: s_qaddr :: s_addr :: s_wait :: s_rdata :: s_wdata :: s_rdone :: s_wdone :: s_err :: Nil = Enum(10)
++        val c_state = RegInit(s_IDLE)
++        val n_state = WireDefault(c_state)
++        dontTouch(n_state)
++
++        c_state := n_state
++
++        n_state := MuxLookup(Mux((cmd === "h35".U || io.ce_n), s_cmd, Mux(cnt === 0.U, Mux(qpi_en, s_qaddr, c_state), c_state)), s_IDLE)(Seq(
++            s_IDLE  ->  s_cmd,
++            s_cmd   ->  Mux(cnt === 8.U, Mux(cmd === "h35".U, s_IDLE, s_addr), s_cmd),
++            s_qaddr ->  Mux(cnt === 2.U, s_addr, s_qaddr),
++            s_addr  ->  Mux(cnt === Mux(qpi_en, 8.U, 14.U), Mux(cmd === "hEB".U, s_wait, Mux(cmd === "h38".U, s_wdata, s_err)), s_addr),
++            s_wait  ->  Mux(cnt === Mux(qpi_en, 15.U, 21.U), s_rdata, s_wait),
++            s_rdata ->  Mux(cnt === Mux(qpi_en, 22.U, 28.U), s_rdone, s_rdata),
++            s_wdata ->  Mux(cnt === Mux(qpi_en, 16.U, 22.U), s_wdone, s_wdata),
++            s_rdone ->  Mux(qpi_en, s_qaddr, s_IDLE),
++            s_wdone ->  Mux(qpi_en, s_qaddr, s_IDLE),
++            s_err   ->  Mux(qpi_en, s_qaddr, s_IDLE)
++        ))
++
++        val rdata_save = RegInit(0.U(32.W)) //save the psramhelper rdata for shift op
++        val wdata_shiftcnt = RegInit(0.U(4.W))
++        val wdata_save = Wire(UInt(32.W))
++        wdata_save := di
++        dontTouch(wdata_save)
++        val wdata_offset = VecInit(Seq(4.U, 0.U, 12.U, 8.U, 20.U, 16.U, 28.U, 24.U))
++
++        switch(n_state){
++            is(s_IDLE){
++                cmd := 0.U(8.W)
++                addr := 0.U(24.W)
++                wdata := 0.U(32.W)
++            }
++            is(s_cmd){
++                cmd := Cat(cmd(6,0), di(0)) //1bit trans
++                qpi_en := Mux(cnt === 7.U && cmd === "h1A".U, true.B, qpi_en)
++            }
++            is(s_qaddr){
++                cmd := Cat(cmd(3, 0), di) //qpi mode 4bit trans
++            }
++            is(s_addr){
++                addr := Cat(addr(19,0), di) //4bit trans
++            }
++            is(s_wait){
++                rdata_save := psramChiselHelper.io.rdata
++            }
++            is(s_rdata){
++                rdata_save := rdata_save << 4.U
++            }
++            is(s_rdone){
++                rdata_save := 0.U
++            }
++            is(s_wdata){
++                wdata := wdata | (wdata_save << wdata_offset(wdata_shiftcnt))
++                wdata_shiftcnt := wdata_shiftcnt + 1.U
++            }
++            is(s_wdone){
++            }
++        }
++
++        out_en := (n_state === s_rdata) || (n_state === s_rdone)
++
++        dout := rdata_save(31,28)
++
++        wstrb := MuxLookup(wdata_shiftcnt, 0.U)(Seq(
++                    2.U -> "b0001".U,
++                    4.U -> "b0011".U,
++                    8.U -> "b1111".U
++        ))
++
++        psramChiselHelper.io.clock := (~io.sck).asClock
++        psramChiselHelper.io.cmd := cmd
++        psramChiselHelper.io.ren := n_state === s_wait
++        psramChiselHelper.io.wen := (n_state === s_wdone) || Mux(qpi_en, (cnt > 8.U && n_state === s_wdata), cnt > 15.U)
++        psramChiselHelper.io.addr := addr
++        psramChiselHelper.io.wdata := wdata
++        psramChiselHelper.io.wstrb := wstrb
++
++    }
++    /*added by ypc 2024.11.27 end*/
++}
++
++class psramChiselHelper extends BlackBox with HasBlackBoxInline {
++  val io = IO(new Bundle {
++    val clock = Input(Clock())
++    val cmd = Input(UInt(8.W))
++    val ren = Input(Bool())
++    val wen = Input(Bool())
++    val addr = Input(UInt(32.W))
++    val rdata = Output(UInt(32.W))
++    val wdata = Input(UInt(32.W))
++    val wstrb = Input(UInt(8.W))
++  })
++  setInline("psramChiselHelper.v",
++    """module psramChiselHelper(
++      |     input clock,
++      |     input [7:0] cmd,
++      |     input ren,
++      |     input wen,
++      |     input [31:0] addr,
++      |     output reg [31:0] rdata,
++      |     input [31:0] wdata,
++      |     input [7:0] wstrb
++      |);
++      |
++      |import "DPI-C" function void psram_read(input int addr, output int rdata);
++      |import "DPI-C" function void psram_write(input int addr, input int wdata, input byte wstrb);
++      |
++      |always @(*) begin
++      |  rdata = 32'b0;
++      |  if (cmd == 8'hEB && ren == 1'b1) begin
++      |    psram_read(addr, rdata);
++      |  end
++      |  else if((ren | wen) && cmd != 8'hEB && cmd != 8'h38) begin
++      |    $fwrite(32'h80000002, "Assertion failed: Unsupport command `%xh`, only support `EBh`, `38h`, `35h` commands\n", cmd);
++      |    $fatal;
++      |  end
++      |end
++      |
++      |always @(posedge clock) begin
++      |  if (cmd == 8'h38 && wen == 1'b1) begin
++      |    psram_write(addr, wdata, wstrb);
++      |  end
++      |end
++      |endmodule
++    """.stripMargin)
+ }
+ 
+ class APBPSRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+old mode 100644
+new mode 100755
+index a823c718..29159548
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -2,7 +2,7 @@ package ysyx
+ 
+ import chisel3._
+ import chisel3.util._
+-import chisel3.experimental.Analog
++import chisel3.experimental.{attach, Analog}
+ 
+ import freechips.rocketchip.amba.axi4._
+ import freechips.rocketchip.amba.apb._
+@@ -11,6 +11,32 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ 
+ class SDRAMIO extends Bundle {
++  val clk = Output(Bool())
++  val cke = Output(Bool())
++  val cs  = Output(Bool())
++  val ras = Output(Bool())
++  val cas = Output(Bool())
++  val we  = Output(Bool())
++  val a   = Output(UInt(14.W))
++  val ba  = Output(UInt(2.W))
++  val dqm = Output(UInt(4.W))
++  val dq  = Analog(32.W)
++}
++
++class SDRAMIOBank extends Bundle {
++  val clk = Output(Bool())
++  val cke = Output(Bool())
++  val cs  = Output(Bool())
++  val ras = Output(Bool())
++  val cas = Output(Bool())
++  val we  = Output(Bool())
++  val a   = Output(UInt(13.W))
++  val ba  = Output(UInt(2.W))
++  val dqm = Output(UInt(4.W))
++  val dq  = Analog(32.W)
++}
++
++class SDRAMIOChip extends Bundle {
+   val clk = Output(Bool())
+   val cke = Output(Bool())
+   val cs  = Output(Bool())
+@@ -21,6 +47,10 @@ class SDRAMIO extends Bundle {
+   val ba  = Output(UInt(2.W))
+   val dqm = Output(UInt(2.W))
+   val dq  = Analog(16.W)
++
++  val out_en = Input(Bool())
++  val dq_o = Input(UInt(16.W))//chip output(rdata)
++  val dq_i = Output(UInt(16.W))//chip input(wdata)
+ }
+ 
+ class sdram_top_axi extends BlackBox {
+@@ -32,6 +62,18 @@ class sdram_top_axi extends BlackBox {
+   })
+ }
+ 
++object sdramCMD{
++    val NOP                = "b0111".U(4.W)
++    val ACTIVE             = "b0011".U(4.W)
++    val READ               = "b0101".U(4.W)
++    val WRITE              = "b0100".U(4.W)
++    val BURST_TERMINATE    = "b0110".U(4.W)
++    val PRECHARGE          = "b0010".U(4.W)
++    val AUTO_REFRESH       = "b0001".U(4.W)
++    val LOAD_MODE_REGISTER = "b0000".U(4.W)
++}
++
++
+ class sdram_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+@@ -46,9 +88,226 @@ class sdram extends BlackBox {
+ }
+ 
+ class sdramChisel extends RawModule {
+-  val io = IO(Flipped(new SDRAMIO))
++    val io = IO(Flipped(new SDRAMIO))
++    val bank0 = Module(new sdramChiselBank(0))
++    val bank1 = Module(new sdramChiselBank(2))
++    withClockAndReset(io.clk.asClock, (~io.cke).asAsyncReset){
++        import sdramCMD._
++        val cmd_comb = Wire(UInt(4.W))
++        cmd_comb := Cat(Cat(io.cs, io.ras), Cat(io.cas, io.we))
++        val bank0_cs = Wire(Bool())
++        bank0_cs := Mux(io.a(13), true.B, io.cs)
++
++        bank0.io.clk := io.clk
++        bank0.io.cke := io.cke
++        bank0.io.cs := Mux(cmd_comb === ACTIVE, bank0_cs, io.cs)
++        bank0.io.ras := io.ras
++        bank0.io.cas := io.cas
++        bank0.io.we := io.we
++        bank0.io.a := io.a(12, 0)
++        bank0.io.ba := io.ba
++        bank0.io.dqm := io.dqm
++        attach(bank0.io.dq, io.dq)
++
++        bank1.io.clk := io.clk
++        bank1.io.cke := io.cke
++        bank1.io.cs := Mux(cmd_comb === LOAD_MODE_REGISTER, bank0.io.cs, ~bank0.io.cs)
++        bank1.io.ras := io.ras
++        bank1.io.cas := io.cas
++        bank1.io.we := io.we
++        bank1.io.a := io.a(12, 0)
++        bank1.io.ba := io.ba
++        bank1.io.dqm := io.dqm
++        attach(bank1.io.dq, io.dq)
++    }
++}
++
++
++class sdramChiselBank(id : Int) extends RawModule {
++    val io = IO(Flipped(new SDRAMIOBank))
++    val chip0 = Module(new sdramChiselChip(id + 0))
++    val chip1 = Module(new sdramChiselChip(id + 1))
++
++    val data_in = Wire(UInt(32.W))
++    val data_out = Wire(UInt(32.W))
++    data_out := Cat(chip1.io.dq_o, chip0.io.dq_o)
++    data_in := TriStateInBuf(io.dq, data_out, chip0.io.out_en & chip1.io.out_en)
++
++    chip0.io.clk := io.clk
++    chip0.io.cke := io.cke
++    chip0.io.cs := io.cs
++    chip0.io.ras := io.ras
++    chip0.io.cas := io.cas
++    chip0.io.we := io.we
++    chip0.io.a := io.a
++    chip0.io.ba := io.ba
++    chip0.io.dqm := io.dqm(1, 0)
++    chip0.io.dq_i := data_in(15, 0)
++
++    chip1.io.clk := io.clk
++    chip1.io.cke := io.cke
++    chip1.io.cs := io.cs
++    chip1.io.ras := io.ras
++    chip1.io.cas := io.cas
++    chip1.io.we := io.we
++    chip1.io.a := io.a
++    chip1.io.ba := io.ba
++    chip1.io.dqm := io.dqm(3, 2)
++    chip1.io.dq_i := data_in(31, 16)
++}
++
++
++class sdramChiselChip(id : Int) extends RawModule {
++    val io = IO(Flipped(new SDRAMIOChip))
++    withClockAndReset(io.clk.asClock, (~io.cke).asAsyncReset){
++        import sdramCMD._
++        val sdramChiselHelper = Module(new sdramChiselHelper)
++        val cmd = RegInit(0.U(4.W))
++        val active = RegInit(0.U(4.W))
++        val bank_addr = RegInit(0.U(2.W))
++        val row_addr = Reg(Vec(4, UInt(13.W)))
++        val col_addr = Reg(Vec(4, UInt(9.W)))
++        val wdata = RegInit(0.U(16.W))
++        val wstrb = RegInit(0.U(2.W))
++        val rdata = Wire(UInt(16.W))
++
++        val s_IDLE :: s_read :: s_wait :: s_write :: Nil = Enum(4)
++        val c_state = RegInit(s_IDLE)
++        val n_state = WireDefault(c_state)
++        dontTouch(n_state)
++
++        val cmd_comb = Wire(UInt(4.W))
++        cmd_comb := Cat(Cat(io.cs, io.ras), Cat(io.cas, io.we))
++        cmd := cmd_comb
++        wstrb := io.dqm
++        bank_addr := Mux(cmd_comb === ACTIVE || cmd_comb === READ || cmd_comb === WRITE || cmd_comb === PRECHARGE, io.ba, bank_addr)
++        val mode = RegInit(0.U(13.W))
++        val busrtlen_cnt = RegInit(0.U(3.W))
++        val caslate_cnt = RegInit(0.U(3.W))
++        val caslate = mode(6, 4)
++        val busrtlen = 1.U << mode(2, 0)
++        busrtlen_cnt := Mux(((n_state === s_read && c_state === s_wait) || cmd === WRITE) && busrtlen =/= 0.U, busrtlen - 1.U, Mux(busrtlen_cnt =/= 0.U && busrtlen_cnt =/= busrtlen, busrtlen_cnt - 1.U, busrtlen))
++        caslate_cnt := Mux(cmd === READ, caslate - 1.U, Mux(caslate_cnt =/= 0.U && caslate_cnt =/= caslate, caslate_cnt - 1.U, caslate))
++
++        c_state := n_state
++
++        n_state := MuxLookup(c_state, s_IDLE)(Seq(
++            s_IDLE   ->   Mux(cmd === READ, s_wait, Mux(cmd === WRITE, s_write, s_IDLE)),
++            s_wait   ->   Mux(caslate_cnt === 1.U, s_read, s_wait),
++            s_read   ->   Mux(busrtlen_cnt === 0.U, Mux(cmd === WRITE, s_write, Mux(cmd === READ, s_wait, s_IDLE)), s_read),
++            s_write  ->   Mux(busrtlen_cnt === 0.U, Mux(cmd === READ, s_wait, s_IDLE), s_write)
++        ))
++
++        wdata := io.dq_i
++        io.dq_o := rdata
++        io.out_en := n_state === s_read
++
++        when(cmd === ACTIVE){
++            active := active | (1.U << bank_addr)
++        }.elsewhen(cmd === PRECHARGE){
++            active := active & ~(1.U << bank_addr)
++        }
++
++        row_addr(io.ba) := Mux(cmd_comb === ACTIVE, io.a, row_addr(io.ba))
++        col_addr(io.ba) := Mux(cmd_comb === READ || cmd_comb === WRITE, io.a(8, 0), col_addr(io.ba))
++        mode := Mux(cmd_comb === LOAD_MODE_REGISTER, io.a, mode)
++
++        sdramChiselHelper.io.clock := io.clk.asClock
++        sdramChiselHelper.io.sdram_active := active
++        sdramChiselHelper.io.sdram_bank_addr := bank_addr
++        sdramChiselHelper.io.sdram_row_addr := row_addr(bank_addr)
++        sdramChiselHelper.io.sdram_col_addr := Mux(busrtlen_cnt =/= busrtlen, col_addr(bank_addr) + (busrtlen - busrtlen_cnt), col_addr(bank_addr))
++        sdramChiselHelper.io.sdram_ren := n_state === s_read
++        sdramChiselHelper.io.sdram_wen := n_state === s_write
++        sdramChiselHelper.io.sdram_wdata := wdata
++        sdramChiselHelper.io.sdram_wstrb := wstrb
++        rdata := sdramChiselHelper.io.sdram_rdata
++
++        sdramChiselHelper.io.sdram_id := id.asUInt
++    }
+ }
+ 
++
++
++
++
++
++
++
++
++
++
++class sdramChiselHelper extends BlackBox with HasBlackBoxInline {//one chip logic
++  val io = IO(new Bundle {
++    val clock = Input(Clock())
++    val sdram_active = Input(UInt(4.W))//select 4 banks active
++    val sdram_bank_addr = Input(UInt(2.W))//select 4 banks
++    val sdram_row_addr = Input(UInt(13.W))//select 8192 rows
++    val sdram_col_addr = Input(UInt(9.W))//select 512 cols
++
++    val sdram_ren = Input(Bool())
++    val sdram_wen = Input(Bool())
++    val sdram_rdata = Output(UInt(16.W))
++    val sdram_wdata = Input(UInt(16.W))
++    val sdram_wstrb = Input(UInt(2.W))
++
++    val sdram_id = Input(UInt(2.W))
++  })
++  setInline("sdramChiselHelper.v",
++    """module sdramChiselHelper(
++      |     input clock,
++      |     input [3:0] sdram_active,
++      |     input [1:0] sdram_bank_addr,
++      |     input [12:0] sdram_row_addr,
++      |     input [8:0] sdram_col_addr,
++      |
++      |     input sdram_ren,
++      |     input sdram_wen,
++      |     input [15:0] sdram_wdata,
++      |     output [15:0] sdram_rdata,
++      |     input [1:0] sdram_wstrb,
++      |
++      |     input [1:0] sdram_id
++      |);
++      |
++      |import "DPI-C" function void sdram_read(input int id, input int bank_addr, input int row_addr, input int col_addr, output int rdata);
++      |import "DPI-C" function void sdram_write(input int id, input int bank_addr, input int row_addr, input int col_addr, input int wdata, input byte wstrb);
++      |
++      |wire [31:0] id = {30'b0, sdram_id};
++      |wire [31:0] bank_addr = {30'b0, sdram_bank_addr};
++      |wire [31:0] row_addr = {19'b0, sdram_row_addr};
++      |wire [31:0] col_addr = {23'b0, sdram_col_addr};
++      |wire [31:0] wdata = {16'b0, sdram_wdata};
++      |reg [31:0] rdata;
++      |wire [7:0] wstrb = {6'b0, !sdram_wstrb[1], !sdram_wstrb[0]};
++      |
++      |assign sdram_rdata = rdata[15:0];
++      |
++      |always @(*) begin
++      |  rdata = 32'b0;
++      |  if (sdram_active[sdram_bank_addr]) begin
++      |    if(sdram_ren) sdram_read(id, bank_addr, row_addr, col_addr, rdata);
++      |  end
++      |end
++      |
++      |always @(posedge clock) begin
++      |  if (sdram_active[sdram_bank_addr]) begin
++      |    if(sdram_wen) sdram_write(id, bank_addr, row_addr, col_addr, wdata, wstrb);
++      |  end
++      |end
++      |endmodule
++    """.stripMargin)
++}
++
++
++
++
++
++
++
++
++
++
+ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val beatBytes = 4
+   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+old mode 100644
+new mode 100755
+index c354bb92..3dfaa803
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -48,5 +48,53 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     mspi.io.reset := reset
+     mspi.io.in <> in
+     spi_bundle <> mspi.io.spi
++    when(in.paddr >= "h1000_1000".U(32.W) && in.paddr <= "h1000_1fff".U(32.W)){
++    }.elsewhen(in.paddr >= "h3000_0000".U(32.W) && in.paddr <= "h3fff_ffff".U(32.W)){
++        val s_IDLE :: s_tx1 :: s_tx0 :: s_div :: s_ss :: s_ctrl :: s_go :: s_wait :: s_read :: Nil = Enum(9)
++        val state = RegInit(s_tx1)
++        state := MuxLookup(state, s_tx1)(Seq(
++            s_IDLE -> s_tx1,
++            s_tx1  -> Mux(mspi.io.in.pready, s_tx0, s_tx1),
++            s_tx0  -> Mux(mspi.io.in.pready, s_div, s_tx0),
++            s_div  -> Mux(mspi.io.in.pready, s_ss, s_div),
++            s_ss   -> Mux(mspi.io.in.pready, s_ctrl, s_ss),
++            s_ctrl -> Mux(mspi.io.in.pready, s_go,  s_ctrl),
++            s_go   -> Mux(mspi.io.in.pready, s_wait,  s_go),
++            s_wait -> Mux(mspi.io.spi_irq_out, s_read,  s_wait),
++            s_read -> Mux(mspi.io.in.pready, s_IDLE,  s_read),
++        ))
++
++        val rdata = RegEnable(mspi.io.in.prdata, state === s_read)
++        val offset = Wire(UInt(32.W))
++        val rdata_rev = Wire(UInt(32.W))
++
++        in.pready := (state === s_IDLE)
++        offset := ((in.paddr - (in.paddr & (~7.U(32.W)))) << 3) % 32.U
++        rdata_rev := Cat(Cat(rdata(7, 0), rdata(15, 8)), Cat(rdata(23, 16), rdata(31, 24)))
++        in.prdata := (rdata_rev << offset(5, 0)) | (rdata_rev >> (32.U - offset(5, 0)))
++
++        mspi.io.in.paddr := MuxLookup(state, 0.U)(Seq(
++            s_tx1  ->  "h1000_1004".U,
++            s_tx0  ->  "h1000_1000".U,
++            s_div  ->  "h1000_1014".U,
++            s_ss   ->  "h1000_1018".U,
++            s_ctrl ->  "h1000_1010".U,
++            s_go   ->  "h1000_1010".U,
++            s_read ->  "h1000_1000".U
++        ))
++        mspi.io.in.pwdata := MuxLookup(state, 0.U)(Seq(
++            s_tx1  ->  ((3.U << 24) + (in.paddr & "hffffff".U)),
++            s_tx0  ->  0.U,
++            s_div  ->  1.U,
++            s_ss   ->  1.U,
++            s_ctrl ->  "b1_1_0_1_0_0_0_1000000".U,
++            s_go   ->  "b1_1_0_1_0_1_0_1000000".U
++        ))
++        mspi.io.in.psel := in.psel && (state =/= s_IDLE) && (state =/= s_wait)
++        mspi.io.in.penable := in.penable && (state =/= s_IDLE) && (state =/= s_wait)
++        mspi.io.in.pwrite := (state === s_tx0) || (state === s_tx1) || (state === s_div) || (state === s_ctrl) || (state === s_ss) || (state === s_go)
++        mspi.io.in.pstrb := Mux(mspi.io.in.pwrite, "b1111".U, 0.U)
++        assert(!in.pwrite, "flash no write!")
++    }
+   }
+ }
+diff --git a/src/device/Uart16550.scala b/src/device/Uart16550.scala
+old mode 100644
+new mode 100755
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+old mode 100644
+new mode 100755
+index 6724bc38..c2221da8
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -29,9 +29,133 @@ class vga_top_apb extends BlackBox {
+ }
+ 
+ class vgaChisel extends Module {
+-  val io = IO(new VGACtrlIO)
++    val io = IO(new VGACtrlIO)
++    val vgaChiselHelper = Module(new vgaChiselHelper)
++
++    val buffer = Mem(640 * 480, Vec(4, UInt(8.W)))
++    val addr = Wire(UInt(24.W))
++    val wdata = Wire(Vec(4, UInt(8.W)))
++    val wstrb = Wire(Vec(4, Bool()))
++    addr := io.in.paddr(23, 2)
++    for(i <- 0 until 4){
++        wdata(i) := io.in.pwdata(i * 8 + 7, i * 8)
++        wstrb(i) := io.in.pstrb(i).asBool
++    }
++    when(io.in.psel){
++        when(io.in.pwrite){
++            buffer.write(addr, wdata, wstrb)
++        }.elsewhen(~io.in.pwrite){
++            io.in.prdata := buffer.read(addr).asUInt
++        }
++    }
++    vgaChiselHelper.io.pclk := clock
++    vgaChiselHelper.io.reset := reset
++    vgaChiselHelper.io.vga_data := buffer.read(vgaChiselHelper.io.h_addr + vgaChiselHelper.io.v_addr * 640.U).asUInt
++
++    io.in.pready := io.in.penable
++    io.in.pslverr := 0.U
++    io.in.prdata := 0.U
++
++    io.vga.hsync := vgaChiselHelper.io.hsync
++    io.vga.vsync := vgaChiselHelper.io.vsync
++    io.vga.valid := vgaChiselHelper.io.valid
++    io.vga.r := vgaChiselHelper.io.vga_r
++    io.vga.g := vgaChiselHelper.io.vga_g
++    io.vga.b := vgaChiselHelper.io.vga_b
++}
++
++
++
++
++
++class vgaChiselHelper extends BlackBox with HasBlackBoxInline {
++    val io = IO(new Bundle{
++        val pclk = Input(Clock())
++        val reset = Input(Reset())
++        val vga_data = Input(UInt(24.W))
++
++        val h_addr = Output(UInt(10.W))
++        val v_addr = Output(UInt(10.W))
++        val hsync = Output(Bool())
++        val vsync = Output(Bool())
++        val valid = Output(Bool())
++        val vga_r = Output(UInt(8.W))
++        val vga_g = Output(UInt(8.W))
++        val vga_b = Output(UInt(8.W))
++    })
++    setInline("vgaChiselHelper.v",
++    """module vgaChiselHelper(
++      |input           pclk,     //25MHz时钟
++      |input           reset,    //置位
++      |input  [23:0]   vga_data, //上层模块提供的VGA颜色数据
++      |output [9:0]    h_addr,   //提供给上层模块的当前扫描像素点坐标
++      |output [9:0]    v_addr,
++      |output          hsync,    //行同步和列同步信号
++      |output          vsync,
++      |output          valid,    //消隐信号
++      |output [7:0]    vga_r,    //红绿蓝颜色信号
++      |output [7:0]    vga_g,
++      |output [7:0]    vga_b
++      |);
++      |//640x480分辨率下的VGA参数设置
++      |parameter    h_frontporch = 96;
++      |parameter    h_active = 144;
++      |parameter    h_backporch = 784;
++      |parameter    h_total = 800;
++      |
++      |parameter    v_frontporch = 2;
++      |parameter    v_active = 35;
++      |parameter    v_backporch = 515;
++      |parameter    v_total = 525;
++      |
++      |//像素计数值
++      |reg [9:0]    x_cnt;
++      |reg [9:0]    y_cnt;
++      |wire         h_valid;
++      |wire         v_valid;
++      |
++      |always @(posedge reset or posedge pclk) //行像素计数
++      |    if (reset == 1'b1)
++      |       x_cnt <= 1;
++      |    else
++      |    begin
++      |      if (x_cnt == h_total)
++      |          x_cnt <= 1;
++      |      else
++      |          x_cnt <= x_cnt + 10'd1;
++      |    end
++      |
++      |always @(posedge pclk)  //列像素计数
++      |    if (reset == 1'b1)
++      |      y_cnt <= 1;
++      |     else
++      |     begin
++      |       if (y_cnt == v_total & x_cnt == h_total)
++      |           y_cnt <= 1;
++      |       else if (x_cnt == h_total)
++      |           y_cnt <= y_cnt + 10'd1;
++      |     end
++      |//生成同步信号
++      |assign hsync = (x_cnt > h_frontporch);
++      |assign vsync = (y_cnt > v_frontporch);
++      |//生成消隐信号
++      |assign h_valid = (x_cnt > h_active) & (x_cnt <= h_backporch);
++      |assign v_valid = (y_cnt > v_active) & (y_cnt <= v_backporch);
++      |assign valid = h_valid & v_valid;
++      |//计算当前有效像素坐标
++      |assign h_addr = h_valid ? (x_cnt - 10'd145) : {10{1'b0}};
++      |assign v_addr = v_valid ? (y_cnt - 10'd36) : {10{1'b0}};
++      |//设置输出的颜色值
++      |assign vga_r = vga_data[23:16];
++      |assign vga_g = vga_data[15:8];
++      |assign vga_b = vga_data[7:0];
++      |endmodule
++    """.stripMargin)
+ }
+ 
++
++
++
+ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+     Seq(APBSlaveParameters(
+@@ -46,7 +170,7 @@ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     val (in, _) = node.in(0)
+     val vga_bundle = IO(new VGAIO)
+ 
+-    val mvga = Module(new vga_top_apb)
++    val mvga = Module(new vgaChisel)
+     mvga.io.clock := clock
+     mvga.io.reset := reset
+     mvga.io.in <> in
+diff --git a/src/util/TriState.scala b/src/util/TriState.scala
+old mode 100644
+new mode 100755
+-- 
+2.34.1
+

@@ -1,0 +1,208 @@
+From abc54b341395c474843454e7af1035f93c172725 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Thu, 9 Oct 2025 16:15:35 +0800
+Subject: [PATCH 5/9] fix rtt am
+
+---
+ bsp/abstract-machine/Makefile             |   2 +-
+ bsp/abstract-machine/integrate-am-apps.py |   6 +-
+ bsp/abstract-machine/src/context.c        | 105 ++++++++++++----------
+ bsp/abstract-machine/src/uart.c           |  12 +--
+ 4 files changed, 68 insertions(+), 57 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 5b1681a6b..4d4a0500b 100755
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -11,7 +11,7 @@ CFLAGS += -Wno-nonnull-compare
+ 
+ ifeq ($(ARCH), riscv32e-ysyxsoc)
+ LDFLAGS += -T extra_ysyxsoc.ld
+-CFLAGS += -DCONFIG_YSYXSOC
++CFLAGS += -DCONFIG_YSYXSOC -O2
+ else
+ LDFLAGS += -T extra.ld
+ endif
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df387..b11e0719c 100755
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -9,9 +9,9 @@ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+-  AM_KERNELS_HOME / "kernels" / "typing-game",
+-  AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++#   AM_KERNELS_HOME / "kernels" / "typing-game",
++#   AM_KERNELS_HOME / "kernels" / "snake",
++#   AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 5221f601e..a74728413 100755
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,77 +2,88 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-#define ADDR_ALIGN_BASE sizeof(uintptr_t)
+-#define ADDR_ALIGNED(addr) (((addr) + ADDR_ALIGN_BASE - 1)&(~((uintptr_t)(ADDR_ALIGN_BASE-1))))
++typedef struct CallContext {
++  void *tentry;
++  void *parameter;
++  void *texit;
++} CallContext_t;
++
++static void kthread(void *arg) {
++  CallContext_t * ctx = (CallContext_t *)arg;
++  ((void (*)(void *))(ctx->tentry))(ctx->parameter);
++  ((void (*)(void))(ctx->texit))();
++  while (1) { ; }
++}
+ 
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-    case EVENT_YIELD:{
+-      rt_thread_t current_pcb = rt_thread_self();
+-      rt_ubase_t to = current_pcb->user_data;
+-      c = *(Context**)to;
+-      break;
++  case EVENT_YIELD: {
++    rt_thread_t current = rt_thread_self();
++    rt_ubase_t saved = current->user_data;
++    if (saved != 0) {
++      rt_ubase_t *data = (rt_ubase_t *)saved;
++      rt_ubase_t from = data[0];
++      rt_ubase_t to = data[1];
++      if (from != 0) {
++        *((Context **)from) = c;
++      }
++      c = *((Context **)to);
+     }
+-    case EVENT_IRQ_TIMER:{
+-      break;
+-    }
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++    break;
++  }
++  case EVENT_IRQ_TIMER:
++    break;
++  default:
++    printf("Unhandled event ID = %d\n", e.event);
++    assert(0);
+   }
+   return c;
+ }
+ 
+-void __am_cte_init() {
++void __am_cte_init(void) {
+   cte_init(ev_handler);
+ }
+ 
++#define ADDR_ALIGN_BASE sizeof(uintptr_t)
++#define ADDR_ALIGNED_DOWN(addr) ((uintptr_t)(addr) & ~((uintptr_t)ADDR_ALIGN_BASE - 1))
++
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  rt_thread_t current_pcb = rt_thread_self();
+-  rt_ubase_t temp_user_data = current_pcb->user_data;
+-  current_pcb->user_data = to;
++  rt_thread_t current = rt_thread_self();
++  rt_ubase_t temp = current->user_data;
++  rt_ubase_t data[2];
++  data[0] = 0;
++  data[1] = to;
++  current->user_data = (rt_ubase_t)data;
+   yield();
+-  current_pcb->user_data = temp_user_data;
++  current->user_data = temp;
+ }
+-
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  rt_thread_t current_pcb = rt_thread_self();
+-  rt_ubase_t temp_user_data = current_pcb->user_data;
+-  // from = current_pcb->user_data;
+-  current_pcb->user_data = to;
+-  *(Context**)from = current_pcb->sp;
++  rt_thread_t current = rt_thread_self();
++  rt_ubase_t temp = current->user_data;
++  rt_ubase_t data[2];
++  data[0] = from;
++  data[1] = to;
++  current->user_data = (rt_ubase_t)data;
+   yield();
+-  current_pcb->user_data = temp_user_data;
++  current->user_data = temp;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
+-static void wrapper(void *args){
+-  rt_ubase_t *stack_bottom = (rt_ubase_t *)args;
+-  rt_ubase_t tentry = *stack_bottom;
+-  stack_bottom--;
+-  rt_ubase_t texit = *stack_bottom;
+-  stack_bottom--;
+-  rt_ubase_t parameter = *stack_bottom;
+-  
+-  ((void(*)())tentry) (parameter);
+-  ((void(*)())texit) ();
+-}
+-
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  Area stack_area;
+-  stack_area.start = (rt_uint8_t *) ADDR_ALIGNED((uintptr_t)stack_addr) - RT_MAIN_THREAD_STACK_SIZE;
+-  stack_area.end = (rt_uint8_t *) ADDR_ALIGNED((uintptr_t)stack_addr);
+-
+-  rt_ubase_t *stack_bottom = (rt_ubase_t *)stack_area.end - sizeof(Context) - 1;
++  /* 向下对齐栈地址 */
++  uintptr_t aligned = ADDR_ALIGNED_DOWN(stack_addr);
++  rt_uint8_t *sp = (rt_uint8_t *)aligned;
+ 
+-  Context* c = kcontext(stack_area, wrapper, (void *)(stack_bottom));
++  sp -= sizeof(CallContext_t);
++  CallContext_t *callCtx = (CallContext_t *)sp;
++  callCtx->tentry = tentry;
++  callCtx->parameter = parameter;
++  callCtx->texit = texit;
+ 
+-  *stack_bottom = (rt_ubase_t)tentry;
+-  stack_bottom--;
+-  *stack_bottom = (rt_ubase_t)texit;
+-  stack_bottom--;
+-  *stack_bottom = (rt_ubase_t)parameter;
++  Context *ctx = kcontext((Area){ .start = NULL, .end = sp }, kthread, callCtx);
+ 
+-  return (rt_uint8_t *)c;
++  return (rt_uint8_t *)ctx;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index cb11ef4a9..c4d5dfcb5 100755
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -40,12 +40,12 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-    static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-    // AM_UART_RX_T cfg;
+-    // if(*p == '\0')
+-        // ioe_read(AM_UART_RX, &cfg);
+-    // return (*p != '\0' ? *(p ++) : cfg.data);
+-    return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++    static const char *p = "help\n";
++    AM_UART_RX_T cfg;
++    if(*p == '\0')
++        ioe_read(AM_UART_RX, &cfg);
++    return (*p != '\0' ? *(p ++) : cfg.data);
++    // return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+ // static int _uart_getc(struct rt_serial_device *serial) {
+-- 
+2.34.1
+

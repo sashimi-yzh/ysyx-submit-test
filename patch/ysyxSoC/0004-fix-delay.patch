@@ -1,0 +1,43 @@
+From 631d78f5d848b913870301012ee03cff35a01ce5 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Thu, 9 Oct 2025 16:16:18 +0800
+Subject: [PATCH 4/7] fix delay
+
+---
+ mill.xf9BX1                | 0
+ patch/update-firtool.sh    | 1 +
+ src/amba/AXI4Delayer.scala | 2 +-
+ 3 files changed, 2 insertions(+), 1 deletion(-)
+ create mode 100644 mill.xf9BX1
+
+diff --git a/mill.xf9BX1 b/mill.xf9BX1
+new file mode 100644
+index 00000000..e69de29b
+diff --git a/patch/update-firtool.sh b/patch/update-firtool.sh
+index cc91e5a0..f6c6c79a 100755
+--- a/patch/update-firtool.sh
++++ b/patch/update-firtool.sh
+@@ -20,6 +20,7 @@ replace_firtool() {
+     local firtool_temp=$(mktemp -d)
+     echo "Downloading firtool version $firtool_update_version from $firtool_url..."
+     curl -L -o $firtool_temp/firtool.tar.gz $firtool_url
++    # cp /home/yangpengcheng/ysyx/ysyx/ysyx-workbench/firrtl-bin-linux-x64.tar.gz $firtool_temp/firtool.tar.gz
+     echo "Downloading SHA256 checksum from $firtool_sha256_url..."
+     # Check SHA256 checksum
+     check_sha256=$(curl -L $firtool_sha256_url)
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index d8f9f656..07811133 100755
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -29,7 +29,7 @@ class AXI4DelayerChisel extends Module {
+ 
+     val temp_rdata = RegInit(VecInit(Seq.fill(8)(0.U(32.W))))
+ 
+-    val r_mul_s = 9.U//s=2 r=4.5 target freq 450MHz
++    val r_mul_s = 2.U//s=2 r=4.5 target freq 450MHz
+     val counter = RegInit(0.U(16.W))
+     val burst_counter = RegInit(VecInit(Seq.fill(8)(0.U(16.W))))
+     val burst_counter_index = RegInit(0.U(4.W))
+-- 
+2.34.1
+

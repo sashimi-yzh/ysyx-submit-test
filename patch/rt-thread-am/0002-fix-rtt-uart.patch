@@ -1,0 +1,32 @@
+From 9bdd2b46a325799051d4e6ae4312e6310b830015 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Wed, 8 Oct 2025 21:57:33 +0800
+Subject: [PATCH 2/9] fix rtt uart
+
+---
+ bsp/abstract-machine/src/uart.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 363b260c9..939714e0f 100755
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -41,10 +41,11 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ #ifdef CONFIG_YSYXSOC
+ static int _uart_getc(struct rt_serial_device *serial) {
+     static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-    AM_UART_RX_T cfg;
+-    if(*p == '\0')
+-        ioe_read(AM_UART_RX, &cfg);
+-    return (*p != '\0' ? *(p ++) : cfg.data);
++    // AM_UART_RX_T cfg;
++    // if(*p == '\0')
++        // ioe_read(AM_UART_RX, &cfg);
++    // return (*p != '\0' ? *(p ++) : cfg.data);
++    return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ #else
+ static int _uart_getc(struct rt_serial_device *serial) {
+-- 
+2.34.1
+

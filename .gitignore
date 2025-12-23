@@ -1,0 +1,12 @@
+/ysyxSoC/
+/rt-thread-am/
+/am-kernels/
+/nvboard/
+/riscv-arch-test-am/
+/yosys-sta/
+/fceux-am/
+
+/npc/Makefile_old
+/npc/build/
+/npc/out/
+/npc/iverilog/hex/code.hex

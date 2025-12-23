@@ -1,0 +1,61 @@
+From 73f8fd5645f3ab291256f0e4b0068937e401b5e5 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Thu, 23 Oct 2025 11:04:04 +0800
+Subject: [PATCH 6/9] fix am apps and npc nemu uart for b exam
+
+---
+ bsp/abstract-machine/integrate-am-apps.py |  6 +++---
+ bsp/abstract-machine/src/uart.c           | 12 +++++++-----
+ 2 files changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index b11e0719c..8968df387 100755
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -9,9 +9,9 @@ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+-#   AM_KERNELS_HOME / "kernels" / "typing-game",
+-#   AM_KERNELS_HOME / "kernels" / "snake",
+-#   AM_KERNELS_HOME / ".." / "fceux-am",
++  AM_KERNELS_HOME / "kernels" / "typing-game",
++  AM_KERNELS_HOME / "kernels" / "snake",
++  AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index c4d5dfcb5..c0b58b2bf 100755
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -38,7 +38,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ 
+-
++#ifdef CONFIG_YSYXSOC
+ static int _uart_getc(struct rt_serial_device *serial) {
+     static const char *p = "help\n";
+     AM_UART_RX_T cfg;
+@@ -47,11 +47,13 @@ static int _uart_getc(struct rt_serial_device *serial) {
+     return (*p != '\0' ? *(p ++) : cfg.data);
+     // return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
++#else
++static int _uart_getc(struct rt_serial_device *serial) {
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\nam_microbench\nam_typing_game\n";
++  return (*p != '\0' ? *(p ++) : -1);
++}
++#endif
+ 
+-// static int _uart_getc(struct rt_serial_device *serial) {
+-//   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-//   return (*p != '\0' ? *(p ++) : -1);
+-// }
+ 
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

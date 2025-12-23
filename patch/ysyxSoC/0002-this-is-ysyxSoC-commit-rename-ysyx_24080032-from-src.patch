@@ -1,0 +1,48 @@
+From f8fd0d0845637c52bc1ff488205294b0b3852cb0 Mon Sep 17 00:00:00 2001
+From: PengchengYang-xdu <24241214835@stu.xidian.edu.cn>
+Date: Tue, 7 Oct 2025 14:28:44 +0800
+Subject: [PATCH 2/7] this is ysyxSoC commit rename ysyx_24080032 from src
+ instead makefile
+
+---
+ Makefile      | 1 -
+ src/CPU.scala | 4 ++--
+ 2 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 4f8f16c0..c30262ea 100755
+--- a/Makefile
++++ b/Makefile
+@@ -15,7 +15,6 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	mv $(V_FILE_GEN) $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+-	sed -i 's/ysyx_00000000 cpu/ysyx_24080032 cpu/g' $@
+ 
+ verilog: $(V_FILE_FINAL)
+ 
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195f..a377f1a4 100755
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_24080032 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_24080032)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+-- 
+2.34.1
+
