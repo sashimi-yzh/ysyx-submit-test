@@ -1,0 +1,4 @@
+bin/
+/pdk/
+result
+*.log

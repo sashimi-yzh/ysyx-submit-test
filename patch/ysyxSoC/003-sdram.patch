@@ -1,0 +1,96 @@
+From c0f3cf75a70c8903df0f39ce3465dc99022ca65a Mon Sep 17 00:00:00 2001
+From: jx <zhangsan@foo.com>
+Date: Sun, 14 Dec 2025 18:14:30 +0800
+Subject: [PATCH] change error in sdram
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 7bdf86f4..2a3dccb5 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -480,13 +480,14 @@ else
+ // Command Output
+ //-----------------------------------------------------------------
+ integer idx;
+-
++reg addr_q_h;
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+     data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
++    addr_q_h        <= 1'b0;
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+     dqm_q           <= {SDRAM_DQM_W{1'b0}};
+@@ -509,6 +510,7 @@ begin
+         // Default
+         command_q    <= CMD_NOP;
+         addr_q       <= {SDRAM_ROW_W{1'b0}};
++        addr_q_h     <= 1'b0;
+         bank_q       <= {SDRAM_BANK_W{1'b0}};
+         data_rd_en_q <= 1'b1;
+     end
+@@ -529,6 +531,7 @@ begin
+             // Precharge all banks
+             command_q           <= CMD_PRECHARGE;
+             addr_q[ALL_BANKS]   <= 1'b1;
++            addr_q_h           <= 1'b1;
+         end
+         // 2 x REFRESH (with at least tREF wait)
+         else if (refresh_timer_q == 20 || refresh_timer_q == 30)
+@@ -540,12 +543,14 @@ begin
+         begin
+             command_q <= CMD_LOAD_MODE;
+             addr_q    <= MODE_REG;
++            addr_q_h <= 1'b1;
+         end
+         // Other cycles during init - just NOP
+         else
+         begin
+             command_q   <= CMD_NOP;
+             addr_q      <= {SDRAM_ROW_W{1'b0}};
++            addr_q_h    <= 1'b0;
+             bank_q      <= {SDRAM_BANK_W{1'b0}};
+         end
+     end
+@@ -593,6 +598,7 @@ begin
+         // Auto refresh
+         command_q   <= CMD_REFRESH;
+         addr_q      <= {SDRAM_ROW_W{1'b0}};
++        addr_q_h    <= 1'b0;
+         bank_q      <= {SDRAM_BANK_W{1'b0}};
+     end
+     //-----------------------------------------
+@@ -602,6 +608,7 @@ begin
+     begin
+         command_q   <= CMD_READ;
+         addr_q      <= addr_col_w;
++        addr_q_h    <= ram_addr_w[26];
+         bank_q      <= addr_bank_w;
+ 
+         // Disable auto precharge (auto close of row)
+@@ -617,6 +624,7 @@ begin
+     begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
++        addr_q_h    <= ram_addr_w[26];
+         bank_q          <= addr_bank_w;
+         data_q          <= ram_write_data_w;
+ 
+@@ -715,7 +723,7 @@ assign sdram_cas_o  = command_q[1];
+ assign sdram_we_o   = command_q[0];
+ assign sdram_dqm_o  = dqm_q;
+ assign sdram_ba_o   = bank_q;
+-assign sdram_addr_o = {ram_addr_w[26], addr_q};
++assign sdram_addr_o = {addr_q_h, addr_q};
+ 
+ //-----------------------------------------------------------------
+ // Simulation only
+-- 
+2.34.1
+

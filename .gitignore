@@ -1,0 +1,17 @@
+*.*
+*
+!*/
+!/nemu/*
+!/nexus-am/*
+!/nanos-lite/*
+!/navy-apps/*
+!/npc/*
+!Makefile
+!README.md
+!.gitignore
+!init.sh
+/nvboard
+/am-kernels
+/fceux-am
+!/patch/*
+!/patch/**/*.patch
