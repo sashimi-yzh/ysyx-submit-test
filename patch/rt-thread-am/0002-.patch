@@ -1,0 +1,174 @@
+From a35098ce83f679644ec64fd7c291c6d799a4c162 Mon Sep 17 00:00:00 2001
+From: 202518023426015-Hu xinwei <huxinwei22@mails.ucas.ac.cn>
+Date: Fri, 26 Dec 2025 17:16:20 +0800
+Subject: [PATCH 2/3] =?UTF-8?q?=E6=8D=A2?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/context.c | 102 ++++++++++++++++++++++++-----
+ 1 file changed, 86 insertions(+), 16 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 8fb052250..c1a5ef940 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -7,41 +7,108 @@ static Context* ev_handler(Event e, Context *c) {
+ 	switch (e.event) {
+         case EVENT_YIELD:{
+             rt_thread_t current = rt_thread_self(); 
+-			c = *(Context**)current->user_data;//切换到新的上下文	
++			rt_ubase_t* para = (rt_ubase_t*)current->user_data;
++			rt_ubase_t to = para[0];
++            rt_ubase_t from = para[1];
++			//切换到新的上下文	
++			if (from) {
++                *((Context**)from) = c; //额外将当前上下文的指针写入from指向的上下文指针变量中
++            }
++            c = *(Context**)to;  // 解引用，拿到一级指针
+             break;
+ 		}
+         case EVENT_IRQ_TIMER: return c;//识别出时钟中断事件:直接返回相应的上下文结构.
+ 		default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+ 	}
+-//   switch (e.event) {
+-// 	default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+-//   }
+ 	return c;
+ }
+ 
++// static Context* ev_handler(Event e, Context* c) {
++//     rt_thread_t current;
++//     rt_ubase_t* para;
++
++//     switch (e.event) {
++//         case EVENT_YIELD:
++//             current = rt_thread_self();
++//             para = (rt_ubase_t*)current->user_data;
++//             rt_ubase_t to = para[0];
++//             rt_ubase_t from = para[1];
++//             if (from) {
++//                 *((Context**)from) = c;
++//             }
++//             c = *(Context**)to;  // 解引用，拿到一级指针
++//             break;
++//         case EVENT_IRQ_TIMER:
++//             return c;
++//         default:
++//             printf("Unhandled event ID = %d\n", e.event);
++//             assert(0);
++//     }
++
++//     return c;
++// }
++
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+ 	rt_thread_t current = rt_thread_self(); 
+-	current->user_data = to; //切换到to指向的上下文指针变量所指向的上下文,
++	rt_ubase_t user_data[2];
++	user_data[0] = to;
++	current->user_data = (rt_ubase_t)user_data; //切换到to指向的上下文指针变量所指向的上下文,
+ 	yield();
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {	
+ 	rt_thread_t current = rt_thread_self(); 
+-    *(Context**)from = current->sp;//额外将当前上下文的指针写入from指向的上下文指针变量中
+-	current->user_data = to; //切换到to指向的上下文指针变量所指向的上下文,
++	rt_ubase_t temp = current->user_data; //保存在一个临时变量中
++	rt_ubase_t user_data[2];
++	user_data[0] = to;
++    user_data[1] = from;
++	current->user_data = (rt_ubase_t)user_data; //切换到to指向的上下文指针变量所指向的上下文,
+ 	yield();
++	current->user_data = temp; //在下次切换回当前线程并从rt_hw_context_switch()返回之前再恢复它
+ }
+ 
++// void rt_hw_context_switch_to(rt_ubase_t to) {
++//     // 利用 user_data PCB 成员 user_data 传参
++//     //rt_ubase_t temp_ud;  // 当前栈上
++//     rt_ubase_t user_data[2];
++//     rt_thread_t current = rt_thread_self();
++//     //temp_ud = current->user_data;
++
++//     user_data[0] = to;
++//     current->user_data = (rt_ubase_t)user_data;
++//     yield();
++
++//     //current->user_data = temp_ud;
++// }
++
++// void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++//     rt_ubase_t temp_ud;
++//     rt_ubase_t user_data[2];
++//     rt_thread_t current = rt_thread_self();
++//     temp_ud = current->user_data;
++
++
++//     user_data[0] = to;
++//     user_data[1] = from;
++
++//     current->user_data = (rt_ubase_t)user_data;
++
++//     yield();
++
++//     current->user_data = temp_ud;
++// }
++
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+ 	assert(0);
+ }
+ 
+ 
++
+ typedef struct {
+     void (*tentry)(void*);
+     void* parameter;
+@@ -50,26 +117,29 @@ typedef struct {
+ 
+ 
+ static void kcontext_schedule(rt_ubase_args* arg) { //包裹函数
+-	if (arg->tentry) {arg->tentry(arg->parameter);  } // 调用线程入口函数tentry
+-	if (arg->texit) {arg->texit();   } //在tentry返回后调用texit
+-    else {
+-		printf("=== RT-Thread/context/kcontext_schedule failed ===\n");
+-		assert(0);// 线程结束后应该永远不会到达这里
+-	}
++	arg->tentry(arg->parameter); 
++	arg->texit(); 
++	// if (arg->tentry) {arg->tentry(arg->parameter);  } // 调用线程入口函数tentry
++	// if (arg->texit) {arg->texit();   } //在tentry返回后调用texit
+ }
+ 
++//RT-Thread 的线程栈是动态分配的（从堆中分配）
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-
++	//printf("\n{stack_addr=0x%08x}\n",stack_addr);
++	
+ 	stack_addr = (rt_uint8_t*)( ((uintptr_t)stack_addr + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1));//向上对齐
++	//stack_addr = (rt_uint8_t*)( ((uintptr_t)stack_addr) & ~(sizeof(uintptr_t) - 1));//向下对齐
+ 	stack_addr -= sizeof(rt_ubase_args); // 在栈上分配参数结构体空间
+ 	
+-	//设置参数
+-	rt_ubase_args* args = (rt_ubase_args*)stack_addr; //将tentry, parameter和texit这三个参数传给包裹函数
++	//设置参数,将tentry, parameter和texit这三个参数传给包裹函数
++	rt_ubase_args* args = (rt_ubase_args*)stack_addr; 
+     args->tentry = (void (*)(void*))tentry;  //入口
+     args->parameter = parameter;             //参数
+     args->texit = (void (*)(void))texit;     //返回
+ 
+ 	Context *cp =  kcontext((Area) {.end = (rt_uint8_t*)stack_addr}, (void*)kcontext_schedule, args);
++	
+ 	return (rt_uint8_t *)cp;
++
+ }
+ 
+-- 
+2.34.1
+

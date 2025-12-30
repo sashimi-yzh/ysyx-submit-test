@@ -1,0 +1,2291 @@
+From 528961fa31bb7d952866d432b8509684555fccba Mon Sep 17 00:00:00 2001
+From: 202518023426015-Hu xinwei <huxinwei22@mails.ucas.ac.cn>
+Date: Fri, 19 Dec 2025 17:20:05 +0800
+Subject: [PATCH 1/6] cloud
+
+---
+ Makefile                                     |   5 +-
+ perip/psram/efabless/EF_PSRAM_CTRL.v         |  82 +++--
+ perip/sdram/core_sdram_axi4/sdram_axi.v      | 108 +++++-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 119 +++---
+ perip/sdram/core_sdram_axi4/sdram_axi_pmem.v |  18 +-
+ perip/sdram/sdram_top_apb.v                  |  12 +-
+ perip/sdram/sdram_top_axi.v                  |  12 +-
+ perip/spi/rtl/spi_top_apb.v                  |  12 +-
+ src/CPU.scala                                |   4 +-
+ src/SoC.scala                                |   6 +-
+ src/Top.scala                                |   2 +-
+ src/amba/APBDelayer.scala                    |  80 +++-
+ src/amba/AXI4Delayer.scala                   | 159 +++++++-
+ src/device/BitRev.scala                      |  36 +-
+ src/device/GPIO.scala                        |  71 +++-
+ src/device/Keyboard.scala                    | 105 +++++-
+ src/device/PSRAM.scala                       | 193 ++++++++--
+ src/device/SDRAM.scala                       | 366 ++++++++++++++++---
+ src/device/SPI.scala                         | 193 ++++++++--
+ src/device/VGA.scala                         |  83 ++++-
+ 20 files changed, 1403 insertions(+), 263 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index c30262ea..3938099e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,6 +2,7 @@ V_FILE_GEN   = build/ysyxSoCTop.sv
+ V_FILE_FINAL = build/ysyxSoCFull.v
+ SCALA_FILES = $(shell find src/ -name "*.scala")
+ 
++
+ # Firtool version
+ FIRTOOL_VERSION = 1.105.0
+ FIRTOOL_PATCH_DIR = $(shell pwd)/patch/firtool
+@@ -11,12 +12,12 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ # TODO: This can be removed after chisel publishes a new version
+ 	@./patch/update-firtool.sh $(FIRTOOL_VERSION) $(FIRTOOL_PATCH_DIR)
+ 	CHISEL_FIRTOOL_PATH=$(FIRTOOL_PATCH_DIR)/firtool-$(FIRTOOL_VERSION)/bin \
+-	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D)
++	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D) 
+ 	mv $(V_FILE_GEN) $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
+-verilog: $(V_FILE_FINAL)
++verilog: $(V_FILE_FINAL) 
+ 
+ clean:
+ 	-rm -rf build/
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e9..6ca19c30 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -60,7 +60,7 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    wire [7:0]  FINAL_COUNT = 15 + size*2; // was 27: Always read 1 word //QPI命令,地址和延迟总共14周期
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -113,22 +113,33 @@ module PSRAM_READER (
+             saddr <= {addr[23:0]};
+ 
+     // Sample with the negedge of sck
+-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++    wire[1:0] byte_index = {counter[7:1] - 8'd8}[1:0];  //16个周期之后开始读取数据
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
++        if(counter >= 16 && counter <= FINAL_COUNT)  // 从16周期开始采样
+             if(sck)
+                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
++    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
++    //                     (counter == 8)  ?   saddr[23:20]        :
++    //                     (counter == 9)  ?   saddr[19:16]        :
++    //                     (counter == 10) ?   saddr[15:12]        :
++    //                     (counter == 11) ?   saddr[11:8]         :
++    //                     (counter == 12) ?   saddr[7:4]          :
++    //                     (counter == 13) ?   saddr[3:0]          :
++    //                     4'h0;
++    assign dout     =   (counter == 0)   ?   4'b0011             : //修改输入
++                        (counter == 1)   ?   4'b0101             :
++                        (counter == 2)   ?   {CMD_EBH[7:4]}      :
++                        (counter == 3)   ?   {CMD_EBH[3:0]}      :
++                        (counter == 4)   ?   saddr[23:20]        :
++                        (counter == 5)   ?   saddr[19:16]        :
++                        (counter == 6)   ?   saddr[15:12]        :
++                        (counter == 7)   ?   saddr[11:8]         :
++                        (counter == 8)   ?   saddr[7:4]          :
++                        (counter == 9)   ?   saddr[3:0]          :
+                         4'h0;
+ 
+-    assign douten   = (counter < 14);
++    assign douten   = (counter < 10);
+ 
+     assign done     = (counter == FINAL_COUNT+1);
+ 
+@@ -161,7 +172,7 @@ module PSRAM_WRITER (
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    wire[7:0]        FINAL_COUNT = 10 + size*2; //命令和地址总共9周期（最后延迟一周期）
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,20 +223,39 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
+-                        (counter == 14) ?   line[7:4]           :
+-                        (counter == 15) ?   line[3:0]           :
+-                        (counter == 16) ?   line[15:12]         :
+-                        (counter == 17) ?   line[11:8]          :
+-                        (counter == 18) ?   line[23:20]         :
+-                        (counter == 19) ?   line[19:16]         :
+-                        (counter == 20) ?   line[31:28]         :
++    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
++    //                     (counter == 8)  ?   saddr[23:20]        :
++    //                     (counter == 9)  ?   saddr[19:16]        :
++    //                     (counter == 10) ?   saddr[15:12]        :
++    //                     (counter == 11) ?   saddr[11:8]         :
++    //                     (counter == 12) ?   saddr[7:4]          :
++    //                     (counter == 13) ?   saddr[3:0]          :
++    //                     (counter == 14) ?   line[7:4]           :
++    //                     (counter == 15) ?   line[3:0]           :
++    //                     (counter == 16) ?   line[15:12]         :
++    //                     (counter == 17) ?   line[11:8]          :
++    //                     (counter == 18) ?   line[23:20]         :
++    //                     (counter == 19) ?   line[19:16]         :
++    //                     (counter == 20) ?   line[31:28]         :
++    //                     line[27:24];
++
++    assign dout     =   (counter == 0)   ?   4'b0011                :
++                        (counter == 1)   ?   4'b0101                :
++                        (counter == 2)   ?   {CMD_38H[7:4]}      :
++                        (counter == 3)   ?   {CMD_38H[3:0]}      :
++                        (counter == 4)   ?   saddr[23:20]        :
++                        (counter == 5)   ?   saddr[19:16]        :
++                        (counter == 6)   ?   saddr[15:12]        :
++                        (counter == 7)   ?   saddr[11:8]         :
++                        (counter == 8)   ?   saddr[7:4]          :
++                        (counter == 9)   ?   saddr[3:0]          :
++                        (counter == 10)  ?   line[7:4]           :
++                        (counter == 11)  ?   line[3:0]           :
++                        (counter == 12)  ?   line[15:12]         :
++                        (counter == 13)  ?   line[11:8]          :
++                        (counter == 14)  ?   line[23:20]         :
++                        (counter == 15)  ?   line[19:16]         :
++                        (counter == 16)  ?   line[31:28]         :
+                         line[27:24];
+ 
+     assign douten   = (~ce_n);
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f58..1de22b28 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    ,output [  3:0]  sdram_dqm_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -85,8 +85,8 @@ module sdram_axi
+ //-----------------------------------------------------------------
+ // Key Params
+ //-----------------------------------------------------------------
+-parameter SDRAM_MHZ             = 50;
+-parameter SDRAM_ADDR_W          = 24;
++parameter SDRAM_MHZ             = 100;
++parameter SDRAM_ADDR_W          = 25;
+ parameter SDRAM_COL_W           = 9;
+ parameter SDRAM_READ_LATENCY    = 2;
+ 
+@@ -103,6 +103,79 @@ wire [  7:0]  ram_len_w;
+ wire          ram_ack_w;
+ wire          ram_error_w;
+ 
++// -----------------------------------------------------------------
++// AXI(SDRAM CTRL) buffering
++// -----------------------------------------------------------------
++reg  [ 3:0]  buffer_pstrb;
++reg  [ 31:0]  buffer_paddr[7:0];
++reg  [ 2:0]  w_ptr;
++reg  [ 2:0]  r_ptr;
++reg  [ 31:0]  buffer_pwdata;
++reg  [ 7:0]  buffer_len;
++wire [ 3:0]  pstrb;
++wire [ 31:0]  paddr;
++wire [ 31:0]  pwdata;
++wire [ 7:0]  len;
++always @(posedge clk_i or posedge rst_i) begin
++    if (rst_i) begin
++        buffer_pstrb <= 4'b0;
++        buffer_paddr <= '{8{32'b0}};
++        buffer_pwdata <= 32'b0;
++        buffer_len <= 8'b0;
++        w_ptr <= 3'b0;
++    end else begin
++        if ( ( inport_awvalid_i && inport_wvalid_i ) || inport_arvalid_i )  begin
++            buffer_pstrb <= ram_wr_w;
++            buffer_pwdata <= ram_write_data_w;
++            buffer_len <= ram_len_w;
++        end
++        if ( ( ram_wr_w != 0 ) || ram_rd_w )  begin
++            buffer_paddr[w_ptr] <= ram_addr_w;
++            w_ptr <= w_ptr + 1'b1;
++        end
++        if ( !ram_rd_w && ( ram_wr_w == 0 )) begin
++            w_ptr <= 3'b0;
++        end
++        if (ram_ack_w && !inport_rlast_o) begin //突发传输读数据时
++            r_ptr <= r_ptr + 1'b1;
++        end
++        if (ram_ack_w && inport_rlast_o) begin
++            r_ptr <= 3'b0;
++        end
++
++        // if (state == ST_WAIT_ACK_R) begin   //突发传输的时候被刷新打断
++        //     r_ptr <= 3'b0;
++        // end
++    end
++end
++assign pstrb = ( ( inport_awvalid_i && inport_wvalid_i ) || inport_arvalid_i ) ? ram_wr_w   : buffer_pstrb;
++//assign paddr = ( ( ram_wr_w != 0 ) || ram_rd_w ) ? ram_addr_w : buffer_paddr[r_ptr];
++assign paddr = ( ( inport_awvalid_i && inport_wvalid_i ) || inport_arvalid_i ) ? ram_addr_w : buffer_paddr[r_ptr];
++assign pwdata = ( ( inport_awvalid_i && inport_wvalid_i ) || inport_arvalid_i ) ? ram_write_data_w : buffer_pwdata;
++assign len = ( ( inport_awvalid_i && inport_wvalid_i ) || inport_arvalid_i ) ? ram_len_w : buffer_len;
++
++  typedef enum [2:0] { ST_IDLE, ST_WAIT_ACCEPT_R, ST_WAIT_ACCEPT_W, ST_WAIT_ACK_R, ST_WAIT_ACK_W } state_t;
++  reg [2:0] state;
++
++  always @(posedge clk_i) begin
++    if (rst_i) state <= ST_IDLE;
++    else
++      case (state)
++        ST_IDLE: state <= (is_read ? (ram_accept_w ? ST_WAIT_ACK_R : ST_WAIT_ACCEPT_R) : 
++                                (is_write ? (ram_accept_w ? ST_WAIT_ACK_W : ST_WAIT_ACCEPT_W) :ST_IDLE ) );
++        ST_WAIT_ACCEPT_R: state <= ram_accept_w ? ST_WAIT_ACK_R : ST_WAIT_ACCEPT_R;
++        ST_WAIT_ACCEPT_W: state <= ram_accept_w ? ST_WAIT_ACK_W : ST_WAIT_ACCEPT_W;
++        ST_WAIT_ACK_R:  state <= ( (ram_ack_w && inport_rlast_o) ? ST_IDLE :
++                                        (ram_error_w ? ST_WAIT_ACCEPT_R : ST_WAIT_ACK_R) );
++        ST_WAIT_ACK_W: if (ram_ack_w) state <= ST_IDLE;
++        default: state <= state;
++      endcase
++  end
++
++  wire is_read  = ((inport_arvalid_i) || (state == ST_WAIT_ACCEPT_R) 
++                    || (ram_ack_w && !inport_rlast_o)  ) ;
++  wire is_write = (( inport_awvalid_i && inport_wvalid_i ) || (state == ST_WAIT_ACCEPT_W)) ;
++
+ sdram_axi_pmem
+ u_axi
+ (
+@@ -110,6 +183,7 @@ u_axi
+     .rst_i(rst_i),
+ 
+     // AXI port
++    //使用选择后的信号
+     .axi_awvalid_i(inport_awvalid_i),
+     .axi_awaddr_i(inport_awaddr_i),
+     .axi_awid_i(inport_awid_i),
+@@ -126,6 +200,8 @@ u_axi
+     .axi_arlen_i(inport_arlen_i),
+     .axi_arburst_i(inport_arburst_i),
+     .axi_rready_i(inport_rready_i),
++
++    // 输出到顶层
+     .axi_awready_o(inport_awready_o),
+     .axi_wready_o(inport_wready_o),
+     .axi_bvalid_o(inport_bvalid_o),
+@@ -140,7 +216,9 @@ u_axi
+ 
+     // RAM interface
+     .ram_addr_o(ram_addr_w),
+-    .ram_accept_i(ram_accept_w),
++    //.ram_accept_i(ram_accept_w),
++    .ram_accept_i(1),
++
+     .ram_wr_o(ram_wr_w),
+     .ram_rd_o(ram_rd_w),
+     .ram_len_o(ram_len_w),
+@@ -165,11 +243,19 @@ u_core
+      .clk_i(clk_i)
+     ,.rst_i(rst_i)
+ 
+-    ,.inport_wr_i(ram_wr_w)
+-    ,.inport_rd_i(ram_rd_w)
++    //,.inport_wr_i(ram_wr_w)
++    //,.inport_rd_i(ram_rd_w)
+     ,.inport_len_i(ram_len_w)
+-    ,.inport_addr_i(ram_addr_w)
+-    ,.inport_write_data_i(ram_write_data_w)
++    //,.inport_addr_i(ram_addr_w)
++    //,.inport_addr_i(sdram_addr)
++    //,.inport_write_data_i(ram_write_data_w)
++
++    ,.inport_wr_i(is_write ? pstrb : 4'b0)
++    ,.inport_rd_i(is_read)
++    // ,.inport_len_i(0)
++    ,.inport_addr_i(paddr)
++    ,.inport_write_data_i(pwdata)
++
+     ,.inport_accept_o(ram_accept_w)
+     ,.inport_ack_o(ram_ack_w)
+     ,.inport_error_o(ram_error_w)
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cedbf77b..38c81dca 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -42,7 +42,7 @@ module sdram_axi_core
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_accept_o
+@@ -55,10 +55,10 @@ module sdram_axi_core
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    ,output [  3:0]  sdram_dqm_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -67,16 +67,15 @@ module sdram_axi_core
+ //-----------------------------------------------------------------
+ // Key Params
+ //-----------------------------------------------------------------
+-parameter SDRAM_MHZ              = 50;
+-parameter SDRAM_ADDR_W           = 24;
++parameter SDRAM_MHZ              = 100;
++parameter SDRAM_ADDR_W           = 25;
+ parameter SDRAM_COL_W            = 9;
+ parameter SDRAM_READ_LATENCY     = 2;
+-
+ //-----------------------------------------------------------------
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+@@ -94,7 +93,7 @@ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+ // Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++localparam MODE_REG          = {1'b0, 3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -112,7 +111,7 @@ localparam STATE_REFRESH     = 4'd9;
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -125,6 +124,7 @@ localparam SDRAM_TRFC_CYCLES = (60 + (CYCLE_TIME_NS-1)) / CYCLE_TIME_NS;
+ // External Interface
+ //-----------------------------------------------------------------
+ wire [ 31:0]  ram_addr_w       = inport_addr_i;
++//wire [31:0] ram_addr_w = (inport_wr_i != 4'b0 || inport_rd_i) ? inport_addr_i : 32'h0;
+ wire [  3:0]  ram_wr_w         = inport_wr_i;
+ wire          ram_rd_w         = inport_rd_i;
+ wire          ram_accept_w;
+@@ -136,7 +136,8 @@ wire          ram_req_w = (ram_wr_w != 4'b0) | ram_rd_w;
+ 
+ assign inport_ack_o       = ram_ack_w;
+ assign inport_read_data_o = ram_read_data_w;
+-assign inport_error_o     = 1'b0;
++//assign inport_error_o     = 1'b0;
++assign inport_error_o     =  (state_q == STATE_REFRESH);
+ assign inport_accept_o    = ram_accept_w;
+ 
+ //-----------------------------------------------------------------
+@@ -177,9 +178,12 @@ reg  [STATE_W-1:0]     target_state_q;
+ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
+-wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
+-wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+-wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++//wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
++//wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
++//wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W+1:2]};
++wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W+1:SDRAM_COL_W+4];
++wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+3:SDRAM_COL_W+2];
+ 
+ //-----------------------------------------------------------------
+ // SDRAM State Machine
+@@ -269,6 +273,11 @@ begin
+     //-----------------------------------------
+     STATE_READ_WAIT :
+     begin
++        // next_state_r = STATE_READ_WAIT;  // 默认保持等待
++        // //if (rd_q[SDRAM_READ_LATENCY+1])  // 或者 ram_ack_w
++        // if (ram_ack_w)  // 或者 ram_ack_w
++        // begin
++
+         next_state_r = STATE_IDLE;
+ 
+         // Another pending read request (with no refresh pending)
+@@ -278,29 +287,31 @@ begin
+             if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+                 next_state_r = STATE_READ;
+         end
++
++        // end
+     end
+     //-----------------------------------------
+     // STATE_WRITE0
+     //-----------------------------------------
+     STATE_WRITE0 :
+     begin
+-        next_state_r = STATE_WRITE1;
++        next_state_r = STATE_IDLE;
+     end
+     //-----------------------------------------
+-    // STATE_WRITE1
++    // STATE_WRITE1  //实现位扩展后, 就不需要通过突发传输模式来访问SDRAM颗粒了,
+     //-----------------------------------------
+-    STATE_WRITE1 :
+-    begin
+-        next_state_r = STATE_IDLE;
++    // STATE_WRITE1 :
++    // begin
++    //     next_state_r = STATE_IDLE;
+ 
+-        // Another pending write request (with no refresh pending)
+-        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
+-        begin
+-            // Open row hit
+-            if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+-                next_state_r = STATE_WRITE0;
+-        end
+-    end
++    //     // Another pending write request (with no refresh pending)
++    //     if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
++    //     begin
++    //         // Open row hit
++    //         if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
++    //             next_state_r = STATE_WRITE0;
++    //     end
++    // end
+     //-----------------------------------------
+     // STATE_PRECHARGE
+     //-----------------------------------------
+@@ -483,7 +494,7 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+@@ -606,7 +617,8 @@ begin
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Read mask (all bytes in burst)
+-        dqm_q       <= {SDRAM_DQM_W{1'b0}};
++        //dqm_q       <= {SDRAM_DQM_W{1'b0}};
++        dqm_q       <= 4'b0; // 4位DQM，全部使能
+     end
+     //-----------------------------------------
+     // STATE_WRITE0
+@@ -616,33 +628,33 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w;
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w;
++        //dqm_buffer_q    <= ~ram_wr_w[3:2];
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+     //-----------------------------------------
+-    STATE_WRITE1 :
+-    begin
+-        // Burst continuation
+-        command_q   <= CMD_NOP;
++    // STATE_WRITE1 :
++    // begin
++    //     // Burst continuation
++    //     command_q   <= CMD_NOP;
+ 
+-        data_q      <= data_buffer_q;
++    //     data_q      <= data_buffer_q;
+ 
+-        // Disable auto precharge (auto close of row)
+-        addr_q[AUTO_PRECHARGE]  <= 1'b0;
++    //     // Disable auto precharge (auto close of row)
++    //     addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+-        // Write mask
+-        dqm_q       <= dqm_buffer_q;
+-    end
++    //     // Write mask
++    //     dqm_q       <= dqm_buffer_q;
++    // end
+     endcase
+ end
+ 
+@@ -663,16 +675,17 @@ else
+ 
+ // Buffer upper 16-bits of write data so write command can be accepted
+ // in WRITE0. Also buffer lower 16-bits of read data.
+-always @ (posedge clk_i or posedge rst_i)
+-if (rst_i)
+-    data_buffer_q <= 16'b0;
+-else if (state_q == STATE_WRITE0)
+-    data_buffer_q <= ram_write_data_w[31:16];
+-else if (rd_q[SDRAM_READ_LATENCY+1])
+-    data_buffer_q <= sample_data_q;
++// always @ (posedge clk_i or posedge rst_i)
++// if (rst_i)
++//     data_buffer_q <= 16'b0;
++// else if (state_q == STATE_WRITE0)
++//     data_buffer_q <= ram_write_data_w[31:16];
++// else if (rd_q[SDRAM_READ_LATENCY+1])
++//     data_buffer_q <= sample_data_q;
+ 
+ // Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
++//assign ram_read_data_w = {sample_data_q, data_buffer_q};
++assign ram_read_data_w = sample_data_q;
+ 
+ //-----------------------------------------------------------------
+ // ACK
+@@ -684,7 +697,7 @@ if (rst_i)
+     ack_q   <= 1'b0;
+ else
+ begin
+-    if (state_q == STATE_WRITE1)
++    if (state_q == STATE_WRITE0)
+         ack_q <= 1'b1;
+     else if (rd_q[SDRAM_READ_LATENCY+1])
+         ack_q <= 1'b1;
+@@ -695,14 +708,18 @@ end
+ assign ram_ack_w = ack_q;
+ 
+ // Accept command in READ or WRITE0 states
++//assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE0 || state_q == STATE_IDLE);
+ assign ram_accept_w = (state_q == STATE_READ || state_q == STATE_WRITE0);
++//assign ram_accept_w = (state_q != STATE_INIT);
+ 
+ //-----------------------------------------------------------------
+ // SDRAM I/O
+ //-----------------------------------------------------------------
+ assign sdram_clk_o           = ~clk_i;
+ assign sdram_data_out_en_o   = ~data_rd_en_q;
++//assign sdram_data_out_en_o = (state_q == STATE_WRITE0);
+ assign sdram_data_output_o   =  data_q;
++//assign sdram_data_output_o = (state_q == STATE_WRITE0) ? Regnext(ram_write_data_w) : 32'b0;
+ assign sdram_data_in_w       = sdram_data_input_i;
+ 
+ assign sdram_cke_o  = cke_q;
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v b/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+index 3d6a5bb4..d1c6a7ce 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+@@ -303,9 +303,15 @@ wire read_prio_w    = ((!req_prio_q & !req_hold_wr_q) | req_hold_rd_q);
+ wire write_active_w  = (axi_awvalid_i || req_wr_q) && !req_rd_q && req_fifo_accept_w && (write_prio_w || req_wr_q || !axi_arvalid_i);
+ wire read_active_w   = (axi_arvalid_i || req_rd_q) && !req_wr_q && req_fifo_accept_w && (read_prio_w || req_rd_q || !axi_awvalid_i);
+ 
+-assign axi_awready_o = write_active_w && !req_wr_q && ram_accept_i && req_fifo_accept_w;
+-assign axi_wready_o  = write_active_w &&              ram_accept_i && req_fifo_accept_w;
+-assign axi_arready_o = read_active_w  && !req_rd_q && ram_accept_i && req_fifo_accept_w;
++// assign axi_awready_o = write_active_w && !req_wr_q && ram_accept_i && req_fifo_accept_w;
++// assign axi_wready_o  = write_active_w &&              ram_accept_i && req_fifo_accept_w;
++// assign axi_arready_o = read_active_w  && !req_rd_q && ram_accept_i && req_fifo_accept_w;
++assign axi_awready_o = 1'b1;
++assign axi_wready_o  = 1'b1;
++assign axi_arready_o = 1'b1;
++// assign axi_awready_o = write_active_w && !req_wr_q && req_fifo_accept_w;
++// assign axi_wready_o  = write_active_w &&              req_fifo_accept_w;
++// assign axi_arready_o = read_active_w  && !req_rd_q && req_fifo_accept_w;
+ 
+ wire [31:0] addr_w   = ((req_wr_q || req_rd_q) ? req_addr_q:
+                         write_active_w ? axi_awaddr_i : axi_araddr_i);
+@@ -321,9 +327,9 @@ assign ram_wr_o         = wr_w ? axi_wstrb_i : 4'b0;
+ assign ram_len_o        = axi_awvalid_i ? axi_awlen_i:
+                           axi_arvalid_i ? axi_arlen_i : 8'b0;
+ 
+-//-----------------------------------------------------------------
+-// Response
+-//-----------------------------------------------------------------
++// //-----------------------------------------------------------------
++// // Response
++// //-----------------------------------------------------------------
+ assign axi_bvalid_o  = resp_valid_w & resp_is_write_w & resp_is_last_w;
+ assign axi_bresp_o   = 2'b0;
+ assign axi_bid_o     = resp_id_w;
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 3bc5b93b..d01c19ab 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -18,15 +18,15 @@ module sdram_top_apb (
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+@@ -47,7 +47,7 @@ module sdram_top_apb (
+   wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
+   sdram_axi_core #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(2)
+   ) u_sdram_ctrl(
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fdb..507233d7 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -37,18 +37,18 @@ module sdram_top_axi(
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(2)
+   ) u_sdram_axi(
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d37516..25e60f1c 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -27,15 +27,15 @@ module spi_top_apb #(
+   output                  spi_irq_out
+ );
+ 
+-`ifdef FAST_FLASH
++`ifdef FAST_FLASH    //快速模式
+ 
+ wire [31:0] data;
+ parameter invalid_cmd = 8'h0;
+-flash_cmd flash_cmd_i(
+-  .clock(clock),
+-  .valid(in_psel && !in_penable),
+-  .cmd(in_pwrite ? invalid_cmd : 8'h03),
+-  .addr({8'b0, in_paddr[23:2], 2'b0}),
++flash_cmd flash_cmd_i(           //实际上是ysyxSoC/perip/flash/flash.v通过DPI-C在C环境里读取内存
++  .clock(clock),                  //
++  .valid(in_psel && !in_penable),        // APB传输开始
++  .cmd(in_pwrite ? invalid_cmd : 8'h03),  // 读命令0x03，仅当cmd == 8'h03(in_pwrite)时读取
++  .addr({8'b0, in_paddr[23:2], 2'b0}),    // 地址转换，去掉高8位和后2位
+   .data(data)
+ );
+ assign spi_sck    = 1'b0;
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195f..4b858c1a 100644
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_25080222 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_25080222)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 1c65cd87..e82b3ad1 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -135,14 +135,14 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     val flash = Module(new flash)
+     flash.io <> masic.spi
+     flash.io.ss := masic.spi.ss(0)
+-    val bitrev = Module(new bitrev)
++    val bitrev = Module(new bitrevChisel)
+     bitrev.io <> masic.spi
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+ 
+-    val psram = Module(new psram)
++    val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+-    val sdram = Module(new sdram)
++    val sdram = Module(new sdramChisel)
+     sdram.io <> masic.sdram
+ 
+     val externalPins = IO(new Bundle{
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 0cfc3d0c..6ef63e46 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -22,7 +22,66 @@ class apb_delayer extends BlackBox {
+ 
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+-  io.out <> io.in
++  //io.out <> io.in
++
++	val sr = 5.U//r=4.7 s=1
++	val y = RegInit(0.U(16.W)) //计数器的值
++	val delay_count = RegInit(0.U(16.W))
++	val pready_reg    = RegInit(false.B)
++  	val pslverr_reg   = RegInit(false.B)
++  	val prdata_reg    = RegInit(0.U(32.W))
++	
++	
++
++	val s_idle :: s_wait :: s_delay :: Nil = Enum(3)
++    val state = RegInit(s_idle)
++    state := MuxLookup(state, s_idle)(  Seq(
++        	s_idle     -> Mux(io.in.psel, s_wait, s_idle), //根据命令激活
++        	s_wait     -> Mux(io.out.pready, s_delay, s_wait),
++			s_delay    -> Mux( (y === 0.U), s_idle, s_delay)
++    	) )
++
++	// delay_en := MuxCase(delay_en, Seq(
++	// 		(io.in.psel && io.in.penable)   -> true.B,
++    //   		 			              out   -> false.B
++    // 					) )
++
++	y := MuxCase(y, Seq(		
++					( (state === s_wait)  && io.out.pready )        -> (y - delay_count),
++						   ( (state === s_idle)  && io.in.psel )    -> (y + sr),
++			 								  (state === s_wait)    -> (y + sr),
++      		 								  (state === s_delay)   -> (y - 1.U),
++											  (state === s_idle)    -> 0.U
++    					) )
++	delay_count := MuxCase(delay_count + 1.U, Seq(		
++						   ( (state === s_idle)  && io.in.psel )    ->  (delay_count + 1.U),
++											  (state === s_idle)    -> 0.U
++    					) )
++	
++	//Mux( (state =/= s_idle), delay_count + 1.U, 0.U)
++	dontTouch(delay_count)
++
++	pready_reg    :=  Mux(io.out.pready, io.out.pready, pready_reg)
++  	pslverr_reg   := Mux(io.out.pready, io.out.pslverr, pslverr_reg)
++  	prdata_reg    := Mux(io.out.pready, io.out.prdata, prdata_reg)
++
++	  // 只在空闲和等待状态传递请求给下游,在延迟状态下，应该阻断对下游的访问
++  io.out.psel := io.in.psel && (state =/= s_delay)
++  io.out.penable := io.in.penable && (state =/= s_delay)
++  io.out.pwrite := io.in.pwrite
++  io.out.paddr := io.in.paddr
++  io.out.pprot := io.in.pprot
++  io.out.pwdata := io.in.pwdata
++  io.out.pstrb := io.in.pstrb
++  io.out.pauser := io.in.pauser
++
++
++	val out = (state === s_delay) && (y === 0.U)
++
++	io.in.pready    :=  Mux(out, pready_reg, 0.U)
++  	io.in.pslverr   := Mux(out, pslverr_reg, 0.U)
++  	io.in.prdata    := Mux(out, prdata_reg, 0.U)
++
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -30,19 +89,20 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new apb_delayer)
+-      delayer.io.clock := clock
+-      delayer.io.reset := reset
+-      delayer.io.in <> in
+-      out <> delayer.io.out
+-    }
++	(node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
++	  //val delayer = Module(new apb_delayer)
++	  val delayer = Module(new APBDelayerChisel)//校准访存延迟(在ysyxSoC中实现APB延迟模块)
++	  delayer.io.clock := clock
++	  delayer.io.reset := reset
++	  delayer.io.in <> in
++	  out <> delayer.io.out
++	}
+   }
+ }
+ 
+ object APBDelayer {
+   def apply()(implicit p: Parameters): APBNode = {
+-    val apbdelay = LazyModule(new APBDelayerWrapper)
+-    apbdelay.node
++	val apbdelay = LazyModule(new APBDelayerWrapper)
++	apbdelay.node
+   }
+ }
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index b60bb57d..09a5ee8c 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -22,7 +22,161 @@ class axi4_delayer extends BlackBox {
+ 
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+-  io.out <> io.in
++  //io.out <> io.
++//   io.out.aw <> io.in.aw
++//   io.out.w <> io.in.w
++//   io.in.b <> io.out.b
++
++    val BURST = 8
++	val sr = 7.U//r=3.5 s=2
++// -----------------------------------------------------------------
++// 读取操作
++// -----------------------------------------------------------------
++	val current_r_delay = RegInit(0.U(16.W))
++    val axi_r_delay = RegInit(0.U(16.W))
++    val burst_r_delay  = RegInit(VecInit(Seq.fill(BURST)(0.U(16.W)) ) ) 
++    val read_wptr = RegInit(0.U(3.W))
++    val read_rptr = RegInit(0.U(3.W))
++
++    val rid_buf    = RegInit(VecInit(Seq.fill(BURST)(0.U(4.W)) ) )
++  	val rdata_buf  = RegInit(VecInit(Seq.fill(BURST)(0.U(32.W)) ) ) 
++    val rresp_buf  = RegInit(VecInit(Seq.fill(BURST)(0.U(2.W)) ) ) 
++    
++	val s_idle :: s_wait :: s_delay :: Nil = Enum(3)
++    val state_r = RegInit(s_idle)
++    state_r := MuxLookup(state_r, s_idle)(  Seq(
++        	s_idle     -> Mux( (io.out.ar.valid), s_wait, s_idle), //根据命令激活
++        	s_wait     -> Mux( (io.out.r.valid && io.out.r.bits.last), s_delay, s_wait),
++			  s_delay    -> Mux( (io.in.r.bits.last && io.in.r.valid), s_idle, s_delay)
++    	) )
++
++	//只在空闲状态传递请求给下游,在延迟状态下，应该阻断对下游的访问
++    io.out.ar.valid := io.in.ar.valid && (state_r === s_idle)
++    io.out.ar.bits.addr := io.in.ar.bits.addr 
++    io.out.ar.bits.id := io.in.ar.bits.id
++    io.out.ar.bits.len := io.in.ar.bits.len
++    io.out.ar.bits.size := io.in.ar.bits.size
++    io.out.ar.bits.burst := io.in.ar.bits.burst
++    io.out.r.ready := io.in.r.ready
++
++    io.out.ar.bits.lock := io.in.ar.bits.lock         
++    io.out.ar.bits.cache := io.in.ar.bits.cache       
++    io.out.ar.bits.prot := io.in.ar.bits.prot         
++    io.out.ar.bits.qos := io.in.ar.bits.qos           
++    io.out.ar.bits.user := io.in.ar.bits.user         
++    io.out.ar.bits.echo := io.in.ar.bits.echo         
++
++    io.in.ar.ready := io.out.ar.ready && (state_r === s_idle)
++
++	axi_r_delay := MuxCase( axi_r_delay, Seq(		
++                          ( (state_r === s_idle) && io.out.ar.valid ) -> (axi_r_delay + sr),
++	                                    	( (state_r === s_wait) )  -> (axi_r_delay + sr),
++											  (state_r =/= s_idle)    -> 0.U
++    					) )
++
++	current_r_delay := MuxCase(current_r_delay + 1.U, Seq(		
++						   ( (state_r === s_idle) && io.out.ar.valid ) ->  (current_r_delay + 1.U),
++                        ( io.in.r.bits.last && (state_r === s_delay) ) ->  0.U,
++											  (state_r === s_idle)    -> 0.U
++    					) )
++
++    read_wptr := MuxCase( read_wptr , Seq(		
++						                         ( io.out.r.valid ) ->  (read_wptr + 1.U),
++											  (state_r === s_idle)    -> 0.U
++    					) )
++    
++    read_rptr := MuxCase( read_rptr , Seq(	
++                                            (state_r === s_idle)    -> 0.U	,
++				   ( current_r_delay === burst_r_delay(read_rptr) ) ->  (read_rptr + 1.U)
++											  
++    					) )
++
++    burst_r_delay(read_wptr) := MuxCase(burst_r_delay(read_wptr), Seq(		
++						                        ( io.out.r.valid ) ->  (axi_r_delay >> 1),
++											  (state_r === s_idle)    -> 0.U
++    					) )	
++
++    rid_buf(read_wptr)   := Mux(io.out.r.valid, io.out.r.bits.id, rid_buf(read_wptr))
++  	rdata_buf(read_wptr) := Mux(io.out.r.valid, io.out.r.bits.data, rdata_buf(read_wptr))
++    rresp_buf(read_wptr) := Mux(io.out.r.valid, io.out.r.bits.resp, rresp_buf(read_wptr))
++
++	val r_out = ( (state_r =/= s_idle) ) && ( current_r_delay === burst_r_delay(read_rptr) )
++
++    io.in.r.bits.last :=  Mux( (r_out && read_rptr ===io.out.ar.bits.len) , true.B, 0.U)
++    io.in.r.valid     :=  Mux(r_out, true.B, 0.U)
++	io.in.r.bits.id   :=  Mux(r_out, rid_buf(read_rptr), 0.U)
++  	io.in.r.bits.data := Mux(r_out, rdata_buf(read_rptr), 0.U)
++  	io.in.r.bits.resp := Mux(r_out, rresp_buf(read_rptr), 0.U)
++
++// -----------------------------------------------------------------
++// 写入操作
++// -----------------------------------------------------------------
++	val current_w_delay = RegInit(0.U(16.W))
++    val axi_w_delay = RegInit(0.U(16.W))
++    val burst_w_delay  = RegInit(VecInit(Seq.fill(BURST)(0.U(16.W)) ) ) 
++    val write_wptr = RegInit(0.U(3.W))
++    val write_rptr = RegInit(0.U(3.W))
++
++    val bid_buf    = RegInit(VecInit(Seq.fill(BURST)(0.U(4.W)) ) )
++    val bresp_buf  = RegInit(VecInit(Seq.fill(BURST)(0.U(2.W)) ) ) 
++    
++	//val s_idle :: s_wait :: s_delay :: Nil = Enum(3)
++    val state_w = RegInit(s_idle)
++    state_w := MuxLookup(state_w, s_idle)(  Seq(
++        	s_idle     -> Mux( (io.out.aw.valid && io.out.w.valid), s_wait, s_idle), //根据命令激活
++        	s_wait     -> Mux( (io.out.b.valid), s_delay, s_wait),
++			s_delay    -> Mux( io.in.b.valid, s_idle, s_delay)
++    	) )
++
++	//只在空闲状态传递请求给下游,在延迟状态下，应该阻断对下游的访问
++    io.out.aw.valid := io.in.aw.valid && (state_w === s_idle)
++    io.out.aw.bits := io.in.aw.bits
++    io.in.aw.ready := io.out.aw.ready  && (state_w === s_idle)
++  
++    io.out.w.valid := io.in.w.valid && (state_w === s_idle)
++    io.out.w.bits := io.in.w.bits
++    io.in.w.ready := io.out.w.ready  && (state_w === s_idle)
++
++    io.out.b.ready := io.in.b.ready
++
++	axi_w_delay := MuxCase( axi_w_delay, Seq(		
++                          ( (state_w === s_idle) && io.out.aw.valid ) -> (axi_w_delay + sr),
++			                            	( (state_w === s_wait) )  -> (axi_w_delay + sr),
++											  (state_w =/= s_idle)    -> 0.U
++    					) )
++
++	current_w_delay := MuxCase(current_w_delay + 1.U, Seq(		
++						   ( (state_w === s_idle) && io.out.aw.valid ) ->  (current_w_delay + 1.U),
++                           ( io.in.b.valid  && (state_w === s_delay) ) ->  0.U,
++											  (state_w === s_idle)    -> 0.U
++    					) )
++
++    // write_wptr := MuxCase( write_wptr , Seq(		
++	// 					                         ( io.out.b.valid ) ->  (write_wptr + 1.U),
++	// 										  (state_w === s_idle)    -> 0.U
++    // 					) )
++    
++    // write_rptr := MuxCase( write_rptr , Seq(	
++    //                                         (state_w === s_idle)    -> 0.U	,
++	// 			   ( current_w_delay === burst_w_delay(write_rptr) ) ->  (write_rptr + 1.U)
++											  
++    // 					) )
++
++    burst_w_delay(write_wptr) := MuxCase(burst_w_delay(write_wptr), Seq(		
++						                        ( io.out.b.valid ) ->  (axi_w_delay >> 1),
++											        (state_w === s_idle)    -> 0.U
++    					) )	
++
++    bid_buf(write_wptr)   := Mux(io.out.b.valid, io.out.b.bits.id, rid_buf(write_wptr))
++    bresp_buf(write_wptr) := Mux(io.out.b.valid, io.out.b.bits.resp, rresp_buf(write_wptr))
++
++	val w_out = ( (state_w =/= s_idle) ) && ( current_w_delay === burst_w_delay(write_rptr) )
++
++    // io.in.b.bits.last :=  Mux( (r_out && write_rptr ===io.out.aw.bits.len) , true.B, 0.U)
++    io.in.b.valid     :=  Mux(w_out, true.B, 0.U)
++	io.in.b.bits.id   :=  Mux(w_out, rid_buf(write_rptr), 0.U)
++  	io.in.b.bits.resp :=  Mux(w_out, rresp_buf(write_rptr), 0.U)
++
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +185,8 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new axi4_delayer)
++      //val delayer = Module(new axi4_delayer)
++      val delayer = Module(new AXI4DelayerChisel)  //实现AXI延迟模块
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+index 6bd3d572..55972313 100644
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -4,10 +4,38 @@ import chisel3._
+ import chisel3.util._
+ 
+ class bitrev extends BlackBox {
+-  val io = IO(Flipped(new SPIIO(1)))
++	val io = IO(Flipped(new SPIIO(1)))
+ }
+ 
+-class bitrevChisel extends RawModule { // we do not need clock and reset
+-  val io = IO(Flipped(new SPIIO(1)))
+-  io.miso := true.B
++//bit reverse（位翻转）
++class bitrevChisel extends RawModule { // we do not need clock and reset  
++	val io = IO(Flipped(new SPIIO(1)))
++	//io.miso := true.B
++	// sck作为时钟， io.ss作为异步复位(低电平有效)
++	withClockAndReset(io.sck.asClock, io.ss.asBool.asAsyncReset){
++
++		val bitrev = RegInit(0.U(8.W)) //移位寄存器，存储接收到的数据
++		val bitCount = RegInit(0.U(3.W)) //计数器，已接收的位数
++		val spi_mode = RegInit(false.B) //false:输入模式7~0, true:输出模式0~7
++
++		bitCount := Mux((bitCount === 7.U), 0.U, bitCount + 1.U) //计数器递增，到7则清0
++
++		spi_mode := Mux((bitCount === 7.U), !spi_mode, spi_mode) //计数到7则转换模式
++
++		bitrev := Mux(!spi_mode,  Cat(bitrev(6,0), io.mosi), bitrev) //输入模式则记录数据
++
++		io.miso := Mux(spi_mode, bitrev(bitCount), true.B)  //miso高位传到地址RXR低位
++
++		//printf("mosi=%d miso=%d bitCount=%d spi=%d bitrev=0x%x\n"  ,io.mosi, io.miso,bitCount, spi,bitrev);
++	
++	}
++	
+ }
++
++
++// class SPIIO(val ssWidth: Int = 8) extends Bundle {
++//   val sck = Output(Bool())
++//   val ss = Output(UInt(ssWidth.W))
++//   val mosi = Output(Bool())
++//   val miso = Input(Bool())
++// }
+diff --git a/src/device/GPIO.scala b/src/device/GPIO.scala
+index f770e96a..5a72db2c 100644
+--- a/src/device/GPIO.scala
++++ b/src/device/GPIO.scala
+@@ -27,26 +27,69 @@ class gpio_top_apb extends BlackBox {
+ 
+ class gpioChisel extends Module {
+   val io = IO(new GPIOCtrlIO)
++
++  	val led_reg = RegInit(0.U(16.W))    // LED输出寄存器，初始值为0
++	val switch_reg = RegInit(0.U(16.W)) // 开关输入寄存器
++	val seg_reg = RegInit(0.U(32.W))    // 数码管寄存器
++
++	io.in.pready := true.B
++	io.in.pslverr := false.B
++	
++	io.gpio.out := led_reg
++	switch_reg := io.gpio.in
++
++	led_reg := Mux( (io.in.psel && io.in.penable && io.in.pwrite && (io.in.paddr === 0x10002000.U) ), 
++	                io.in.pwdata(15,0), led_reg)
++
++	io.in.prdata := Mux( (io.in.psel && io.in.penable && !io.in.pwrite && (io.in.paddr === 0x10002004.U) ), 
++	                switch_reg, 0.U)
++					
++	seg_reg := Mux( (io.in.psel && io.in.penable && io.in.pwrite && (io.in.paddr === 0x10002008.U) ), 
++	                io.in.pwdata, seg_reg)
++	// 数码管输出：将32位seg_reg拆分成8个4位信号，然后转换为8位
++  	for (i <- 0 until 8) {
++    // 从32位寄存器中提取每4位，然后转换为8位数码管段选信号
++    	io.gpio.seg(i) := MuxLookup(seg_reg(4*i+3, 4*i), "b0000001".U) (Seq(
++			0.U  -> "b0000001".U, // 0
++			1.U  -> "b1001111".U, // 1
++			2.U  -> "b0010010".U, // 2
++			3.U  -> "b0000110".U, // 3
++			4.U  -> "b1001100".U, // 4
++			5.U  -> "b0100100".U, // 5
++			6.U  -> "b0100000".U, // 6
++			7.U  -> "b0001111".U, // 7
++			8.U  -> "b0000000".U, // 8
++			9.U  -> "b0000100".U, // 9
++			10.U -> "b0001000".U, // A(10)
++			11.U -> "b1100000".U, // B(11)
++			12.U -> "b0110001".U, // C(12)
++			13.U -> "b1000010".U, // D(13)
++			14.U -> "b0110000".U, // E(14)
++			15.U -> "b0111000".U  // F(15)
++    	)	)
++  	}
++	//io.gpio.seg(7) := "b0000001".U
++
+ }
+ 
+ class APBGPIO(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++	Seq(APBSlaveParameters(
++	  address       = address,
++	  executable    = true,
++	  supportsRead  = true,
++	  supportsWrite = true)),
++	beatBytes  = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val gpio_bundle = IO(new GPIOIO)
+-
+-    val mgpio = Module(new gpio_top_apb)
+-    mgpio.io.clock := clock
+-    mgpio.io.reset := reset
+-    mgpio.io.in <> in
+-    gpio_bundle <> mgpio.io.gpio
++	val (in, _) = node.in(0)
++	val gpio_bundle = IO(new GPIOIO)
++
++	val mgpio = Module(new gpioChisel)
++	mgpio.io.clock := clock
++	mgpio.io.reset := reset
++	mgpio.io.in <> in
++	gpio_bundle <> mgpio.io.gpio
+   }
+ }
+diff --git a/src/device/Keyboard.scala b/src/device/Keyboard.scala
+index 5bd7f5b4..f7db81c2 100644
+--- a/src/device/Keyboard.scala
++++ b/src/device/Keyboard.scala
+@@ -26,26 +26,103 @@ class ps2_top_apb extends BlackBox {
+ 
+ class ps2Chisel extends Module {
+   val io = IO(new PS2CtrlIO)
++
++  	val overflow = RegInit(0.U(1.W))
++   	val w_ready = RegInit(false.B)
++
++  	val buffer = RegInit(0.U(10.W)) // 存储接收到的10位数据帧  
++  	val fifo = Reg(Vec(8, UInt(16.W))) // 8字节的FIFO缓冲区
++  	val w_ptr = RegInit(0.U(3.W))  // 写指针（0-7）
++  	val r_ptr = RegInit(0.U(3.W))  // 读指针（0-7）
++  	val count = RegInit(0.U(4.W))  // 位计数器（0-10）
++	val ps2_clk_sync = RegInit(0.U(3.W)) // PS/2时钟同步寄存器
++	//val r_ready = RegInit(false.B)   
++  	val keyboard_reg = RegInit(0.U(16.W)) 
++	val scan_reg = RegInit(0.U(16.W)) 
++	val up_reg = RegInit(true.B) //判断输入的扫描码是否在断码后面
++	val ex_reg = RegInit(false.B) //判断输入的扫描码是否有扩展码
++
++
++	val keyboard_r = io.in.penable && !io.in.pwrite && io.in.psel && (io.in.paddr === 0x10011000.U)
++	
++	val s_idle :: s_down :: s_up :: s_wait ::  Nil = Enum(4)
++    val state = RegInit(s_idle)
++    state := MuxLookup(state, s_idle)(  Seq(
++        	s_idle     -> Mux(w_ready, s_down, s_idle), // 状态0：闲置
++        	s_down     -> Mux((keyboard_reg === 0xF0.U), s_up, s_down), 
++			s_up       -> Mux(!w_ready, s_idle, s_up)
++			//s_wait       -> Mux(!w_ready, s_idle , s_wait)
++    	) )	
++	
++	// 同步和边沿检测
++  	ps2_clk_sync := Cat(ps2_clk_sync(1, 0), io.ps2.clk)
++  	val sampling = ps2_clk_sync(2) && !ps2_clk_sync(1) //检测PS/2时钟的下降沿
++	//dontTouch(sampling)
++	when( w_ready && keyboard_r){
++		r_ptr := r_ptr + 1.U;   //当ready=1时，移动读指针。
++		when(w_ptr === (r_ptr + 1.U)){w_ready := false.B} //如果FIFO为空（写指针=读指针+1），则清除ready标志。  
++	}
++  	when( sampling ) {// 移位采样
++		when(count === 10.U){ 
++			when( (!buffer(0)) && (io.ps2.data) && (buffer(9, 1).xorR)) { // 起始位为0,停止位为1,奇校验正确
++				when( !((state === s_down) && (buffer(8,1) =/= 0xF0.U)) ){ //一直按键则跳过
++					up_reg := Mux((keyboard_reg === 0xF0.U && buffer(8,1) =/= 0xE0.U), 
++								!up_reg, up_reg)//松开按键后有扫描码则翻转（扩展码不算）
++					when( !(keyboard_reg === 0xF0.U && up_reg) ){ // 断码后第一个扫描码跳过
++						when(buffer(8,1) === 0xE0.U && (state === s_idle)){ //部分按键的扫描码包含扩展码
++							ex_reg := true.B
++						}.otherwise {
++				    		fifo(w_ptr) := Mux(ex_reg, Cat(0xE0.U, buffer(8,1)), buffer(8,1))
++							ex_reg := false.B
++                    		w_ptr := w_ptr + 1.U
++                    		w_ready := true.B
++                    		overflow := overflow | (r_ptr === (w_ptr + 1.U));
++						}
++					}
++				}
++			}
++			
++		}
++	    buffer := Cat(io.ps2.data, buffer(9,1))       // store ps2_data
++        count := Mux((count === 10.U), 0.U , count + 1.U)
++  	}
++
++	// CPU读取处理
++  	//when(keyboard_r) { r_ready := false.B }
++	keyboard_reg := Mux(w_ready, fifo(r_ptr) , keyboard_reg)
++	scan_reg := Mux( (w_ready && (fifo(r_ptr) =/= 0xF0.U) ), fifo(r_ptr) , scan_reg)
++	val prev_r_ptr = Mux(r_ptr === 0.U, 7.U, r_ptr - 1.U) 
++	//io.in.pready := true.B
++	io.in.pready := keyboard_r
++	io.in.pslverr := false.B
++  	io.in.prdata := MuxCase(0.U, Seq( //根据命令进入读/写模式
++												!keyboard_r	-> 0.U,
++										(state === s_down)	-> (keyboard_reg | 1.U << 15.U),
++	 	 ( (state === s_up) && (keyboard_reg === 0xF0.U) )  -> Cat(0.U(1.W),scan_reg(14,0))
++    						) )
++
+ }
+ 
++
++
+ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++	Seq(APBSlaveParameters(
++	  address       = address,
++	  executable    = true,
++	  supportsRead  = true,
++	  supportsWrite = true)),
++	beatBytes  = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val ps2_bundle = IO(new PS2IO)
+-
+-    val mps2 = Module(new ps2_top_apb)
+-    mps2.io.clock := clock
+-    mps2.io.reset := reset
+-    mps2.io.in <> in
+-    ps2_bundle <> mps2.io.ps2
++	val (in, _) = node.in(0)
++	val ps2_bundle = IO(new PS2IO)
++
++	val mps2 = Module(new ps2Chisel)
++	mps2.io.clock := clock
++	mps2.io.reset := reset
++	mps2.io.in <> in
++	ps2_bundle <> mps2.io.ps2
+   }
+ }
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index 09d889e4..1b45654c 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -12,15 +12,15 @@ import freechips.rocketchip.util._
+ class QSPIIO extends Bundle {
+   val sck = Output(Bool())
+   val ce_n = Output(Bool())
+-  val dio = Analog(4.W)
++  val dio = Analog(4.W)   //表示4位双向数据总线
+ }
+ 
+ class psram_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+-    val clock = Input(Clock())
+-    val reset = Input(Reset())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-    val qspi = new QSPIIO
++	val clock = Input(Clock())
++	val reset = Input(Reset())
++	val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++	val qspi = new QSPIIO
+   })
+ }
+ 
+@@ -29,28 +29,179 @@ class psram extends BlackBox {
+ }
+ 
+ class psramChisel extends RawModule {
+-  val io = IO(Flipped(new QSPIIO))
+-  val di = TriStateInBuf(io.dio, 0.U, false.B) // change this if you need
++  	val io = IO(Flipped(new QSPIIO))
++  	//val di = TriStateInBuf(io.dio, 0.U, false.B) // change this if you need
++  	val dout = IO(Output(UInt(4.W)))  //PSRAM要输出的数据
++  	val out_en = IO(Output(Bool()))   //PSRAM输出使能
++ 	val di = TriStateInBuf(io.dio, dout, out_en) 
++	// 实例化 DPI-C BlackBox
++  	val psram_read = Module(new PsramReadBlackBox)
++ 	val psram_write = Module(new PsramWriteBlackBox)
++	withClockAndReset(io.sck.asClock, io.ce_n.asBool.asAsyncReset){ //sck作为时钟，ce_n作为异步复位(低电平有效)
++		val dout_reg = RegInit(0.U(4.W))
++		val out_en_reg = RegInit(false.B)
++		val cycle_count = RegInit(0.U(5.W))
++		val QPI_reg = RegInit(0.U(8.W))
++		val cmd_reg = RegInit(0.U(8.W))
++		val addr_reg = RegInit(0.U(24.W))
++		val memory = RegInit(0.U(32.W))
++		val byte_reg = RegInit(0.U(8.W))
++		//val memory = RegInit(0x400, Vec(4, UInt(8.W)))
++
++		cycle_count := Mux((!io.ce_n), cycle_count + 1.U, 0.U)		
++
++		val s_idle :: s_cmd :: s_addr :: s_wait :: s_data :: Nil = Enum(5)
++		val state = MuxCase(s_idle, Seq(
++				io.ce_n                -> s_idle,
++				( (cycle_count >= 1.U) && (cycle_count <= 4.U) ) -> s_cmd,
++				( QPI_reg === "h35".U && cycle_count >= 5.U && cycle_count <= 10.U )  -> s_addr,
++				( QPI_reg === "h35".U && cycle_count >= 11.U && cycle_count <= 18.U && cmd_reg === "h38".U ) -> s_data,
++				( QPI_reg === "h35".U && cycle_count >= 11.U && cycle_count <= 16.U && cmd_reg === "hEB".U ) -> s_wait,
++				( QPI_reg === "h35".U && cycle_count >= 17.U && cycle_count <= 24.U && cmd_reg === "hEB".U ) -> s_data,
++				// ( (cycle_count >= 1.U) && (cycle_count <= 8.U) ) -> s_cmd,
++				// ( (cycle_count >= 9.U) && (cycle_count <= 14.U) )  -> s_addr,
++				// ( (cycle_count >= 15.U) && (cycle_count <= 22.U) && (cmd_reg === "h38".U) ) -> s_data,
++				// ( (cycle_count >= 15.U) && (cycle_count <= 20.U) && (cmd_reg === "hEB".U) ) -> s_wait,
++				// ( (cycle_count >= 21.U) && (cycle_count <= 28.U) && (cmd_reg === "hEB".U) ) -> s_data
++		) )
++
++		QPI_reg := MuxCase(QPI_reg, Seq(
++			( (!io.ce_n) && (cycle_count === 0.U) ) -> ((QPI_reg << 4) | di),
++      		( (cycle_count === 1.U) && (state === s_cmd) ) -> ((QPI_reg << 4) | di),
++      					(state === s_idle) -> 0.U
++    					) )
++    	cmd_reg := MuxCase(cmd_reg, Seq(
++			( (QPI_reg === "h35".U) && (!io.ce_n) && (cycle_count === 0.U) ) -> ((cmd_reg << 4) | di),
++      		( (QPI_reg === "h35".U) && (cycle_count =/= 4.U) && (state === s_cmd) ) -> ((cmd_reg << 4) | di),
++			// ( (!io.ce_n) && (cycle_count === 0.U) ) -> ((cmd_reg << 1) | di(0)),
++      		// ( (cycle_count =/= 8.U) && (state === s_cmd) ) -> ((cmd_reg << 1) | di(0)),
++      		 			(state === s_idle) -> 0.U
++    					) )
++		addr_reg := MuxCase(addr_reg, Seq(
++			//( (cycle_count === 7.U) && (state === s_cmd) ) -> ((addr_reg << 4) | di),
++      		( (cycle_count =/= 10.U) && (state === s_addr) ) -> ((addr_reg << 4) | di),
++      					(state === s_idle) -> 0.U
++    					))   
++		//val addr = addr_reg / 4.U //对应地址数组
++		// val byte = MuxCase(0.U, Seq(
++		// 		( (cmd_reg === "h38".U) && (state === s_data) ) -> (cycle_count - 10.U),
++		// 		( (cmd_reg === "hEB".U) && (state === s_data) ) -> (cycle_count - 17.U)
++		// 	) )  //取（2，1）位，对应字节数组
++
++		/*Quad IO Write(38h),写入PSRAM*/				
++		byte_reg := MuxCase(byte_reg, Seq(  //写入数据逻辑  
++				(cmd_reg === "h38".U && cycle_count >= 10.U && cycle_count <= 18.U) -> (byte_reg << 4 | di),
++				( state === s_idle)  -> 0.U
++			) ) 
++		
++		// 连接 DPI-C BlackBox 时钟
++    	psram_write.io.clk := io.sck.asClock
++		psram_write.io.wen := (cmd_reg === "h38".U && state === s_data && (!cycle_count(0)) )
++		psram_write.io.addr := addr_reg + (cycle_count - 12.U)(2,1)
++		psram_write.io.data := byte_reg
++		// Cat(
++		// 						memory(7, 0),    // 字节0 - 低地址
++		// 						memory(15, 8),   // 字节1
++		// 						memory(23, 16),  // 字节2  
++		// 						memory(31, 24)   // 字节3 - 高地址
++		// 						)
++
++		/*Quad IO Read(EBh),读取内存，输出部分*/
++		psram_read.io.clk := io.sck.asClock
++		psram_read.io.ren := (cmd_reg === "hEB".U && cycle_count === 11.U)
++		psram_read.io.addr := addr_reg
++		memory := MuxCase(memory, Seq(  //读取数据逻辑  
++				(cmd_reg === "hEB".U && cycle_count === 11.U) -> psram_read.io.data,
++				( state === s_idle)  -> 0.U
++			) )		
++		val mem_reg = (memory & "hF0F0F0F0".U) >> 4 | (memory & "h0F0F0F0F".U) << 4 
++    	dout := MuxCase(0.U, Seq(    // 输出数据逻辑
++      		  	(state === s_data && cmd_reg === "hEB".U) 
++			  		-> (mem_reg >> ( (cycle_count - 17.U) * 4.U) )(3,0),  
++    		))
++
++    	out_en := Mux((cmd_reg === "hEB".U && cycle_count >= 17.U && cycle_count <= 24.U),
++			        		true.B, false.B)   // 输出使能逻辑
++
++
++	}
+ }
+ 
+ class APBPSRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++	Seq(APBSlaveParameters(
++	  address       = address,
++	  executable    = true,
++	  supportsRead  = true,
++	  supportsWrite = true)),
++	beatBytes  = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val qspi_bundle = IO(new QSPIIO)
+-
+-    val mpsram = Module(new psram_top_apb)
+-    mpsram.io.clock := clock
+-    mpsram.io.reset := reset
+-    mpsram.io.in <> in
+-    qspi_bundle <> mpsram.io.qspi
++	val (in, _) = node.in(0)
++	val qspi_bundle = IO(new QSPIIO)
++
++	val mpsram = Module(new psram_top_apb)
++	mpsram.io.clock := clock
++	mpsram.io.reset := reset
++	mpsram.io.in <> in
++	qspi_bundle <> mpsram.io.qspi
+   }
+ }
++
++// PSRAM DPI-C 读取接口
++class PsramReadBlackBox extends BlackBox with HasBlackBoxInline {
++  val io = IO(new Bundle {
++    val addr = Input(UInt(32.W))
++    val data = Output(UInt(32.W))
++	val ren = Input(Bool())
++    val clk = Input(Clock())
++  })
++  
++  // 内联 Verilog 代码
++  setInline("PsramReadBlackBox.v",
++    """
++    |module PsramReadBlackBox(
++    |    input [31:0] addr,
++    |    output [31:0] data,
++	|	 input ren,
++    |    input clk
++    |);
++    |    import "DPI-C" function void psram_read(input int addr, output int data);
++    |    
++    |    always @(posedge clk) begin 
++    |        if(ren) begin
++	|			psram_read(addr, data);
++	|		end
++    |    end
++    |endmodule
++    """.stripMargin)
++}
++
++// PSRAM DPI-C 写入接口  
++class PsramWriteBlackBox extends BlackBox with HasBlackBoxInline {
++  val io = IO(new Bundle {
++    val addr = Input(UInt(32.W))
++    val data = Input(UInt(32.W))
++	val wen = Input(Bool())
++    val clk = Input(Clock())
++  })
++  
++  setInline("PsramWriteBlackBox.v",
++    """
++    |module PsramWriteBlackBox(
++    |    input [31:0] addr,
++    |    input [31:0] data,
++    |    input wen,
++    |    input clk
++    |);
++    |    import "DPI-C" function void psram_write(input int addr, input int data);
++    |    
++    |    always @(posedge clk) begin
++    |        if(wen) begin
++	|			psram_write(addr, data);
++	|		end
++    |    end
++    |endmodule
++    """.stripMargin)
++}
+\ No newline at end of file
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index a823c718..9754ef60 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -17,27 +17,27 @@ class SDRAMIO extends Bundle {
+   val ras = Output(Bool())
+   val cas = Output(Bool())
+   val we  = Output(Bool())
+-  val a   = Output(UInt(13.W))
++  val a   = Output(UInt(14.W))
+   val ba  = Output(UInt(2.W))
+-  val dqm = Output(UInt(2.W))
+-  val dq  = Analog(16.W)
++  val dqm = Output(UInt(4.W))
++  val dq  = Analog(32.W)
+ }
+ 
+ class sdram_top_axi extends BlackBox {
+   val io = IO(new Bundle {
+-    val clock = Input(Clock())
+-    val reset = Input(Bool())
+-    val in = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
+-    val sdram = new SDRAMIO
++	val clock = Input(Clock())
++	val reset = Input(Bool())
++	val in = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
++	val sdram = new SDRAMIO
+   })
+ }
+ 
+ class sdram_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+-    val clock = Input(Clock())
+-    val reset = Input(Bool())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-    val sdram = new SDRAMIO
++	val clock = Input(Clock())
++	val reset = Input(Bool())
++	val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++	val sdram = new SDRAMIO
+   })
+ }
+ 
+@@ -45,53 +45,337 @@ class sdram extends BlackBox {
+   val io = IO(Flipped(new SDRAMIO))
+ }
+ 
++
+ class sdramChisel extends RawModule {
+   val io = IO(Flipped(new SDRAMIO))
++    val dout = IO(Output(UInt(32.W)))  //SDRAM要输出的数据
++  	val out_en = IO(Output(Bool()))   //SDRAM输出使能
++ 	val di = TriStateInBuf(io.dq, dout, out_en) 
++
++
++	val command = Mux(io.cke, Cat(io.cs, io.ras, io.cas, io.we), 0b0111.U)
++	// 实例化2个SDRAM颗粒的子模块
++  	val sdram_submodule11 = Module(new sdramChisel_submodule1)
++ 	val sdram_submodule12 = Module(new sdramChisel_submodule1)
++  	val sdram_submodule21 = Module(new sdramChisel_submodule2)
++ 	val sdram_submodule22 = Module(new sdramChisel_submodule2)
++
++	//sdram_submodule1.io <> io     
++	//sdram_submodule2.io <> io     
++	sdram_submodule11.io.clk := io.clk
++	sdram_submodule11.io.cke := io.cke
++	sdram_submodule11.io.cs := io.cs
++	sdram_submodule11.io.ras := io.ras
++	sdram_submodule11.io.cas := io.cas
++	sdram_submodule11.io.we := io.we
++	sdram_submodule11.io.ba := io.ba
++	sdram_submodule12.io.clk := io.clk
++	sdram_submodule12.io.cke := io.cke
++	sdram_submodule12.io.cs := io.cs
++	sdram_submodule12.io.ras := io.ras
++	sdram_submodule12.io.cas := io.cas
++	sdram_submodule12.io.we := io.we
++	sdram_submodule12.io.ba := io.ba
++	sdram_submodule21.io.clk := io.clk
++	sdram_submodule21.io.cke := io.cke
++	sdram_submodule21.io.cs := io.cs
++	sdram_submodule21.io.ras := io.ras
++	sdram_submodule21.io.cas := io.cas
++	sdram_submodule21.io.we := io.we
++	sdram_submodule21.io.ba := io.ba
++	sdram_submodule22.io.clk := io.clk
++	sdram_submodule22.io.cke := io.cke
++	sdram_submodule22.io.cs := io.cs
++	sdram_submodule22.io.ras := io.ras
++	sdram_submodule22.io.cas := io.cas
++	sdram_submodule22.io.we := io.we
++	sdram_submodule22.io.ba := io.ba
++
++	sdram_submodule11.io.a := Mux((command === 0b0100.U) || (command === 0b0101.U),
++                              (io.a << 2), io.a)
++  	sdram_submodule12.io.a := Mux((command === 0b0100.U) || (command === 0b0101.U),
++                              ( (io.a << 2) + 2.U), io.a)
++	sdram_submodule21.io.a := Mux((command === 0b0100.U) || (command === 0b0101.U),
++                              (io.a << 2 ), io.a)
++  	sdram_submodule22.io.a := Mux((command === 0b0100.U) || (command === 0b0101.U),
++                              ( (io.a << 2) + 2.U), io.a)
++
++	out_en := (sdram_submodule12.out_en && sdram_submodule11.out_en) ||
++				(sdram_submodule22.out_en && sdram_submodule21.out_en)
++	dout := MuxCase(0.U, Seq(  //读取数据逻辑  
++					(sdram_submodule12.out_en && sdram_submodule11.out_en) 
++						-> Cat(sdram_submodule12.dout, sdram_submodule11.dout),
++				   	(sdram_submodule22.out_en && sdram_submodule21.out_en) 
++						-> Cat(sdram_submodule22.dout, sdram_submodule21.dout)
++			) )	
++	
++	
++
++	sdram_submodule11.dq := di(15,0)
++  	sdram_submodule12.dq := di(31,16)
++	sdram_submodule11.io.dqm := Cat(0b11.U, io.dqm(1,0))
++	sdram_submodule12.io.dqm := Cat(0b11.U, io.dqm(3,2))
++	sdram_submodule21.dq := di(15,0)
++  	sdram_submodule22.dq := di(31,16)
++	sdram_submodule21.io.dqm := Cat(0b11.U, io.dqm(1,0))
++	sdram_submodule22.io.dqm := Cat(0b11.U, io.dqm(3,2))
++
++}
++
++
++class sdramChisel_submodule1 extends RawModule {
++  val io = IO(Flipped(new SDRAMIO))
++  val dq = IO(Input(UInt(16.W)))  //SDRAM要输入的数据
++    val dout = IO(Output(UInt(16.W)))  //SDRAM要输出的数据
++  	val out_en = IO(Output(Bool()))   //SDRAM输出使能
++ 	val di = TriStateInBuf(io.dq, dout, out_en) 
++	// 实例化 DPI-C BlackBox
++  	val sdram_read = Module(new sdramReadBlackBox)
++ 	val sdram_write = Module(new sdramWriteBlackBox)
++	withClockAndReset(io.clk.asClock, false.B.asAsyncReset){// 在这个区域内的所有寄存器都使用 io.clk 
++		val command = Mux(io.cke, Cat(io.cs, io.ras, io.cas, io.we), 0b0111.U)
++		val row_reg = RegInit(VecInit(Seq.fill(4)(0.U(14.W))))
++		//val addr_reg = RegInit(0.U(28.W))
++		val rdata_reg = RegInit(0.U(16.W))
++		val count = RegInit(0.U(3.W))
++		val mode = RegInit(0.U(16.W))
++		val CAS_Latency = mode(6,4)
++		val Burst_Length = mode(2,0)
++		mode := Mux(io.cke && command === 0x0000.U, io.a, mode)
++
++		// dontTouch(command)
++    	// dontTouch(CAS_Latency)
++    	// dontTouch(Burst_Length)
++
++		val s_idle :: s_act :: s_write :: s_read :: Nil = Enum(4)
++    	val state = RegInit(s_idle)
++    	state := MuxLookup(state, s_idle)(  Seq(
++        	s_idle     -> Mux(command === 0b0011.U, s_act, s_idle), //根据命令激活
++        	s_act      -> MuxCase(s_act, Seq( //根据命令进入读/写模式
++			( (command === 0b0100.U) && (row_reg(io.ba)(13) === 0.U) )	-> s_write,
++			( (command === 0b0101.U) && (row_reg(io.ba)(13) === 0.U) )	-> s_read
++    						) ), 
++			s_write  -> Mux( count === 0.U, s_act, s_write), 
++			s_read  -> Mux( (count === (CAS_Latency) ), s_act, s_read)
++    	) )
++		count := MuxCase(count, Seq(
++			( (state === s_write) || (state === s_read) )   -> (count + 1.U),
++      		 			                (state === s_act)   -> 0.U
++    					) )
++		row_reg(io.ba) := MuxCase(row_reg(io.ba), Seq(  //行地址,激活时候确定行地址  
++			( (command === 0b0011.U) )   -> io.a,
++			( (command === 0b0010.U) )   -> 0.U   //预充电的时候改变行地址
++			) ) 		
++		// addr_reg := MuxCase(addr_reg, Seq(  //地址  
++		//	( (command === 0b0100.U) || (command === 0b0101.U)) 
++		//		                      -> (row_reg(io.ba) << 12 | io.ba << 10 | (io.a)(9,0) ),
++		//		   (state === s_act)  -> 0.U
++		//	) ) 	
++		val addr = Cat( 0b00000.U, row_reg(io.ba), io.ba, io.a(10,0) )	
++		/*写入DSRAM*/				
++		// 连接 DPI-C BlackBox 时钟
++    	sdram_write.io.clk := io.clk.asClock
++		sdram_write.io.wen := (command === 0b0100.U) && (row_reg(io.ba)(13) === 0.U)
++		sdram_write.io.addr := addr
++		sdram_write.io.data := dq
++		sdram_write.io.wstrb := ~io.dqm
++
++		/*读取DSRAM，输出部分*/
++		sdram_read.io.clk := io.clk.asClock
++		sdram_read.io.ren := ( (command === 0b0101.U)) && (row_reg(io.ba)(13) === 0.U)
++		sdram_read.io.addr := addr
++		rdata_reg := MuxCase(rdata_reg, Seq(  //读取数据逻辑  
++					sdram_read.io.ren -> sdram_read.io.data,
++				   (state === s_act)  -> 0.U
++			) )		
++    	out_en := Mux((state === s_read && (count === 2.U)) ,true.B, false.B)   // 输出使能逻辑
++    	dout := MuxCase(0.U, Seq(    // 输出数据逻辑
++      		  	out_en -> (rdata_reg), 
++    		))
++
++	}
++  
++}
++
++class sdramChisel_submodule2 extends RawModule {
++  val io = IO(Flipped(new SDRAMIO))
++  val dq = IO(Input(UInt(16.W)))  //SDRAM要输入的数据
++    val dout = IO(Output(UInt(16.W)))  //SDRAM要输出的数据
++  	val out_en = IO(Output(Bool()))   //SDRAM输出使能
++ 	val di = TriStateInBuf(io.dq, dout, out_en) 
++	// 实例化 DPI-C BlackBox
++  	val sdram_read = Module(new sdramReadBlackBox)
++ 	val sdram_write = Module(new sdramWriteBlackBox)
++	withClockAndReset(io.clk.asClock, false.B.asAsyncReset){// 在这个区域内的所有寄存器都使用 io.clk 
++		val command = Mux(io.cke, Cat(io.cs, io.ras, io.cas, io.we), 0b0111.U)
++		val row_reg = RegInit(VecInit(Seq.fill(4)(0.U(14.W))))
++		//val addr_reg = RegInit(0.U(28.W))
++		val rdata_reg = RegInit(0.U(16.W))
++		val count = RegInit(0.U(3.W))
++		val mode = RegInit(0.U(16.W))
++		val CAS_Latency = mode(6,4)
++		val Burst_Length = mode(2,0)
++		mode := Mux(io.cke && command === 0x0000.U, io.a, mode)
++
++		// dontTouch(command)
++    	// dontTouch(CAS_Latency)
++    	// dontTouch(Burst_Length)
++
++		val s_idle :: s_act :: s_write :: s_read :: Nil = Enum(4)
++    	val state = RegInit(s_idle)
++    	state := MuxLookup(state, s_idle)(  Seq(
++        	s_idle     -> Mux(command === 0b0011.U, s_act, s_idle), //根据命令激活
++        	s_act      -> MuxCase(s_act, Seq( //根据命令进入读/写模式
++				( (command === 0b0100.U) && (row_reg(io.ba)(13) === 1.U) )   -> s_write,
++				( (command === 0b0101.U) && (row_reg(io.ba)(13) === 1.U) )   -> s_read
++    						) ), 
++			s_write  -> Mux( count === 0.U, s_act, s_write), 
++			s_read  -> Mux( (count === (CAS_Latency) ), s_act, s_read)
++    	) )
++		count := MuxCase(count, Seq(
++			( (state === s_write) || (state === s_read) )   -> (count + 1.U),
++      		 			                (state === s_act)   -> 0.U
++    					) )
++		row_reg(io.ba) := MuxCase(row_reg(io.ba), Seq(  //行地址,激活时候确定行地址  
++			( (command === 0b0011.U) )   -> io.a,
++			( (command === 0b0010.U) )   -> 0.U   //预充电的时候改变行地址
++			) ) 		
++		// addr_reg := MuxCase(addr_reg, Seq(  //地址  
++		//	( (command === 0b0100.U) || (command === 0b0101.U)) 
++		//		                      -> (row_reg(io.ba) << 12 | io.ba << 10 | (io.a)(9,0) ),
++		//		   (state === s_act)  -> 0.U
++		//	) ) 
++		val addr = Cat( 0b00000.U, row_reg(io.ba), io.ba, io.a(10,0) )	
++		/*写入DSRAM*/				
++		// 连接 DPI-C BlackBox 时钟
++    	sdram_write.io.clk := io.clk.asClock
++		sdram_write.io.wen := (command === 0b0100.U) && (row_reg(io.ba)(13) === 1.U)
++		sdram_write.io.addr := addr
++		sdram_write.io.data := dq
++		sdram_write.io.wstrb := ~io.dqm
++
++		/*读取DSRAM，输出部分*/
++		sdram_read.io.clk := io.clk.asClock
++		sdram_read.io.ren := ( (command === 0b0101.U)) && (row_reg(io.ba)(13) === 1.U)
++		sdram_read.io.addr := addr
++		rdata_reg := MuxCase(rdata_reg, Seq(  //读取数据逻辑  
++					sdram_read.io.ren -> sdram_read.io.data,
++				   (state === s_act)  -> 0.U
++			) )		
++    	out_en := Mux((state === s_read && (count === 2.U)) ,true.B, false.B)   // 输出使能逻辑
++    	dout := MuxCase(0.U, Seq(    // 输出数据逻辑
++      		  	out_en -> (rdata_reg), 
++    		))
++
++	}
++  
++}
++
++
++
++// PSRAM DPI-C 读取接口
++class sdramReadBlackBox extends BlackBox with HasBlackBoxInline {
++  val io = IO(new Bundle {
++    val addr = Input(UInt(32.W))
++    val data = Output(UInt(32.W))
++	val ren = Input(Bool())
++    val clk = Input(Clock())
++  })
++  
++  // 内联 Verilog 代码
++  setInline("sdramReadBlackBox.v",
++    """
++    |module sdramReadBlackBox(
++    |    input [31:0] addr,
++    |    output [31:0] data,
++	|	 input ren,
++    |    input clk
++    |);
++    |    import "DPI-C" function void sdram_read(input int addr, output int data);
++    |    
++    |    always @(posedge clk) begin 
++    |        if(ren) begin
++	|			sdram_read(addr, data);
++	|		end
++    |    end
++    |endmodule
++    """.stripMargin)
+ }
+ 
++// PSRAM DPI-C 写入接口  
++class sdramWriteBlackBox extends BlackBox with HasBlackBoxInline {
++  val io = IO(new Bundle {
++    val addr = Input(UInt(32.W))
++    val data = Input(UInt(32.W))
++	val wstrb = Input(UInt(4.W))
++	val wen = Input(Bool())
++    val clk = Input(Clock())
++  })
++  
++  setInline("sdramWriteBlackBox.v",
++    """
++    |module sdramWriteBlackBox(
++    |    input [31:0] addr,
++    |    input [31:0] data,
++	|    input [3:0] wstrb,
++    |    input wen,
++    |    input clk
++    |);
++    |    import "DPI-C" function void sdram_write(input int addr, input int data, input byte wmask);
++    |    
++    |    always @(posedge clk) begin
++    |        if(wen) begin
++	|			sdram_write(addr, data, {4'b0, wstrb});
++	|		end
++    |    end
++    |endmodule
++    """.stripMargin)
++}
++
++
+ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val beatBytes = 4
+   val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
+-    Seq(AXI4SlaveParameters(
+-        address       = address,
+-        executable    = true,
+-        supportsWrite = TransferSizes(1, beatBytes),
+-        supportsRead  = TransferSizes(1, beatBytes),
+-        interleavedId = Some(0))
+-    ),
+-    beatBytes  = beatBytes)))
++	Seq(AXI4SlaveParameters(
++		address       = address,
++		executable    = true,
++		supportsWrite = TransferSizes(1, beatBytes),
++		supportsRead  = TransferSizes(1, beatBytes),
++		interleavedId = Some(0))
++	),
++	beatBytes  = beatBytes)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val sdram_bundle = IO(new SDRAMIO)
+-
+-    val msdram = Module(new sdram_top_axi)
+-    msdram.io.clock := clock
+-    msdram.io.reset := reset.asBool
+-    msdram.io.in <> in
+-    sdram_bundle <> msdram.io.sdram
++	val (in, _) = node.in(0)
++	val sdram_bundle = IO(new SDRAMIO)
++
++	val msdram = Module(new sdram_top_axi)
++	msdram.io.clock := clock
++	msdram.io.reset := reset.asBool
++	msdram.io.in <> in
++	sdram_bundle <> msdram.io.sdram
+   }
+ }
+ 
+ class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++	Seq(APBSlaveParameters(
++	  address       = address,
++	  executable    = true,
++	  supportsRead  = true,
++	  supportsWrite = true)),
++	beatBytes  = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val sdram_bundle = IO(new SDRAMIO)
+-
+-    val msdram = Module(new sdram_top_apb)
+-    msdram.io.clock := clock
+-    msdram.io.reset := reset.asBool
+-    msdram.io.in <> in
+-    sdram_bundle <> msdram.io.sdram
++	val (in, _) = node.in(0)
++	val sdram_bundle = IO(new SDRAMIO)
++
++	val msdram = Module(new sdram_top_apb)
++	msdram.io.clock := clock
++	msdram.io.reset := reset.asBool
++	msdram.io.in <> in
++	sdram_bundle <> msdram.io.sdram
+   }
+ }
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index c354bb92..d0608a52 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -17,11 +17,11 @@ class SPIIO(val ssWidth: Int = 8) extends Bundle {
+ 
+ class spi_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+-    val clock = Input(Clock())
+-    val reset = Input(Reset())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-    val spi = new SPIIO
+-    val spi_irq_out = Output(Bool())
++	val clock = Input(Clock())
++	val reset = Input(Reset())
++	val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++	val spi = new SPIIO
++	val spi_irq_out = Output(Bool())
+   })
+ }
+ 
+@@ -29,24 +29,171 @@ class flash extends BlackBox {
+   val io = IO(Flipped(new SPIIO(1)))
+ }
+ 
++//"就地执行"(XIP, eXecute In Place)
+ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
+-
+-  lazy val module = new Impl
+-  class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val spi_bundle = IO(new SPIIO)
+-
+-    val mspi = Module(new spi_top_apb)
+-    mspi.io.clock := clock
+-    mspi.io.reset := reset
+-    mspi.io.in <> in
+-    spi_bundle <> mspi.io.spi
+-  }
++	Seq(APBSlaveParameters(
++	  address       = address,
++	  executable    = true,
++	  supportsRead  = true,
++	  supportsWrite = true)),
++	beatBytes  = 4)))
++
++  	lazy val module = new Impl
++  	class Impl extends LazyModuleImp(this) {
++		val (in, _) = node.in(0)
++		val spi_bundle = IO(new SPIIO)
++
++		val mspi = Module(new spi_top_apb)
++		mspi.io.clock := clock
++		mspi.io.reset := reset
++		mspi.io.in <> in
++		spi_bundle <> mspi.io.spi
++
++		// SPI地址空间定义
++		val SPI_BASE = "h10001000".U(32.W)
++		val SPI_TXR = SPI_BASE + 0x4.U(32.W)  //数据传输寄存器
++		val SPI_RXR =  SPI_BASE + 0x0.U(32.W)   // 数据接收寄存器
++		val SPI_CTRL =  SPI_BASE + 0x10.U(32.W)  //控制与状态寄存器
++		val SPI_DIV =  SPI_BASE + 0x14.U(32.W)  //除数寄存器
++		val SPI_SSR =  SPI_BASE + 0x18.U(32.W)  //从属选择寄存器
++
++		val flash_addr = (in.paddr >= "h30000000".U(32.W)) && (in.paddr < "h40000000".U(32.W)) //目标地址落在flash存储空间
++		
++		/*设置控制寄存器参数*/
++		val ctrl = (64.U << 0.U) | // CHAR_LEN = 64位
++					(0.U << 11.U) | // LSB = 0 首先传输/接收的是高位字节,1则低位
++					(0.U << 10.U) | // Tx_NEG=0 “msio_pad_i”信号会在“sclk_pad_o”的上升沿变化。
++					(0.U << 9.U) |  // Rx_NEG=0 "miso_pad_i”信号会在“sclk_pad_o”的上升沿被锁存。
++					(1.U << 12.U) | // IE = 0 使能中断功能
++					(1.U << 13.U);  // ASS = 1 自动生成 ss_pad_o 信号。
++
++		val s_spi :: s_xip_div :: s_xip_ssr :: s_xip_txr :: s_xip_ctrl :: s_xip_wait :: s_xip_rxr :: Nil = Enum(7)
++    	val state = RegInit(s_spi)
++    	state := MuxLookup(state, s_spi)(  Seq(
++        	s_spi      -> Mux(flash_addr && in.psel, s_xip_div, s_spi), //目标地址落在flash存储空间,则进入XIP模式
++        	s_xip_div  -> Mux( mspi.io.in.pready , s_xip_ssr, s_xip_div), 
++			s_xip_ssr  -> Mux( mspi.io.in.pready , s_xip_txr, s_xip_ssr), 
++			s_xip_txr  -> Mux( mspi.io.in.pready , s_xip_ctrl, s_xip_txr), 
++			s_xip_ctrl -> Mux( mspi.io.in.pready , s_xip_wait, s_xip_ctrl), 
++			s_xip_wait -> Mux( mspi.io.in.pready && mspi.io.spi_irq_out , //传输结束后将会发出中断信号
++											s_xip_rxr, s_xip_wait), 
++			s_xip_rxr  -> Mux( in.pready, s_spi, s_xip_rxr) 
++    	) )
++
++
++		
++		mspi.io.in.paddr := MuxCase(in.paddr, Seq(
++  //( flash_addr && (state === s_spi) )  -> SPI_DIV,
++				(state === s_xip_div)  -> SPI_DIV,
++				(state === s_xip_ssr)  -> SPI_SSR,
++				(state === s_xip_txr)  -> SPI_TXR,
++				(state === s_xip_ctrl) -> SPI_CTRL,
++				(state === s_xip_wait) -> SPI_CTRL,
++				(state === s_xip_rxr) -> SPI_RXR  //从SPI master的RX寄存器中读出slave返回的数据
++		) )
++
++		mspi.io.in.psel := MuxCase(in.psel, Seq(
++    			(state =/= s_spi) -> true.B , // 在XIP模式下保持psel有效
++				(state === s_xip_wait) -> false.B
++			))
++
++		mspi.io.in.penable := MuxCase(in.penable, Seq(
++	   RegNext(mspi.io.in.pready) -> false.B,
++		   (state === s_xip_div)  -> true.B,
++		   (state === s_xip_wait) -> true.B
++		))
++
++
++		mspi.io.in.pprot := MuxCase(in.pprot, Seq(
++  //( flash_addr && (state === s_spi) )  -> true.B, 
++				(state === s_xip_div)  -> true.B,
++				(state === s_xip_ssr)  -> true.B,
++				(state === s_xip_txr)  -> true.B,
++				(state === s_xip_ctrl) -> true.B,
++				(state === s_xip_wait) -> false.B,
++				(state === s_xip_rxr) -> false.B  
++		) )
++
++		mspi.io.in.pwrite := MuxCase(in.pwrite, Seq(
++  //( flash_addr && (state === s_spi) )  -> true.B, 
++				(state === s_xip_div)  -> true.B,
++				(state === s_xip_ssr)  -> true.B,
++				(state === s_xip_txr)  -> true.B,
++				(state === s_xip_ctrl) -> true.B,
++				(state === s_xip_wait) -> false.B,
++				(state === s_xip_rxr) -> false.B  
++			) )
++
++		mspi.io.in.pwdata := MuxCase(in.pwdata, Seq(
++  ( flash_addr && (state === s_spi) )  -> 0x00000001.U, 
++				(state === s_xip_div)  -> 0x00000001.U,  //verilator中没有频率的概念, 因此可以设置一个使得SCK频率尽量高的除数.
++				(state === s_xip_ssr)  -> (1 << 0).U,		//flash作为SPI slave编号为7
++				(state === s_xip_txr)  -> ( (0x03.U << 24.U) | (in.paddr  & 0x00FFFFFF.U) ),  //SPI Flash读操作格式：命令(8位) + 地址(24位)
++				(state === s_xip_ctrl) -> ( ctrl | (1.U << 8.U) ), // GO_BSY=1,
++				(state === s_xip_wait) -> 0.U,
++				(state === s_xip_rxr) -> ( ctrl | (1.U << 8.U) ) // GO_BSY=1,启动传输
++		) )
++
++		mspi.io.in.pstrb := MuxCase(in.pstrb, Seq(
++  ( flash_addr && (state === s_spi) )  -> 0xf.U, 
++				(state === s_xip_div)  -> 0xf.U,
++				(state === s_xip_ssr)  -> 0xf.U,
++				(state === s_xip_txr)  -> 0xf.U,
++				(state === s_xip_ctrl) -> 0xf.U,
++				(state === s_xip_wait) -> false.B,
++				(state === s_xip_rxr) -> false.B  
++			) )
++		
++		val result = Cat(
++      				mspi.io.in.prdata(7, 0),    // 最低字节 -> 最高字节
++      				mspi.io.in.prdata(15, 8),   // 次低字节 -> 次高字节
++      				mspi.io.in.prdata(23, 16),  // 次高字节 -> 次低字节  
++      				mspi.io.in.prdata(31, 24)   // 最高字节 -> 最低字节
++    				)
++		
++		in.prdata := MuxCase(mspi.io.in.prdata, Seq(
++				(state === s_xip_rxr)  ->  result  
++			) )
++
++		in.pready := MuxCase(false.B, Seq(
++			    (state === s_spi)  ->  mspi.io.in.pready,
++				(state === s_xip_rxr)  ->  mspi.io.in.pready
++			) )
++
++		in.pslverr := MuxCase(false.B, Seq(
++			    (state === s_spi)  ->  mspi.io.in.pslverr ,
++				(state === s_xip_rxr)  ->  mspi.io.in.pslverr  
++			) )
++
++
++		// when(in.psel === true.B){
++		// printf("in.paddr=0x%x in.pwdata=0x%x in.pwrite=0x%x in.psel=%d in.penable=%d\n", in.paddr, in.pwdata, in.pwrite, in.psel, in.penable)
++		// printf("state=%d\n",state)
++		// printf("mspi.io.in.paddr=0x%x mspi.io.in.pwdata=0x%x\n", mspi.io.in.paddr, mspi.io.in.pwdata)
++		// printf("mspi.io.in.pprot=0x%x mspi.io.in.pstrb=0x%x\n", mspi.io.in.pprot, mspi.io.in.pstrb)
++		// printf("mspi.io.in.pwrite=%d mspi.io.in.psel=%d mspi.io.in.penable=%d\n", mspi.io.in.pwrite, mspi.io.in.psel, mspi.io.in.penable)
++		// printf("mspi.io.in.pready=%d mspi.io.in.prdata=0x%x mspi.io.in.pslverr=%d\n", mspi.io.in.pready, mspi.io.in.prdata, mspi.io.in.pslverr)
++		// printf("mspi.io.spi.miso=%d in.prdata=0x%x\n", mspi.io.spi.miso, in.prdata)
++		// }
++
++
++  	}
+ }
++		
++
++// in 是一个 APBBundle 类型的对象，面包含完整的APB总线协议信号，具体包含以下信号：
++// 输入信号（从总线到模块）：
++// in.paddr    // [31:0] 地址信号
++// in.pwdata   // [31:0] 写数据信号  
++// in.pwrite   // 写使能信号 (1=写, 0=读)
++// in.psel     // 选择信号 (表示本设备被选中)
++// in.penable  // 使能信号 (表示传输进行中)
++//input  [2:0]  in_pprot,
++//input  [3:0]  in_pstrb,
++//input                   spi_miso,
++
++// 输出信号（从模块到总线）：
++// in.pready   // 准备信号 (模块驱动，表示传输完成)
++// in.prdata   // [31:0] 读数据信号 (模块驱动，返回读取的数据)
++// in.pslverr  // 错误信号 (模块驱动，表示传输错误)
+\ No newline at end of file
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index 6724bc38..d47fa68b 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -26,30 +26,85 @@ class VGACtrlIO extends Bundle {
+ 
+ class vga_top_apb extends BlackBox {
+   val io = IO(new VGACtrlIO)
++
+ }
+ 
+ class vgaChisel extends Module {
+   val io = IO(new VGACtrlIO)
++
++	val h_addr  = RegInit(0.U(10.W))   // 当前水平像素坐标输出 (0-639)
++    val v_addr  = RegInit(0.U(10.W))   // 当前垂直像素坐标输出 (0-479)
++
++	// 水平时序参数（以像素时钟为单位）
++    val h_frontporch = 96.U   // 行同步脉冲宽度（0 - 95）
++    val h_active = 144.U      // 行有效开始位置 (96 + 48)
++    val h_backporch = 784.U   // 行有效结束位置 (144 + 640)
++    val h_total = 800.U       // 行总像素数
++	// 垂直时序参数（以行为单位）
++    val v_frontporch = 2.U    // 场同步脉冲宽度（0 - 2）
++    val v_active = 35.U       // 场有效开始行 (2 + 33)
++    val v_backporch = 515.U   // 场有效结束行 (35 + 480)
++    val v_total = 525.U       // 场总行数
++	//像素计数器
++    val x_cnt  = RegInit(0.U(10.W))   // 水平像素计数器 (1-800)
++    val y_cnt  = RegInit(0.U(10.W))   // 垂直行计数器 (1-525)
++	
++	//接收数据写入帧缓冲存储器    
++	io.in.pready := true.B
++	io.in.pslverr := false.B
++	val frame_buffer = SyncReadMem( BigInt(640 * 480), UInt(32.W))// 帧缓冲存储器
++	val w_vga = io.in.psel && io.in.penable && io.in.pwrite && 
++						(io.in.paddr >= 0x21000000.U)  && (io.in.paddr <= 0x211fffff.U)
++	val pixel_index = (io.in.paddr - 0x21000000.U) >> 2 
++	frame_buffer(pixel_index) := Mux(w_vga, io.in.pwdata, frame_buffer(pixel_index))
++	io.in.prdata := 0.U
++
++	//像素信息处理（VGA控制器输出到nvborad的端口）
++	x_cnt := Mux(x_cnt === h_total, 1.U, x_cnt + 1.U) //递增，一行扫描完成则水平归1
++	y_cnt := Mux(x_cnt === h_total, 			//一行扫描完成则下一行(递增)，一场扫描完成则垂直归1
++					Mux(y_cnt === v_total, 1.U, y_cnt + 1.U), y_cnt) 
++	
++	//生成同步信号
++	io.vga.hsync := (x_cnt > h_frontporch);    // 行同步：x_cnt>96时为高电平，同步脉冲结束
++	io.vga.vsync := (y_cnt > v_frontporch);    // 场同步：y_cnt>2时为高电平，同步脉冲结束
++
++	// 生成消隐信号
++	val h_valid = (x_cnt > h_active) & (x_cnt <= h_backporch);  // 水平有效：144-783
++	val v_valid = (y_cnt > v_active) & (y_cnt <= v_backporch);  // 垂直有效：35-514
++	io.vga.valid := h_valid & v_valid;  // 完全有效区域
++
++	//计算当前有效像素坐标(确保在有效区域里)
++	h_addr := Mux(h_valid, x_cnt - 145.U, 0.U)  
++  	v_addr := Mux(v_valid, y_cnt - 36.U, 0.U)   
++
++	//设置输出的颜色值
++	val pixel_addr = Mux(io.vga.valid, v_addr * 640.U + h_addr, 0.U)
++	val vga_data = frame_buffer.read(pixel_addr);
++	io.vga.b := vga_data(7,0)
++	io.vga.g := vga_data(15,8)
++	io.vga.r := vga_data(23,16)
++
++
+ }
+ 
+ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++	Seq(APBSlaveParameters(
++	  address       = address,
++	  executable    = true,
++	  supportsRead  = true,
++	  supportsWrite = true)),
++	beatBytes  = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val vga_bundle = IO(new VGAIO)
+-
+-    val mvga = Module(new vga_top_apb)
+-    mvga.io.clock := clock
+-    mvga.io.reset := reset
+-    mvga.io.in <> in
+-    vga_bundle <> mvga.io.vga
++	val (in, _) = node.in(0)
++	val vga_bundle = IO(new VGAIO)
++
++	val mvga = Module(new vgaChisel)
++	mvga.io.clock := clock
++	mvga.io.reset := reset
++	mvga.io.in <> in
++	vga_bundle <> mvga.io.vga
+   }
+ }
+-- 
+2.34.1
+

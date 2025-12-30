@@ -1,0 +1,205 @@
+From 5e696790264657e3df9137b76ff41dd68da805ff Mon Sep 17 00:00:00 2001
+From: 202518023426015-Hu xinwei <huxinwei22@mails.ucas.ac.cn>
+Date: Mon, 29 Dec 2025 17:59:56 +0800
+Subject: [PATCH 7/7] =?UTF-8?q?flash=E5=AF=B9=E9=BD=90=E8=AE=BF=E5=AD=98?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/SPI.scala | 158 ++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 156 insertions(+), 2 deletions(-)
+
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index d0608a52..be36b52a 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -30,6 +30,8 @@ class flash extends BlackBox {
+ }
+ 
+ //"就地执行"(XIP, eXecute In Place)
++
++
+ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+   val node = APBSlaveNode(Seq(APBSlavePortParameters(
+ 	Seq(APBSlaveParameters(
+@@ -83,7 +85,7 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+ 
+ 
+ 		
+-		mspi.io.in.paddr := MuxCase(in.paddr, Seq(
++		mspi.io.in.paddr := MuxCase( in.paddr, Seq(
+   //( flash_addr && (state === s_spi) )  -> SPI_DIV,
+ 				(state === s_xip_div)  -> SPI_DIV,
+ 				(state === s_xip_ssr)  -> SPI_SSR,
+@@ -129,7 +131,7 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+   ( flash_addr && (state === s_spi) )  -> 0x00000001.U, 
+ 				(state === s_xip_div)  -> 0x00000001.U,  //verilator中没有频率的概念, 因此可以设置一个使得SCK频率尽量高的除数.
+ 				(state === s_xip_ssr)  -> (1 << 0).U,		//flash作为SPI slave编号为7
+-				(state === s_xip_txr)  -> ( (0x03.U << 24.U) | (in.paddr  & 0x00FFFFFF.U) ),  //SPI Flash读操作格式：命令(8位) + 地址(24位)
++				(state === s_xip_txr)  -> ( (0x03.U << 24.U) | (((in.paddr  & 0x00FFFFFF.U) >> 2) <<2 ) ),  //SPI Flash读操作格式：命令(8位) + 地址(24位)
+ 				(state === s_xip_ctrl) -> ( ctrl | (1.U << 8.U) ), // GO_BSY=1,
+ 				(state === s_xip_wait) -> 0.U,
+ 				(state === s_xip_rxr) -> ( ctrl | (1.U << 8.U) ) // GO_BSY=1,启动传输
+@@ -182,6 +184,158 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+ }
+ 		
+ 
++// class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
++//   val node = APBSlaveNode(Seq(APBSlavePortParameters(
++// 	Seq(APBSlaveParameters(
++// 	  address       = address,
++// 	  executable    = true,
++// 	  supportsRead  = true,
++// 	  supportsWrite = true)),
++// 	beatBytes  = 4)))
++
++//   	lazy val module = new Impl
++//   	class Impl extends LazyModuleImp(this) {
++// 		val (in, _) = node.in(0)
++// 		val spi_bundle = IO(new SPIIO)
++
++// 		val mspi = Module(new spi_top_apb)
++// 		mspi.io.clock := clock
++// 		mspi.io.reset := reset
++// 		mspi.io.in <> in
++// 		spi_bundle <> mspi.io.spi
++
++// 		// SPI地址空间定义
++// 		val SPI_BASE = "h10001000".U(32.W)
++// 		val SPI_TXR = SPI_BASE + 0x4.U(32.W)  //数据传输寄存器
++// 		val SPI_RXR =  SPI_BASE + 0x0.U(32.W)   // 数据接收寄存器
++// 		val SPI_CTRL =  SPI_BASE + 0x10.U(32.W)  //控制与状态寄存器
++// 		val SPI_DIV =  SPI_BASE + 0x14.U(32.W)  //除数寄存器
++// 		val SPI_SSR =  SPI_BASE + 0x18.U(32.W)  //从属选择寄存器
++
++// 		val flash_addr = (in.paddr >= "h30000000".U(32.W)) && (in.paddr < "h40000000".U(32.W)) //目标地址落在flash存储空间
++		
++// 		/*设置控制寄存器参数*/
++// 		val ctrl = (64.U << 0.U) | // CHAR_LEN = 64位
++// 					(0.U << 11.U) | // LSB = 0 首先传输/接收的是高位字节,1则低位
++// 					(0.U << 10.U) | // Tx_NEG=0 “msio_pad_i”信号会在“sclk_pad_o”的上升沿变化。
++// 					(0.U << 9.U) |  // Rx_NEG=0 "miso_pad_i”信号会在“sclk_pad_o”的上升沿被锁存。
++// 					(1.U << 12.U) | // IE = 0 使能中断功能
++// 					(1.U << 13.U);  // ASS = 1 自动生成 ss_pad_o 信号。
++
++// 		val s_spi :: s_xip_div :: s_xip_ssr :: s_xip_txr :: s_xip_ctrl :: s_xip_wait :: s_xip_rxr :: Nil = Enum(7)
++//     	val state = RegInit(s_spi)
++//     	state := MuxLookup(state, s_spi)(  Seq(
++//         	s_spi      -> Mux(flash_addr && in.psel, s_xip_div, s_spi), //目标地址落在flash存储空间,则进入XIP模式
++//         	s_xip_div  -> Mux( mspi.io.in.pready , s_xip_ssr, s_xip_div), 
++// 			s_xip_ssr  -> Mux( mspi.io.in.pready , s_xip_txr, s_xip_ssr), 
++// 			s_xip_txr  -> Mux( mspi.io.in.pready , s_xip_ctrl, s_xip_txr), 
++// 			s_xip_ctrl -> Mux( mspi.io.in.pready , s_xip_wait, s_xip_ctrl), 
++// 			s_xip_wait -> Mux( mspi.io.in.pready && mspi.io.spi_irq_out , //传输结束后将会发出中断信号
++// 											s_xip_rxr, s_xip_wait), 
++// 			s_xip_rxr  -> Mux( in.pready, s_spi, s_xip_rxr) 
++//     	) )
++
++
++		
++// 		mspi.io.in.paddr := MuxCase( in.paddr, Seq(
++//   //( flash_addr && (state === s_spi) )  -> SPI_DIV,
++// 				(state === s_xip_div)  -> SPI_DIV,
++// 				(state === s_xip_ssr)  -> SPI_SSR,
++// 				(state === s_xip_txr)  -> SPI_TXR,
++// 				(state === s_xip_ctrl) -> SPI_CTRL,
++// 				(state === s_xip_wait) -> SPI_CTRL,
++// 				(state === s_xip_rxr) -> SPI_RXR  //从SPI master的RX寄存器中读出slave返回的数据
++// 		) )
++
++// 		mspi.io.in.psel := MuxCase(in.psel, Seq(
++//     			(state =/= s_spi) -> true.B , // 在XIP模式下保持psel有效
++// 				(state === s_xip_wait) -> false.B
++// 			))
++
++// 		mspi.io.in.penable := MuxCase(in.penable, Seq(
++// 	   RegNext(mspi.io.in.pready) -> false.B,
++// 		   (state === s_xip_div)  -> true.B,
++// 		   (state === s_xip_wait) -> true.B
++// 		))
++
++
++// 		mspi.io.in.pprot := MuxCase(in.pprot, Seq(
++//   //( flash_addr && (state === s_spi) )  -> true.B, 
++// 				(state === s_xip_div)  -> true.B,
++// 				(state === s_xip_ssr)  -> true.B,
++// 				(state === s_xip_txr)  -> true.B,
++// 				(state === s_xip_ctrl) -> true.B,
++// 				(state === s_xip_wait) -> false.B,
++// 				(state === s_xip_rxr) -> false.B  
++// 		) )
++
++// 		mspi.io.in.pwrite := MuxCase(in.pwrite, Seq(
++//   //( flash_addr && (state === s_spi) )  -> true.B, 
++// 				(state === s_xip_div)  -> true.B,
++// 				(state === s_xip_ssr)  -> true.B,
++// 				(state === s_xip_txr)  -> true.B,
++// 				(state === s_xip_ctrl) -> true.B,
++// 				(state === s_xip_wait) -> false.B,
++// 				(state === s_xip_rxr) -> false.B  
++// 			) )
++
++// 		mspi.io.in.pwdata := MuxCase(in.pwdata, Seq(
++//   ( flash_addr && (state === s_spi) )  -> 0x00000001.U, 
++// 				(state === s_xip_div)  -> 0x00000001.U,  //verilator中没有频率的概念, 因此可以设置一个使得SCK频率尽量高的除数.
++// 				(state === s_xip_ssr)  -> (1 << 0).U,		//flash作为SPI slave编号为7
++// 				(state === s_xip_txr)  -> ( (0x03.U << 24.U) | (in.paddr  & 0x00FFFFFF.U) ),  //SPI Flash读操作格式：命令(8位) + 地址(24位)
++// 				(state === s_xip_ctrl) -> ( ctrl | (1.U << 8.U) ), // GO_BSY=1,
++// 				(state === s_xip_wait) -> 0.U,
++// 				(state === s_xip_rxr) -> ( ctrl | (1.U << 8.U) ) // GO_BSY=1,启动传输
++// 		) )
++
++// 		mspi.io.in.pstrb := MuxCase(in.pstrb, Seq(
++//   ( flash_addr && (state === s_spi) )  -> 0xf.U, 
++// 				(state === s_xip_div)  -> 0xf.U,
++// 				(state === s_xip_ssr)  -> 0xf.U,
++// 				(state === s_xip_txr)  -> 0xf.U,
++// 				(state === s_xip_ctrl) -> 0xf.U,
++// 				(state === s_xip_wait) -> false.B,
++// 				(state === s_xip_rxr) -> false.B  
++// 			) )
++		
++// 		val result = Cat(
++//       				mspi.io.in.prdata(7, 0),    // 最低字节 -> 最高字节
++//       				mspi.io.in.prdata(15, 8),   // 次低字节 -> 次高字节
++//       				mspi.io.in.prdata(23, 16),  // 次高字节 -> 次低字节  
++//       				mspi.io.in.prdata(31, 24)   // 最高字节 -> 最低字节
++//     				)
++		
++// 		in.prdata := MuxCase(mspi.io.in.prdata, Seq(
++// 				(state === s_xip_rxr)  ->  result  
++// 			) )
++
++// 		in.pready := MuxCase(false.B, Seq(
++// 			    (state === s_spi)  ->  mspi.io.in.pready,
++// 				(state === s_xip_rxr)  ->  mspi.io.in.pready
++// 			) )
++
++// 		in.pslverr := MuxCase(false.B, Seq(
++// 			    (state === s_spi)  ->  mspi.io.in.pslverr ,
++// 				(state === s_xip_rxr)  ->  mspi.io.in.pslverr  
++// 			) )
++
++
++// 		// when(in.psel === true.B){
++// 		// printf("in.paddr=0x%x in.pwdata=0x%x in.pwrite=0x%x in.psel=%d in.penable=%d\n", in.paddr, in.pwdata, in.pwrite, in.psel, in.penable)
++// 		// printf("state=%d\n",state)
++// 		// printf("mspi.io.in.paddr=0x%x mspi.io.in.pwdata=0x%x\n", mspi.io.in.paddr, mspi.io.in.pwdata)
++// 		// printf("mspi.io.in.pprot=0x%x mspi.io.in.pstrb=0x%x\n", mspi.io.in.pprot, mspi.io.in.pstrb)
++// 		// printf("mspi.io.in.pwrite=%d mspi.io.in.psel=%d mspi.io.in.penable=%d\n", mspi.io.in.pwrite, mspi.io.in.psel, mspi.io.in.penable)
++// 		// printf("mspi.io.in.pready=%d mspi.io.in.prdata=0x%x mspi.io.in.pslverr=%d\n", mspi.io.in.pready, mspi.io.in.prdata, mspi.io.in.pslverr)
++// 		// printf("mspi.io.spi.miso=%d in.prdata=0x%x\n", mspi.io.spi.miso, in.prdata)
++// 		// }
++
++
++//   	}
++// }
++		
++
+ // in 是一个 APBBundle 类型的对象，面包含完整的APB总线协议信号，具体包含以下信号：
+ // 输入信号（从总线到模块）：
+ // in.paddr    // [31:0] 地址信号
+-- 
+2.34.1
+
