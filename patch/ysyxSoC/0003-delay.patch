@@ -1,0 +1,43 @@
+From 1586294b440da4b23b678871c3042fb6bb7c45ec Mon Sep 17 00:00:00 2001
+From: 202518023426015-Hu xinwei <huxinwei22@mails.ucas.ac.cn>
+Date: Sat, 27 Dec 2025 09:45:55 +0800
+Subject: [PATCH 6/6] delay
+
+---
+ src/amba/APBDelayer.scala  | 4 ++--
+ src/amba/AXI4Delayer.scala | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 6ef63e46..5d579066 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -90,8 +90,8 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+ 	(node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-	  //val delayer = Module(new apb_delayer)
+-	  val delayer = Module(new APBDelayerChisel)//校准访存延迟(在ysyxSoC中实现APB延迟模块)
++	  val delayer = Module(new apb_delayer)
++	  //val delayer = Module(new APBDelayerChisel)//校准访存延迟(在ysyxSoC中实现APB延迟模块)
+ 	  delayer.io.clock := clock
+ 	  delayer.io.reset := reset
+ 	  delayer.io.in <> in
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 09a5ee8c..2cf36c3f 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -185,8 +185,8 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      //val delayer = Module(new axi4_delayer)
+-      val delayer = Module(new AXI4DelayerChisel)  //实现AXI延迟模块
++      val delayer = Module(new axi4_delayer)
++      //val delayer = Module(new AXI4DelayerChisel)  //实现AXI延迟模块
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.34.1
+

@@ -1,0 +1,29 @@
+# 必须保留的根目录文件
+!.gitignore
+!Makefile
+!README.md
+!build.sc
+
+# 保留7个文件夹及其所有内容
+!/constr/
+!/include/
+!/iverilog/
+!/netlist/
+!/rtl/
+!/src/
+!/tools/
+
+# 忽略构建目录
+/build/
+/out/
+
+# 最后：忽略其他所有文件，但排除上面保留的
+*
+!*/
+!/constr/**
+!/include/**
+!/iverilog/**
+!/netlist/**
+!/rtl/**
+!/src/**
+!/tools/**

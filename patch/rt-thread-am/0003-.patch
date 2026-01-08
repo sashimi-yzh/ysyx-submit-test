@@ -1,0 +1,98 @@
+From eaecd1ae240598e0afc665f5070ec6e1286447bd Mon Sep 17 00:00:00 2001
+From: 202518023426015-Hu xinwei <huxinwei22@mails.ucas.ac.cn>
+Date: Sat, 27 Dec 2025 09:28:15 +0800
+Subject: [PATCH 3/3] =?UTF-8?q?=E6=8D=A2?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/context.c | 58 ++----------------------------
+ 1 file changed, 2 insertions(+), 56 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index c1a5ef940..3671d8c6e 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -23,30 +23,7 @@ static Context* ev_handler(Event e, Context *c) {
+ 	return c;
+ }
+ 
+-// static Context* ev_handler(Event e, Context* c) {
+-//     rt_thread_t current;
+-//     rt_ubase_t* para;
+-
+-//     switch (e.event) {
+-//         case EVENT_YIELD:
+-//             current = rt_thread_self();
+-//             para = (rt_ubase_t*)current->user_data;
+-//             rt_ubase_t to = para[0];
+-//             rt_ubase_t from = para[1];
+-//             if (from) {
+-//                 *((Context**)from) = c;
+-//             }
+-//             c = *(Context**)to;  // 解引用，拿到一级指针
+-//             break;
+-//         case EVENT_IRQ_TIMER:
+-//             return c;
+-//         default:
+-//             printf("Unhandled event ID = %d\n", e.event);
+-//             assert(0);
+-//     }
+-
+-//     return c;
+-// }
++
+ 
+ void __am_cte_init() {
+   cte_init(ev_handler);
+@@ -71,36 +48,6 @@ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+ 	current->user_data = temp; //在下次切换回当前线程并从rt_hw_context_switch()返回之前再恢复它
+ }
+ 
+-// void rt_hw_context_switch_to(rt_ubase_t to) {
+-//     // 利用 user_data PCB 成员 user_data 传参
+-//     //rt_ubase_t temp_ud;  // 当前栈上
+-//     rt_ubase_t user_data[2];
+-//     rt_thread_t current = rt_thread_self();
+-//     //temp_ud = current->user_data;
+-
+-//     user_data[0] = to;
+-//     current->user_data = (rt_ubase_t)user_data;
+-//     yield();
+-
+-//     //current->user_data = temp_ud;
+-// }
+-
+-// void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-//     rt_ubase_t temp_ud;
+-//     rt_ubase_t user_data[2];
+-//     rt_thread_t current = rt_thread_self();
+-//     temp_ud = current->user_data;
+-
+-
+-//     user_data[0] = to;
+-//     user_data[1] = from;
+-
+-//     current->user_data = (rt_ubase_t)user_data;
+-
+-//     yield();
+-
+-//     current->user_data = temp_ud;
+-// }
+ 
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+@@ -125,8 +72,7 @@ static void kcontext_schedule(rt_ubase_args* arg) { //包裹函数
+ 
+ //RT-Thread 的线程栈是动态分配的（从堆中分配）
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-	//printf("\n{stack_addr=0x%08x}\n",stack_addr);
+-	
++
+ 	stack_addr = (rt_uint8_t*)( ((uintptr_t)stack_addr + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1));//向上对齐
+ 	//stack_addr = (rt_uint8_t*)( ((uintptr_t)stack_addr) & ~(sizeof(uintptr_t) - 1));//向下对齐
+ 	stack_addr -= sizeof(rt_ubase_args); // 在栈上分配参数结构体空间
+-- 
+2.34.1
+
