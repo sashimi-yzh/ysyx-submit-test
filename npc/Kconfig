@@ -1,0 +1,178 @@
+mainmenu "NPC Configuration Menu"
+
+# Tracer的功能
+menu "Testing and Debugging"
+
+config TRACE
+  bool "Enable tracer"
+  default y
+
+config ITRACE
+  depends on TRACE
+  bool "Enable instruction tracer"
+  default y
+
+config MTRACE
+  depends on TRACE
+  bool "Enable memory tracer"
+  default n
+
+config FTRACE
+  depends on TRACE
+  bool "Enable function tracer"
+  default n
+
+config WATCHPOINT
+  depends on TRACE
+  bool "Enable watchpoint"
+  default n
+
+config DIFFTEST
+  bool "Enable differential testing"
+  default n
+
+endmenu
+
+# Memory的配置
+menu "Memory Configuration"
+
+config FLASH_BASE
+    hex "Flash base address"
+    default 0x30000000
+
+config FLSAH_SIZE
+    hex "Flash size"
+    default 0x10000000
+
+config MROM_BASE
+    hex "Mrom base address"
+    default 0x20000000
+
+config MROM_SIZE
+    hex "Mrom size"
+    default 0x1000
+
+config PSRAM_BASE
+    hex "Psram base address"
+    default 0x80000000
+
+config PSRAM_SIZE
+    hex "Psram size"
+    default 0x20000000
+
+config SDRAM_BASE
+    hex "Sdram base address"
+    default 0xa0000000
+
+config SDRAM_SIZE
+    hex "Sdram size"
+    default 0x04000000
+
+config SRAM_BASE
+    hex "Sram base address"
+    default 0x0f000000
+
+config SRAM_SIZE
+    hex "Sram size"
+    default 0x00002000
+
+choice
+    prompt "IMEM configuration"
+    default IMEM_FROM_FLASH
+
+config IMEM_FROM_FLASH
+    bool "IMEM from Flash"
+    help
+        Use Flash for IMEM
+
+config IMEM_FROM_MROM
+    bool "IMEM from MROM"
+    help
+        Use MROM for IMEM
+
+endchoice
+
+choice
+    prompt "DMEM configuration"
+    default DMEM_FROM_PSRAM
+
+config DMEM_FROM_PSRAM
+    bool "DMEM from PSRAM"
+    help
+        Use PSRAM for DMEM
+
+config DMEM_FROM_SDRAM
+    bool "DMEM from SDRAM"
+    help
+        Use SDRAM for DMEM
+
+config DMEM_FROM_SRAM
+    bool "DMEM from SRAM"
+    help
+        Use SRAM for DMEM
+
+endchoice
+
+config IMEM_SIZE
+    hex
+    default FLSAH_SIZE if IMEM_FROM_FLASH
+    default MROM_SIZE if IMEM_FROM_MROM
+
+config IMEM_BASE
+    hex
+    default FLASH_BASE if IMEM_FROM_FLASH
+    default MROM_BASE if IMEM_FROM_MROM
+
+config DMEM_SIZE
+    hex
+    default PSRAM_SIZE if DMEM_FROM_PSRAM
+    default SDRAM_SIZE if DMEM_FROM_SDRAM
+    default 0 if DMEM_FROM_SRAM
+
+config DMEM_BASE
+    hex
+    default PSRAM_BASE if DMEM_FROM_PSRAM
+    default SDRAM_BASE if DMEM_FROM_SDRAM
+    default 0 if DMEM_FROM_SRAM
+
+endmenu
+
+choice
+  prompt "Build target"
+  default TARGET_SIMULATOR
+config TARGET_SIMULATOR
+  bool "Only simulator"
+config TARGET_NVBOARD
+  bool "Run with nvboard"
+endchoice
+
+# Verilator的配置
+menu "Verilator Configuration"
+
+config EVENT_COUNTER
+  bool "Enable event counter"
+  default n
+
+config FST
+  bool "Enable fst wave"
+  default y
+
+config FST_START
+    depends on FST
+    int "Fst wave start time"
+    default 0
+
+config FST_END
+    depends on FST
+    int "Fst wave end time"
+    default 10000000000
+
+config WALL
+  bool "Enable wall"
+  default n
+
+config CC_ASAN
+  bool "Enable address sanitizer"
+  default n
+
+endmenu

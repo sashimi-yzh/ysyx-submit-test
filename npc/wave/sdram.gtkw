@@ -1,0 +1,214 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Fri Sep 19 15:40:08 2025
+[*]
+[dumpfile] "/home/yunhai/ysyx-workbench/npc/wave/waveform.fst"
+[dumpfile_mtime] "Fri Sep 19 15:04:01 2025"
+[dumpfile_size] 285486205
+[savefile] "/home/yunhai/ysyx-workbench/npc/wave/sdram.gtkw"
+[timestart] 254907
+[size] 2498 1361
+[pos] -51 -51
+*-5.700000 75426617 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.ysyxSoCFull.
+[treeopen] TOP.ysyxSoCFull.asic.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.
+[treeopen] TOP.ysyxSoCFull.sdram.
+[treeopen] TOP.ysyxSoCFull.sdram.sdram0_0.
+[sst_width] 377
+[signals_width] 234
+[sst_expanded] 1
+[sst_vpaned_height] 298
+@800200
+-sdram
+@28
+TOP.ysyxSoCFull.sdram.sdram0_0.clk
+@c00022
+TOP.ysyxSoCFull.sdram.dq[31:0]
+@28
+(0)TOP.ysyxSoCFull.sdram.dq[31:0]
+(1)TOP.ysyxSoCFull.sdram.dq[31:0]
+(2)TOP.ysyxSoCFull.sdram.dq[31:0]
+(3)TOP.ysyxSoCFull.sdram.dq[31:0]
+(4)TOP.ysyxSoCFull.sdram.dq[31:0]
+(5)TOP.ysyxSoCFull.sdram.dq[31:0]
+(6)TOP.ysyxSoCFull.sdram.dq[31:0]
+(7)TOP.ysyxSoCFull.sdram.dq[31:0]
+(8)TOP.ysyxSoCFull.sdram.dq[31:0]
+(9)TOP.ysyxSoCFull.sdram.dq[31:0]
+(10)TOP.ysyxSoCFull.sdram.dq[31:0]
+(11)TOP.ysyxSoCFull.sdram.dq[31:0]
+(12)TOP.ysyxSoCFull.sdram.dq[31:0]
+(13)TOP.ysyxSoCFull.sdram.dq[31:0]
+(14)TOP.ysyxSoCFull.sdram.dq[31:0]
+(15)TOP.ysyxSoCFull.sdram.dq[31:0]
+(16)TOP.ysyxSoCFull.sdram.dq[31:0]
+(17)TOP.ysyxSoCFull.sdram.dq[31:0]
+(18)TOP.ysyxSoCFull.sdram.dq[31:0]
+(19)TOP.ysyxSoCFull.sdram.dq[31:0]
+(20)TOP.ysyxSoCFull.sdram.dq[31:0]
+(21)TOP.ysyxSoCFull.sdram.dq[31:0]
+(22)TOP.ysyxSoCFull.sdram.dq[31:0]
+(23)TOP.ysyxSoCFull.sdram.dq[31:0]
+(24)TOP.ysyxSoCFull.sdram.dq[31:0]
+(25)TOP.ysyxSoCFull.sdram.dq[31:0]
+(26)TOP.ysyxSoCFull.sdram.dq[31:0]
+(27)TOP.ysyxSoCFull.sdram.dq[31:0]
+(28)TOP.ysyxSoCFull.sdram.dq[31:0]
+(29)TOP.ysyxSoCFull.sdram.dq[31:0]
+(30)TOP.ysyxSoCFull.sdram.dq[31:0]
+(31)TOP.ysyxSoCFull.sdram.dq[31:0]
+@1401200
+-group_end
+@c00820
+TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+@28
+(0)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(1)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(2)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(3)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(4)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(5)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(6)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(7)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(8)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(9)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(10)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(11)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(12)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(13)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(14)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(15)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(16)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(17)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(18)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(19)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(20)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(21)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(22)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(23)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(24)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(25)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(26)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(27)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(28)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(29)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(30)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(31)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(32)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(33)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(34)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(35)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(36)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(37)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(38)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(39)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(40)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(41)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(42)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(43)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(44)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(45)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(46)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(47)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(48)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(49)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(50)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(51)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(52)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(53)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(54)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(55)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(56)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(57)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(58)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(59)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(60)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(61)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(62)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(63)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(64)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(65)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(66)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(67)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(68)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(69)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(70)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(71)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(72)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(73)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(74)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(75)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(76)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(77)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(78)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+(79)TOP.ysyxSoCFull.sdram.sdram0_0.dbg_state[79:0]
+@1401200
+-group_end
+@820
+TOP.ysyxSoCFull.sdram.sdram0_0.dbg_cmd[119:0]
+@28
+TOP.ysyxSoCFull.sdram.sdram0_0.wen
+@22
+TOP.ysyxSoCFull.sdram.sdram0_0.wdata[15:0]
+@28
+TOP.ysyxSoCFull.sdram.sdram0_0.wmask[1:0]
+@200
+-
+@28
+TOP.ysyxSoCFull.sdram.sdram0_0.ren
+@c00022
+TOP.ysyxSoCFull.sdram.sdram0_0.read_cnt[3:0]
+@28
+(0)TOP.ysyxSoCFull.sdram.sdram0_0.read_cnt[3:0]
+(1)TOP.ysyxSoCFull.sdram.sdram0_0.read_cnt[3:0]
+(2)TOP.ysyxSoCFull.sdram.sdram0_0.read_cnt[3:0]
+(3)TOP.ysyxSoCFull.sdram.sdram0_0.read_cnt[3:0]
+@1401200
+-group_end
+@22
+TOP.ysyxSoCFull.sdram.sdram0_0.dq_out[15:0]
+@28
+TOP.ysyxSoCFull.sdram.sdram0_0.u0.ren
+@22
+TOP.ysyxSoCFull.sdram.sdram0_0.u0.rdata[15:0]
+TOP.ysyxSoCFull.sdram.sdram0_0.u0.row_addr[12:0]
+TOP.ysyxSoCFull.sdram.sdram0_0.u0.col_addr[8:0]
+@200
+-
+@22
+TOP.ysyxSoCFull.sdram.sdram0_0.bank_sel_real[3:0]
+TOP.ysyxSoCFull.sdram.sdram0_0.col_addr_real[8:0]
+@1000200
+-sdram
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_IF.pc_o[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_IF.inst_o[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_ARBITER.clk
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_awaddr_o[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_awvalid_o
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_awready_i
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_wvalid_o
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_wready_i
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_wlast_o
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_bvalid_i
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_bready_o
+@200
+-
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_araddr_o[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_arvalid_o
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_arready_i
+TOP.ysyxSoCFull.asic.cpu.cpu.mem_rvalid_i
+@29
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.lsu_wait
+[pattern_trace] 1
+[pattern_trace] 0

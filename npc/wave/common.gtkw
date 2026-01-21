@@ -1,0 +1,129 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Mon Jan 19 08:45:57 2026
+[*]
+[dumpfile] "/home/yunhai/ysyx-home/ysyx-workbench/npc/wave/waveform.fst"
+[dumpfile_mtime] "Mon Jan 19 08:42:49 2026"
+[dumpfile_size] 85712
+[savefile] "/home/yunhai/ysyx-home/ysyx-workbench/npc/wave/common.gtkw"
+[timestart] 3922
+[size] 1440 805
+[pos] -27 -24
+*-4.200000 3958 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.ysyxSoCFull.
+[treeopen] TOP.ysyxSoCFull.asic.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.
+[sst_width] 380
+[signals_width] 248
+[sst_expanded] 1
+[sst_vpaned_height] 498
+@800200
+-cpu
+-if
+@1000200
+-if
+@800200
+-ic
+@1000200
+-ic
+@800200
+-id
+@1000200
+-id
+@800200
+-ex
+@1000200
+-ex
+@800200
+-wb
+@1000200
+-wb
+-cpu
+@c00200
+-axi4
+@800200
+-inst
+@1000200
+-inst
+@800200
+-mem_r
+@1000200
+-mem_r
+@800200
+-top_r
+@1000200
+-top_r
+@800200
+-mem_w
+@1000200
+-mem_w
+@1401200
+-axi4
+@c00200
+-cpu
+@800200
+-if
+@1000200
+-if
+@800200
+-ic
+@1000200
+-ic
+@800200
+-id
+@1000200
+-id
+@800200
+-ex
+@1000200
+-ex
+@800200
+-wb
+@1000200
+-wb
+@1401200
+-cpu
+@c00200
+-axi4
+@800200
+-inst
+@1000200
+-inst
+@800200
+-mem_r
+@1000200
+-mem_r
+@800200
+-top_r
+@1000200
+-top_r
+@800200
+-mem_w
+@1000200
+-mem_w
+@1401200
+-axi4
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_MEM.in_fire
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_MEM.in_req_wen_i
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_MEM.out_dbg_addr_o[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_MEM.out_dbg_data_o[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_MEM.out_dbg_len_o[2:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_MEM.out_dbg_type_o[1:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_WB.in_dbg_type_i[1:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_WB.in_dbg_len_i[2:0]
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_WB.in_dbg_addr_i[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_WB.in_dbg_data_i[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_WB.in_fire
+@23
+TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.u_ysyx_25050136_NPCCORE.u_ysyx_25050136_WB.wb_dbg_pc[31:0]
+[pattern_trace] 1
+[pattern_trace] 0

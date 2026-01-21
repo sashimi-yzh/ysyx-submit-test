@@ -1,0 +1,286 @@
+From 414212f54e7956bfac06a6a032b00ccb4650e416 Mon Sep 17 00:00:00 2001
+From: ysyx_25050136-Xie pingjiang <2690477553@qq.com>
+Date: Tue, 9 Dec 2025 17:00:30 +0800
+Subject: [PATCH] =?UTF-8?q?B=E9=98=B6=E6=AE=B5=E8=80=83=E6=A0=B8=E5=87=86?=
+ =?UTF-8?q?=E5=A4=87?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/extra.ld             | 91 ++++++++++++-----------
+ bsp/abstract-machine/integrate-am-apps.py |  2 +-
+ bsp/abstract-machine/src/context.c        | 91 +++++++++++++++++++----
+ bsp/abstract-machine/src/hello.c          |  2 +-
+ bsp/abstract-machine/src/uart.c           | 14 +++-
+ 5 files changed, 137 insertions(+), 63 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..3dafc5560 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,45 +1,46 @@
+-SECTIONS {
+-  .data.extra : {
+-    /* section information for finsh shell */
+-    __fsymtab_start = .;
+-    KEEP(*(FSymTab))
+-    __fsymtab_end = .;
+-    . = ALIGN(8);
+-    __vsymtab_start = .;
+-    KEEP(*(VSymTab))
+-    __vsymtab_end = .;
+-    . = ALIGN(8);
+-
+-    /* section information for initial. */
+-    . = ALIGN(8);
+-    __rt_init_start = .;
+-    KEEP(*(SORT(.rti_fn*)))
+-    __rt_init_end = .;
+-    . = ALIGN(8);
+-
+-    __rt_utest_tc_tab_start = .;
+-    KEEP(*(UtestTcTab))
+-    __rt_utest_tc_tab_end = .;
+-
+-    . = ALIGN(8);
+-    __am_apps_data_start = .;
+-    *(__am_apps.data*)
+-    *(__am_apps.sdata*)
+-    __am_apps_data_end = .;
+-    . = ALIGN(8);
+-  }
+-}
+-INSERT BEFORE .data;
+-
+-SECTIONS {
+-  .bss.extra : {
+-    . = ALIGN(8);
+-    __am_apps_bss_start = .;
+-    *(__am_apps.bss*)
+-    *(__am_apps.sbss*)
+-    *(__am_apps.scommon*)
+-    __am_apps_bss_end = .;
+-    . = ALIGN(8);
+-  }
+-}
+-INSERT BEFORE .bss;
++/* SECTIONS {
++/*   .data.extra : {
++/*     /* section information for finsh shell */
++/*     __fsymtab_start = .;
++/*     KEEP(*(FSymTab))
++/*     __fsymtab_end = .;
++/*     . = ALIGN(8);
++/*     __vsymtab_start = .;
++/*     KEEP(*(VSymTab))
++/*     __vsymtab_end = .;
++/*     . = ALIGN(8);
++/* 
++/*     /* section information for initial. */
++/*     . = ALIGN(8);
++/*     __rt_init_start = .;
++/*     KEEP(*(SORT(.rti_fn*)))
++/*     __rt_init_end = .;
++/*     . = ALIGN(8);
++/* 
++/*     __rt_utest_tc_tab_start = .;
++/*     KEEP(*(UtestTcTab))
++/*     __rt_utest_tc_tab_end = .;
++/* 
++/*     . = ALIGN(8);
++/*     __am_apps_data_start = .;
++/*     *(__am_apps.data*)
++/*     *(__am_apps.sdata*)
++/*     __am_apps_data_end = .;
++/*     . = ALIGN(8);
++/*   }
++/* }
++/* INSERT BEFORE .data;
++/* 
++/* SECTIONS {
++/*   .bss.extra : {
++/*     . = ALIGN(8);
++/*     __am_apps_bss_start = .;
++/*     *(__am_apps.bss*)
++/*     *(__am_apps.sbss*)
++/*     *(__am_apps.scommon*)
++/*     __am_apps_bss_end = .;
++/*     . = ALIGN(8);
++/*   }
++/* }
++/* INSERT BEFORE .bss;
++*/
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df387..08c91d0b1 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -94,7 +94,7 @@ static void am_app_start_wrapper(const char *app_name, void *app_main, int argc,
+   memcpy(am_apps_data.start, am_apps_data_content, am_apps_data.end - am_apps_data.start);
+   memset(am_apps_bss.start, 0, am_apps_bss.end - am_apps_bss.start);
+   heap = am_apps_heap;
+-  void *args[2] = { app_main, (argc >= 2 ? argv[1] : "") };
++  void *args[2] = { app_main, (argc >= 2 ? argv[1] : "test") };
+   rt_thread_t tid = rt_thread_create(app_name, am_app_start_thread, args, 0x4000, 0, 20);
+   rt_thread_startup(tid);
+ }
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..1aa4440ff 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,30 +2,95 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-static Context* ev_handler(Event e, Context *c) {
+-  switch (e.event) {
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++typedef struct context
++{
++  rt_ubase_t from;
++  rt_ubase_t to;
++} thread_args_s;
++
++static Context *ev_handler(Event e, Context *c)
++{
++  Context *current = c;
++  switch (e.event)
++  {
++    case EVENT_YIELD:
++      thread_args_s *args = (thread_args_s *)rt_thread_self()->user_data;
++      if(args->from != 0)
++      *(Context **)args->from = c;
++      current = *(Context **)args->to;
++      break;
++    case EVENT_IRQ_TIMER:
++      break;
++  default:
++    printf("Unhandled event ID = %d\n", e.event);
++    assert(0);
+   }
+-  return c;
++  return current;
+ }
+ 
+-void __am_cte_init() {
++void __am_cte_init()
++{
+   cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++void rt_hw_context_switch_to(rt_ubase_t to)
++{
++  thread_args_s args = {.from = 0, .to = to};
++
++  rt_ubase_t old_user_data = rt_thread_self()->user_data;
++
++  rt_thread_self()->user_data = (rt_ubase_t)&args;
++
++  yield();
++  
++  rt_thread_self()->user_data = old_user_data;
+ }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to)
++{
++  thread_args_s args = {.from = from, .to = to};
++
++  rt_ubase_t old_user_data = rt_thread_self()->user_data;
++
++  rt_thread_self()->user_data = (rt_ubase_t)&args;
++
++  yield();
++  
++  rt_thread_self()->user_data = old_user_data;
+ }
+ 
+-void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
++void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread)
++{
+   assert(0);
+ }
+ 
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++typedef struct 
++{
++  void (*tentry)(void *);
++  void *parameter;
++  void (*texit)(void);
++} thread_args_t;
++
++void wrapper(void *args_)
++{
++  thread_args_t * args = (thread_args_t *) args_;
++  args->tentry(args->parameter);
++  args->texit();
++  while(1);
++}
++
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit)
++{
++  uintptr_t stack_end = ((uintptr_t)stack_addr + sizeof(rt_ubase_t) - 1) & ~(sizeof(rt_ubase_t) - 1);
++  uintptr_t args_addr = stack_end - sizeof(thread_args_t);
++  
++  thread_args_t *args = (thread_args_t *)args_addr;
++  args->tentry = tentry;
++  args->parameter = parameter;
++  args->texit = texit;
++
++  Area stack = {.end = (void *)args_addr};
++
++  Context *rtx = kcontext(stack, wrapper, (void *)args);
++  return (rt_uint8_t *)rtx;
+ }
+diff --git a/bsp/abstract-machine/src/hello.c b/bsp/abstract-machine/src/hello.c
+index cda4015f7..5b08608b5 100644
+--- a/bsp/abstract-machine/src/hello.c
++++ b/bsp/abstract-machine/src/hello.c
+@@ -5,4 +5,4 @@ static int hello() {
+   printf("Hello RISC-V!\n");
+   return 0;
+ }
+-INIT_ENV_EXPORT(hello);
++INIT_ENV_EXPORT(hello);
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..139303388 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -13,7 +13,10 @@
+ #include <klib.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+-
++#define io_read(reg) \
++  ({ reg##_T __io_param; \
++    ioe_read(reg, &__io_param); \
++    __io_param; })
+ struct device_uart {
+   rt_ubase_t hw_base;
+   rt_uint32_t irqno;
+@@ -37,8 +40,13 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  static const char *p = "";
++  char rdata;
++  if(io_read(AM_UART_CONFIG).present)
++    rdata = io_read(AM_UART_RX).data;
++  else
++    rdata = -1;
++  return (*p != '\0' ? *(p ++) : rdata);
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.43.0
+

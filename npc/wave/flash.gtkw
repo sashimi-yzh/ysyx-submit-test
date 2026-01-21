@@ -1,0 +1,160 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Sat Sep 27 12:49:06 2025
+[*]
+[dumpfile] "/home/yunhai/ysyx-workbench/npc/wave/waveform.fst"
+[dumpfile_mtime] "Sat Sep 27 12:39:57 2025"
+[dumpfile_size] 54334
+[savefile] "/home/yunhai/ysyx-workbench/npc/wave/flash.gtkw"
+[timestart] 61
+[size] 2498 1361
+[pos] -101 -101
+*-2.207232 77 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.ysyxSoCFull.
+[treeopen] TOP.ysyxSoCFull.asic.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.u_ysyx_25050136_NPC.
+[treeopen] TOP.ysyxSoCFull.asic.lspi.
+[treeopen] TOP.ysyxSoCFull.asic.lspi.mspi.
+[treeopen] TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.
+[treeopen] TOP.ysyxSoCFull.asic.luart.
+[treeopen] TOP.ysyxSoCFull.asic.luart.muart.
+[treeopen] TOP.ysyxSoCFull.flash.
+[sst_width] 442
+[signals_width] 561
+[sst_expanded] 1
+[sst_vpaned_height] 563
+@28
+TOP.ysyxSoCFull.asic.cpu.clock
+TOP.ysyxSoCFull.asic.cpu.reset
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_araddr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_arvalid
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_arready
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_rdata[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_rready
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_rvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_awaddr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_awready
+TOP.ysyxSoCFull.asic.cpu.auto_master_out_awvalid
+@200
+-
+@800200
+-spi_apb_top
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.reset
+@22
+TOP.ysyxSoCFull.asic.lspi.mspi.in_paddr[31:0]
+@c00022
+TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+@28
+(0)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(1)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(2)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(3)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(4)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(5)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(6)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(7)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(8)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(9)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(10)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(11)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(12)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(13)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(14)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(15)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(16)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(17)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(18)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(19)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(20)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(21)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(22)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(23)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(24)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(25)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(26)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(27)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(28)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(29)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(30)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+(31)TOP.ysyxSoCFull.asic.lspi.auto_in_pwdata[31:0]
+@1401200
+-group_end
+@22
+TOP.ysyxSoCFull.asic.lspi.auto_in_pstrb[3:0]
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.in_psel
+TOP.ysyxSoCFull.asic.lspi.mspi.in_penable
+TOP.ysyxSoCFull.asic.lspi.mspi.in_pready
+@22
+TOP.ysyxSoCFull.asic.lspi.mspi.in_prdata[31:0]
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.in_flash
+TOP.ysyxSoCFull.asic.lspi.mspi.flash_config_good
+@29
+TOP.ysyxSoCFull.asic.lspi.mspi.spi_trans
+@820
+TOP.ysyxSoCFull.asic.lspi.mspi.dbg_spi_state[79:0]
+TOP.ysyxSoCFull.asic.lspi.mspi.dbg_state[79:0]
+@1000200
+-spi_apb_top
+@200
+-
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ie
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.wb_int_o
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.wb_we_i
+@22
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.wb_adr_i[4:0]
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.wb_dat_i[31:0]
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.wb_stb_i
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.wb_cyc_i
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.wb_ack_o
+@c00022
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+@28
+(0)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+(1)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+(2)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+(3)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+(4)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+(5)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+(6)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+(7)TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.ss[7:0]
+@1401200
+-group_end
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.go
+@22
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.rx[127:0]
+@200
+-
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.shift.tx_clk
+@24
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.shift.tx_bit_pos[7:0]
+@28
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.shift.s_in
+TOP.ysyxSoCFull.asic.lspi.mspi.u0_spi_top.shift.s_out
+@200
+-
+@28
+TOP.ysyxSoCFull.flash.flash_cmd_i.clock
+@22
+TOP.ysyxSoCFull.flash.flash_cmd_i.addr[31:0]
+TOP.ysyxSoCFull.flash.flash_cmd_i.cmd[7:0]
+TOP.ysyxSoCFull.flash.flash_cmd_i.data[31:0]
+@28
+TOP.ysyxSoCFull.flash.flash_cmd_i.valid
+[pattern_trace] 1
+[pattern_trace] 0
