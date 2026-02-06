@@ -1,0 +1,6 @@
+[submodule "rt-thread-am"]
+	path = rt-thread-am
+	url = ./rt-thread-am
+[submodule "ysyxSoC"]
+	path = ysyxSoC
+	url = ./ysyxSoC

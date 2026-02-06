@@ -1,0 +1,39 @@
+From 3872be19ead88d51a1f512cf8f481b949c5df2f9 Mon Sep 17 00:00:00 2001
+From: 221220000-Zhang San <zhangsan@foo.com>
+Date: Sat, 4 Oct 2025 17:24:34 +0800
+Subject: [PATCH] 1
+
+---
+ bsp/abstract-machine/Makefile   | 2 +-
+ bsp/abstract-machine/src/uart.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index c40343207..7355369c8 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,7 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T $(if $(findstring ysyxSoC,$(ARCH)),extra_ysyxsoc.ld,extra.ld)
++LDFLAGS += -T $(if $(findstring ysyxsoc,$(ARCH)),extra_ysyxsoc.ld,extra.ld)
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 5b2fe28ad..47639bd47 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -39,7 +39,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\nam_microbench\n";
+ 
+   static bool exhausted = false;
+ 
+-- 
+2.34.1
+
