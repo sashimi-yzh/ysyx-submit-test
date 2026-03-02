@@ -619,8 +619,8 @@ jobs:
         run: |
           AREA_BUDGET=16500
           AREA_OLD_BUDGET=25000
-          if [[ $AREA -gt $AREA_BUDGET ]] ; then
-            if [[ $AREA_OLD -gt $AREA_OLD_BUDGET ]] ; then
+          if [ $(awk "BEGIN {print ($AREA > $AREA_BUDGET)}") -eq 1 ]; then
+            if [ $(awk "BEGIN {print ($AREA_OLD > $AREA_OLD_BUDGET)}") -eq 1 ]; then
               echo "Area($AREA) is larger than the budget($AREA_BUDGET)."
               echo "Area for old version of yosys-sta($AREA_OLD) is larger than the budget($AREA_OLD_BUDGET)."
               false
