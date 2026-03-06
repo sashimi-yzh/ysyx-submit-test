@@ -2,8 +2,6 @@ name: common
 inputs:
   YSYX_HOME:
     required: true
-  cache-key:
-    required: true
   MAKEFLAGS:
     required: true
   install-toolchain:
@@ -12,17 +10,37 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Restore cache
-      uses: actions/cache@v3
+    - name: Download workbench
+      uses: actions/download-artifact@v4
       with:
-        path: |
-          ${{ inputs.YSYX_HOME }}
-          oss-cad-suite
-          ~/.local
-          ~/.cache/mill
-        key: ${{ runner.os }}-dir-${{ inputs.cache-key }}
-        restore-keys: |
-          ${{ runner.os }}-dir-
+        name: workbench
+        path: /tmp/artifact-download
+    - name: Extract workbench
+      shell: bash
+      run: |
+        TEMP_DIR=$(dirname ${{ inputs.YSYX_HOME }})
+        mkdir -p $TEMP_DIR
+        cd $TEMP_DIR
+        tar -xzf /tmp/artifact-download/ysyx-workbench.tar.gz
+
+    - name: Restore oss-cad-suite cache
+      uses: actions/cache@v4
+      with:
+        path: oss-cad-suite
+        key: ${{ runner.os }}-oss-cad-suite-20251124
+
+    - name: Install Mill
+      shell: bash
+      run: |
+        mkdir -p ~/.local/bin
+        MILL_VERSION_FILE="${{ inputs.YSYX_HOME }}/npc/.mill-version"
+        if [[ -f "$MILL_VERSION_FILE" ]]; then
+          MILL_VERSION=$(cat "$MILL_VERSION_FILE")
+          echo "Found .mill-version require $MILL_VERSION"
+          curl -L "https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION" -o ~/.local/bin/mill
+          chmod +x ~/.local/bin/mill
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        fi
 
     - name: Set environment variables
       shell: bash
@@ -56,3 +74,19 @@ runs:
       shell: bash
       if: inputs.install-toolchain == 'true'
       run: sudo apt install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+
+    - name: Clone other repos
+      shell: bash
+      run: |
+        git config --global user.email "ci@ysyx.org"
+        git config --global user.name "ysyx-ci"
+        cd $YSYX_HOME
+        git clone --depth 1 -b ci https://github.com/NJU-ProjectN/am-kernels
+        git clone --depth 1 https://github.com/NJU-ProjectN/rt-thread-am
+        git clone --depth 1 -b no-gui https://github.com/NJU-ProjectN/nvboard
+
+        cd rt-thread-am
+        git am $YSYX_HOME/patch/rt-thread-am/*
+        cd $YSYX_HOME
+
+
