@@ -360,12 +360,33 @@ jobs:
             false
           fi
 
+      - name: Cache ysyxSoC verilog
+        id: soc-verilog-cache
+        uses: actions/cache@v4
+        with:
+          # 不能直接缓存到 $YSYX_HOME，因为其路径包含了 Set YSYX_HOME step 自动生成的 tmp.xxx 目录，会导致缓存版本不一样无法命中
+          # https://github.com/actions/cache?tab=readme-ov-file#cache-version
+          path: ysyxSoC-verilog
+          key: ${{ runner.os }}-soc-verilog-${{ needs.parse.outputs.STUID }}-${{ hashFiles('**/ysyx-workbench/patch/ysyxSoC/*') }}
+
       - name: Generate verilog for ysyxSoC
-        if: steps.cache-dir.outputs.cache-hit != 'true'
         run: |
-          sed -i -e 's+git@github.com:+https://github.com/+' $YSYX_HOME/ysyxSoC/.gitmodules
-          make -C $YSYX_HOME/ysyxSoC dev-init
-          make -C $YSYX_HOME/ysyxSoC verilog
+          CACHED_SOC_VERILOG_DIR=`pwd`/ysyxSoC-verilog
+          if [[ "${{ steps.soc-verilog-cache.outputs.cache-hit }}" == "true" ]]; then
+            mkdir -p $YSYX_HOME/ysyxSoC/build
+            cp $CACHED_SOC_VERILOG_DIR/* $YSYX_HOME/ysyxSoC/build
+            echo "verilog:" > $YSYX_HOME/ysyxSoC/Makefile # avoid remake
+            if [[ ! -f $YSYX_HOME/ysyxSoC/build/ysyxSoCFull.v ]]; then
+              echo "Cached verilog file does not exist. Abort."
+              false
+            fi
+          else
+            sed -i -e 's+git@github.com:+https://github.com/+' $YSYX_HOME/ysyxSoC/.gitmodules
+            make -C $YSYX_HOME/ysyxSoC dev-init
+            make -C $YSYX_HOME/ysyxSoC verilog
+            mkdir -p $CACHED_SOC_VERILOG_DIR
+            cp $YSYX_HOME/ysyxSoC/build/* $CACHED_SOC_VERILOG_DIR
+          fi
 
       - name: Upload verilog file
         uses: actions/upload-artifact@v4
