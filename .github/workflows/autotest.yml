@@ -343,7 +343,6 @@ jobs:
           if [[ "${{ steps.soc-verilog-cache.outputs.cache-hit }}" == "true" ]]; then
             mkdir -p $YSYX_HOME/ysyxSoC/build
             cp $CACHED_SOC_VERILOG_DIR/* $YSYX_HOME/ysyxSoC/build
-            echo "verilog:" > $YSYX_HOME/ysyxSoC/Makefile # avoid remake
             if [[ ! -f $YSYX_HOME/ysyxSoC/build/ysyxSoCFull.v ]]; then
               echo "Cached verilog file does not exist. Abort."
               false
