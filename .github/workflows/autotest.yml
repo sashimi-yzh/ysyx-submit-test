@@ -110,12 +110,17 @@ jobs:
           echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
           echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_OUTPUT
 
+      - name: Set oss-cad-suite release tag
+        id: oss-cad-suite-tag
+        run: |
+          echo "tag=2025-11-24" >> $GITHUB_OUTPUT
+
       - name: Cache oss-cad-suite
         uses: actions/cache@v4
         id: oss-cad-suite-cache
         with:
           path: oss-cad-suite
-          key: ${{ runner.os }}-oss-cad-suite-20251124
+          key: ${{ runner.os }}-oss-cad-suite-${{ steps.oss-cad-suite-tag.outputs.tag }}
 
       - name: Clone target repo
         run: |
@@ -317,12 +322,15 @@ jobs:
           make -C $NPC_HOME clean
 
       - name: Setup tools
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "${{ steps.oss-cad-suite-cache.outputs.cache-hit }}" != "true" ]]; then
-            echo "oss-cad-suite cache missed. Downloading and extracting ..."
-            # 注意：更改版本请删除 Github Actions 的缓存，否则会导致使用缓存的旧版本，目前没有自动更新机制
-            wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-11-24/oss-cad-suite-linux-x64-20251124.tgz
-            tar xf oss-cad-suite-linux-x64-20251124.tgz
+            TAG=${{ steps.oss-cad-suite-tag.outputs.tag }}
+            echo "oss-cad-suite cache missed. Downloading and extracting release $TAG"
+            ASSET_NAME=$(gh release view $TAG --repo YosysHQ/oss-cad-suite-build --json assets --jq ".assets[] | select(.name | contains(\"linux-x64\")) | .name")   
+            gh release download $TAG --repo YosysHQ/oss-cad-suite-build --pattern "$ASSET_NAME"
+            tar xf $ASSET_NAME
           fi
           OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
           echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
