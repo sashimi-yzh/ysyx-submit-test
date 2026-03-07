@@ -1,5 +1,7 @@
 name: common
 inputs:
+  OSS_CAD_SUITE_CACHE_KEY:
+    required: true
   YSYX_HOME:
     required: true
   MAKEFLAGS:
@@ -27,7 +29,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: oss-cad-suite
-        key: ${{ runner.os }}-oss-cad-suite-20251124
+        key: ${{ runner.os }}-oss-cad-suite-${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
 
     - name: Install Mill
       shell: bash
