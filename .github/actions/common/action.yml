@@ -83,7 +83,6 @@ runs:
         cd $YSYX_HOME
         git clone --depth 1 -b ci https://github.com/NJU-ProjectN/am-kernels
         git clone --depth 1 https://github.com/NJU-ProjectN/rt-thread-am
-        git clone --depth 1 -b no-gui https://github.com/NJU-ProjectN/nvboard
 
         cd rt-thread-am
         git am $YSYX_HOME/patch/rt-thread-am/*

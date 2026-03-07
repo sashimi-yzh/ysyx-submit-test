@@ -249,6 +249,67 @@ jobs:
             false
           fi
 
+      - name: Get ysyxSoC tag
+        id: soc-tag
+        run: |
+          SOC_REV=$(git ls-remote https://github.com/OSCPU/ysyxSoC.git ysyx6 | cut -f1)
+          echo "tag=$SOC_REV" >> $GITHUB_OUTPUT
+
+      - name: Cache ysyxSoC verilog
+        id: soc-verilog-cache
+        uses: actions/cache@v4
+        with:
+          # 不能直接缓存到 $YSYX_HOME，因为其路径包含了 Set YSYX_HOME step 自动生成的 tmp.xxx 目录，会导致缓存版本不一样无法命中
+          # https://github.com/actions/cache?tab=readme-ov-file#cache-version
+          path: ysyxSoC-verilog
+          key: ${{ runner.os }}-soc-verilog-${{ needs.parse.outputs.STUID }}-${{ steps.soc-tag.outputs.tag }}-${{ hashFiles('**/ysyx-workbench/patch/ysyxSoC/*') }}
+
+      - name: Restore inited ysyxSoC
+        id: soc-cache
+        if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ysyxSoC-inited
+          key: ${{ runner.os }}-soc-inited-${{ steps.soc-tag.outputs.tag }}
+
+      - name: Init ysyxSoC
+        if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
+        run: |
+          if [[ "${{ steps.soc-cache.outputs.cache-hit }}" == "true" ]]; then
+            echo "Restoring inited ysyxSoC from cache ..."
+          else
+            echo "No inited ysyxSoC cache. Cloning and initializing ..."
+            git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC ysyxSoC-inited
+            sed -i -e 's+git@github.com:+https://github.com/+' ysyxSoC-inited/.gitmodules
+            cd ysyxSoC-inited
+            make dev-init
+            mill __.compile
+          fi
+
+      - name: Save inited ysyxSoC to cache
+        if: steps.soc-verilog-cache.outputs.cache-hit != 'true' && steps.soc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ysyxSoC-inited
+          key: ${{ runner.os }}-soc-inited-${{ steps.soc-tag.outputs.tag }}
+
+      - name: Patch ysyxSoC
+        run: |
+          if [[ -d ysyxSoC-inited ]]; then
+            cd ysyxSoC-inited
+            git am $YSYX_HOME/patch/ysyxSoC/*
+          fi
+          cd $YSYX_HOME
+          # 此处的 soc 仅包含补丁，提供给后续步骤使用 perip
+          git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
+          cd ysyxSoC
+          git am $YSYX_HOME/patch/ysyxSoC/*
+
+      - name: Clone other repos
+        run: |
+          cd $YSYX_HOME
+          git clone --depth 1 -b no-gui https://github.com/NJU-ProjectN/nvboard
+
       - name: Clean up
         run: |
           make -C $NEMU_HOME clean
@@ -319,62 +380,6 @@ jobs:
             echo "$VFILE contains negedge. Abort."
             false
           fi
-
-      - name: Get ysyxSoC tag
-        id: soc-tag
-        run: |
-          SOC_REV=$(git ls-remote https://github.com/OSCPU/ysyxSoC.git ysyx6 | cut -f1)
-          echo "tag=$SOC_REV" >> $GITHUB_OUTPUT
-
-      - name: Cache ysyxSoC verilog
-        id: soc-verilog-cache
-        uses: actions/cache@v4
-        with:
-          # 不能直接缓存到 $YSYX_HOME，因为其路径包含了 Set YSYX_HOME step 自动生成的 tmp.xxx 目录，会导致缓存版本不一样无法命中
-          # https://github.com/actions/cache?tab=readme-ov-file#cache-version
-          path: ysyxSoC-verilog
-          key: ${{ runner.os }}-soc-verilog-${{ needs.parse.outputs.STUID }}-${{ steps.soc-tag.outputs.tag }}-${{ hashFiles('**/ysyx-workbench/patch/ysyxSoC/*') }}
-
-      - name: Restore inited ysyxSoC
-        id: soc-cache
-        if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@v4
-        with:
-          path: ysyxSoC-inited
-          key: ${{ runner.os }}-soc-inited-${{ steps.soc-tag.outputs.tag }}
-
-      - name: Init ysyxSoC
-        if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
-        run: |
-          if [[ "${{ steps.soc-cache.outputs.cache-hit }}" == "true" ]]; then
-            echo "Restoring inited ysyxSoC from cache ..."
-          else
-            echo "No inited ysyxSoC cache. Cloning and initializing ..."
-            git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC ysyxSoC-inited
-            sed -i -e 's+git@github.com:+https://github.com/+' ysyxSoC-inited/.gitmodules
-            cd ysyxSoC-inited
-            make dev-init
-            mill __.compile
-          fi
-
-      - name: Save inited ysyxSoC to cache
-        if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ysyxSoC-inited
-          key: ${{ runner.os }}-soc-inited-${{ steps.soc-tag.outputs.tag }}
-
-      - name: Patch ysyxSoC
-        run: |
-          if [[ -d ysyxSoC-inited ]]; then
-            cd ysyxSoC-inited
-            git am $YSYX_HOME/patch/ysyxSoC/*
-          fi
-          cd $YSYX_HOME
-          # 此处的 soc 仅包含补丁，提供给后续步骤使用 perip
-          git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
-          cd ysyxSoC
-          git am $YSYX_HOME/patch/ysyxSoC/*
 
       - name: Generate verilog for ysyxSoC
         run: |
