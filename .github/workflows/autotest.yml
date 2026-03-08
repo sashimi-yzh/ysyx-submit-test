@@ -113,13 +113,6 @@ jobs:
           echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
           echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_OUTPUT
 
-      - name: Cache oss-cad-suite
-        uses: actions/cache@v4
-        id: oss-cad-suite-cache
-        with:
-          path: oss-cad-suite
-          key: ${{ runner.os }}-oss-cad-suite-${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
-
       - name: Clone target repo
         run: |
           mkdir -p $YSYX_HOME
@@ -252,6 +245,39 @@ jobs:
             false
           fi
 
+      - name: Cache oss-cad-suite
+        id: oss-cad-suite-cache
+        uses: actions/cache@v4
+        with:
+          path: oss-cad-suite
+          key: ${{ runner.os }}-oss-cad-suite-${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
+
+      - name: Download oss-cad-suite
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        if: steps.oss-cad-suite-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "oss-cad-suite cache missed. Downloading and extracting release $TAG"
+          TAG=${{ steps.oss-cad-suite-tag.outputs.tag }}
+          ASSET_NAME=$(gh release view $TAG --repo YosysHQ/oss-cad-suite-build --json assets --jq ".assets[] | select(.name | contains(\"linux-x64\")) | .name")   
+          gh release download $TAG --repo YosysHQ/oss-cad-suite-build --pattern "$ASSET_NAME"
+          tar xf $ASSET_NAME
+
+      - name: Setup tools
+        run: |
+          OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
+          echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
+
+          mkdir -p ~/.local/bin
+          MILL_VERSION=0.11.13
+          if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+            MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
+          fi
+          echo "Downloading mill with version $MILL_VERSION"
+          sh -c "curl -L https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION > ~/.local/bin/mill && chmod +x ~/.local/bin/mill"
+          mill --version
+
       - name: Get ysyxSoC tag
         id: soc-tag
         run: |
@@ -267,45 +293,38 @@ jobs:
           path: ysyxSoC-verilog
           key: ${{ runner.os }}-soc-verilog-${{ needs.parse.outputs.STUID }}-${{ steps.soc-tag.outputs.tag }}-${{ hashFiles('**/ysyx-workbench/patch/ysyxSoC/*') }}
 
-      - name: Restore inited ysyxSoC
+      - name: Cache inited ysyxSoC
         id: soc-cache
         if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           path: ysyxSoC-inited
           key: ${{ runner.os }}-soc-inited-${{ steps.soc-tag.outputs.tag }}
 
       - name: Init ysyxSoC
-        if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
-        run: |
-          if [[ "${{ steps.soc-cache.outputs.cache-hit }}" == "true" ]]; then
-            echo "Restoring inited ysyxSoC from cache ..."
-          else
-            echo "No inited ysyxSoC cache. Cloning and initializing ..."
-            git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC ysyxSoC-inited
-            sed -i -e 's+git@github.com:+https://github.com/+' ysyxSoC-inited/.gitmodules
-            cd ysyxSoC-inited
-            make dev-init
-            mill __.compile
-          fi
-
-      - name: Save inited ysyxSoC to cache
         if: steps.soc-verilog-cache.outputs.cache-hit != 'true' && steps.soc-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ysyxSoC-inited
-          key: ${{ runner.os }}-soc-inited-${{ steps.soc-tag.outputs.tag }}
+        run: |
+          echo "No inited ysyxSoC cache. Cloning and initializing ..."
+
+          git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC ysyxSoC-inited
+          # 代替原先的 sed 修改 .gitmodules, 有学员的 patch 中修改了 .gitmodules
+          # 现在的流程中 soc 的初始化在 patch 之前，需要保证之后能正常 apply patch
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          cd ysyxSoC-inited
+          make dev-init
+          mill __.compile
 
       - name: Patch ysyxSoC
         run: |
-          if [[ -d ysyxSoC-inited ]]; then
-            cd ysyxSoC-inited
-            git am $YSYX_HOME/patch/ysyxSoC/*
+          if [[ "${{ steps.soc-verilog-cache.outputs.cache-hit }}" != "true" ]]; then
+            mkdir -p $YSYX_HOME/ysyxSoC/
+            cp -a ysyxSoC-inited/. $YSYX_HOME/ysyxSoC/
+          else
+            cd $YSYX_HOME
+            # 命中生成结果，不需要初始化的缓存，直接克隆不传递初始化的缓存
+            git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
           fi
-          cd $YSYX_HOME
-          # 此处的 soc 仅包含补丁，提供给后续步骤使用 perip
-          git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
-          cd ysyxSoC
+          cd $YSYX_HOME/ysyxSoC
           git am $YSYX_HOME/patch/ysyxSoC/*
 
       - name: Clone other repos
@@ -319,29 +338,7 @@ jobs:
           make -C $AM_HOME clean-all
           make -C $NPC_HOME clean
 
-      - name: Setup tools
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [[ "${{ steps.oss-cad-suite-cache.outputs.cache-hit }}" != "true" ]]; then
-            TAG=${{ steps.oss-cad-suite-tag.outputs.tag }}
-            echo "oss-cad-suite cache missed. Downloading and extracting release $TAG"
-            ASSET_NAME=$(gh release view $TAG --repo YosysHQ/oss-cad-suite-build --json assets --jq ".assets[] | select(.name | contains(\"linux-x64\")) | .name")   
-            gh release download $TAG --repo YosysHQ/oss-cad-suite-build --pattern "$ASSET_NAME"
-            tar xf $ASSET_NAME
-          fi
-          OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
-          echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
-
-          mkdir -p ~/.local/bin
-          MILL_VERSION=0.11.13
-          if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
-            MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
-          fi
-          echo "Downloading mill with version $MILL_VERSION"
-          sh -c "curl -L https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION > ~/.local/bin/mill && chmod +x ~/.local/bin/mill"
-          mill --version
-
+        # TODO: 考虑优化使用 Chisel 的学员生成 verilog 的流程
       - name: Generate verilog for NPC
         run: |
           touch $NPC_HOME/.timestamp
@@ -392,17 +389,15 @@ jobs:
           CACHED_SOC_VERILOG_DIR=`pwd`/ysyxSoC-verilog
           if [[ "${{ steps.soc-verilog-cache.outputs.cache-hit }}" == "true" ]]; then
             mkdir -p $YSYX_HOME/ysyxSoC/build
-            cp $CACHED_SOC_VERILOG_DIR/* $YSYX_HOME/ysyxSoC/build
+            cp -a $CACHED_SOC_VERILOG_DIR/. $YSYX_HOME/ysyxSoC/build
             if [[ ! -f $YSYX_HOME/ysyxSoC/build/ysyxSoCFull.v ]]; then
               echo "Cached verilog file does not exist. Abort."
               false
             fi
           else
-            make -C ysyxSoC-inited verilog
+            make -C $YSYX_HOME/ysyxSoC verilog
             mkdir -p $CACHED_SOC_VERILOG_DIR
-            mkdir -p $YSYX_HOME/ysyxSoC/build
-            cp ysyxSoC-inited/build/* $CACHED_SOC_VERILOG_DIR
-            cp ysyxSoC-inited/build/* $YSYX_HOME/ysyxSoC/build
+            cp -a $YSYX_HOME/ysyxSoC/build/. $CACHED_SOC_VERILOG_DIR
           fi
 
       - name: Upload verilog file

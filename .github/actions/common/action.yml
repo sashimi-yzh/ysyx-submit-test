@@ -1,7 +1,5 @@
 name: common
 inputs:
-  OSS_CAD_SUITE_CACHE_KEY:
-    required: true
   YSYX_HOME:
     required: true
   MAKEFLAGS:
@@ -25,7 +23,8 @@ runs:
         cd $TEMP_DIR
         tar -xzf /tmp/artifact-download/ysyx-workbench.tar.gz
 
-    - name: Restore oss-cad-suite cache
+    - name: Cache oss-cad-suite cache
+      id: oss-cad-suite-cache
       uses: actions/cache@v4
       with:
         path: oss-cad-suite
@@ -35,14 +34,14 @@ runs:
       shell: bash
       run: |
         mkdir -p ~/.local/bin
-        MILL_VERSION_FILE="${{ inputs.YSYX_HOME }}/npc/.mill-version"
-        if [[ -f "$MILL_VERSION_FILE" ]]; then
-          MILL_VERSION=$(cat "$MILL_VERSION_FILE")
-          echo "Found .mill-version require $MILL_VERSION"
-          curl -L "https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION" -o ~/.local/bin/mill
-          chmod +x ~/.local/bin/mill
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        MILL_VERSION=0.11.13
+        if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+          MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
         fi
+        echo "Downloading mill with version $MILL_VERSION"
+        curl -L "https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION" -o ~/.local/bin/mill
+        chmod +x ~/.local/bin/mill
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Set environment variables
       shell: bash
@@ -64,6 +63,8 @@ runs:
         OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
         echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
 
+      # TODO: 优化 apt 安装速度，缓存 /usr/bin 较为麻烦
+      # 考虑安装到 workspace 目录下缓存，或者使用 docker 镜像等
     - name: Install RISC-V toolchain
       shell: bash
       if: inputs.install-toolchain == 'true'
