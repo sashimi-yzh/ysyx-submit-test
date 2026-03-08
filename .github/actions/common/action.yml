@@ -2,8 +2,6 @@ name: common
 inputs:
   YSYX_HOME:
     required: true
-  cache-key:
-    required: true
   MAKEFLAGS:
     required: true
   install-toolchain:
@@ -12,17 +10,38 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Restore cache
-      uses: actions/cache@v3
+    - name: Download workbench
+      uses: actions/download-artifact@v4
       with:
-        path: |
-          ${{ inputs.YSYX_HOME }}
-          oss-cad-suite
-          ~/.local
-          ~/.cache/mill
-        key: ${{ runner.os }}-dir-${{ inputs.cache-key }}
-        restore-keys: |
-          ${{ runner.os }}-dir-
+        name: workbench
+        path: /tmp/artifact-download
+    - name: Extract workbench
+      shell: bash
+      run: |
+        TEMP_DIR=$(dirname ${{ inputs.YSYX_HOME }})
+        mkdir -p $TEMP_DIR
+        cd $TEMP_DIR
+        tar -xzf /tmp/artifact-download/ysyx-workbench.tar.gz
+
+    - name: Cache oss-cad-suite cache
+      id: oss-cad-suite-cache
+      uses: actions/cache@v4
+      with:
+        path: oss-cad-suite
+        key: ${{ runner.os }}-oss-cad-suite-${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
+
+    - name: Install Mill
+      shell: bash
+      run: |
+        mkdir -p ~/.local/bin
+        MILL_VERSION=0.11.13
+        if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+          MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
+        fi
+        echo "Downloading mill with version $MILL_VERSION"
+        curl -L "https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION" -o ~/.local/bin/mill
+        chmod +x ~/.local/bin/mill
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Set environment variables
       shell: bash
@@ -44,6 +63,8 @@ runs:
         OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
         echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
 
+      # TODO: 优化 apt 安装速度，缓存 /usr/bin 较为麻烦
+      # 考虑安装到 workspace 目录下缓存，或者使用 docker 镜像等
     - name: Install RISC-V toolchain
       shell: bash
       if: inputs.install-toolchain == 'true'
@@ -56,3 +77,18 @@ runs:
       shell: bash
       if: inputs.install-toolchain == 'true'
       run: sudo apt install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+
+    - name: Clone other repos
+      shell: bash
+      run: |
+        git config --global user.email "ci@ysyx.org"
+        git config --global user.name "ysyx-ci"
+        cd $YSYX_HOME
+        git clone --depth 1 -b ci https://github.com/NJU-ProjectN/am-kernels
+        git clone --depth 1 https://github.com/NJU-ProjectN/rt-thread-am
+
+        cd rt-thread-am
+        git am $YSYX_HOME/patch/rt-thread-am/*
+        cd $YSYX_HOME
+
+
