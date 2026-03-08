@@ -259,7 +259,7 @@ jobs:
         if: steps.oss-cad-suite-cache.outputs.cache-hit != 'true'
         run: |
           echo "oss-cad-suite cache missed. Downloading and extracting release $TAG"
-          TAG=${{ steps.oss-cad-suite-tag.outputs.tag }}
+          TAG=${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
           ASSET_NAME=$(gh release view $TAG --repo YosysHQ/oss-cad-suite-build --json assets --jq ".assets[] | select(.name | contains(\"linux-x64\")) | .name")   
           gh release download $TAG --repo YosysHQ/oss-cad-suite-build --pattern "$ASSET_NAME"
           tar xf $ASSET_NAME
