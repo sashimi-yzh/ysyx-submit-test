@@ -1,0 +1,27 @@
+From bb04a87a0869167fc3d8598ff3db7e844222f839 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Fri, 6 Mar 2026 15:42:03 +0800
+Subject: [PATCH 02/14] complete for rtt
+
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df3..54e1642 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -7,11 +7,11 @@ from pathlib import Path
+ AM_HOME = Path(os.environ["AM_HOME"])
+ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+-  AM_KERNELS_HOME / "kernels" / "hello",
++#   AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++#   AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+-- 
+2.34.1
+

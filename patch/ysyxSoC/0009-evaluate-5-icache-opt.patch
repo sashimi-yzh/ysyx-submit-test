@@ -1,0 +1,58 @@
+From 0cdc16f74796bb1ea39ce11458bd2c5d02a36c86 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Tue, 24 Feb 2026 09:52:58 +0800
+Subject: [PATCH 09/21] evaluate 5, icache opt
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 6e36f4b1..a6b2b872 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -27,11 +27,18 @@ module apb_delayer(
+     parameter ACCESS = 2'b01;
+     parameter WAIT   = 2'b10;
+ 
+-    parameter FREQ_CPU = 975;
++    parameter FREQ_CPU = 869;
+     parameter FREQ_PER = 100;
+ 
+     parameter FACTOR = 10;
+-    parameter RATE_FIX = 8960; // (freq - 1) * 1024  975 -> 8960, 1037 -> 10619
++     /* (freq - 1) * 1024  
++        1037  -> 10619 
++        975   -> 8960
++        1008  -> 9298
++        858   -> 7762
++        869   -> 7875
++    */
++    parameter RATE_FIX = 7875;
+     
+     reg [1:0] state, nstate;
+ 
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 1d2d47a5..988ba3aa 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -74,7 +74,7 @@ module axi4_delayer(
+     parameter BACCESS  = 4'b1001;
+     parameter BWAIT    = 4'b1010;
+ 
+-    parameter FREQ_CPU = 1008;
++    parameter FREQ_CPU = 869;
+     parameter FREQ_PER = 100;
+ 
+     parameter FACTOR = 10;
+@@ -83,8 +83,9 @@ module axi4_delayer(
+         975   -> 8960
+         1008  -> 9298
+         858   -> 7762
++        869   -> 7875
+     */
+-    parameter RATE_FIX = 7762;
++    parameter RATE_FIX = 7875;
+     
+     reg [3:0] state, nstate;
+ 
+-- 
+2.34.1
+

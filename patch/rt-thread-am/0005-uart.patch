@@ -1,0 +1,36 @@
+From 11ad895ce4ec28cc01a40693373b7dc9894f5b86 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Mon, 9 Mar 2026 18:01:33 +0800
+Subject: [PATCH 05/14] uart
+
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc656..7d4af6f 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -27,12 +27,12 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram AT> flash : data
+ }
+ INSERT BEFORE .data;
+ 
+ SECTIONS {
+-  .bss.extra : {
++  .bss.extra (NOLOAD) : {
+     . = ALIGN(8);
+     __am_apps_bss_start = .;
+     *(__am_apps.bss*)
+@@ -40,6 +40,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram
+ }
+ INSERT BEFORE .bss;
+-- 
+2.34.1
+

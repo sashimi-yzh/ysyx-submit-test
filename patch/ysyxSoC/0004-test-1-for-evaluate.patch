@@ -1,0 +1,22 @@
+From 36f6ecc78576ee7ea3ad807f9e252dc947303794 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Sat, 7 Feb 2026 23:28:40 +0800
+Subject: [PATCH 04/21] test 1 for evaluate.
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 5f555e2d..3d02261f 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -37,7 +37,7 @@ module apb_delayer(
+ 
+     reg [31:0] rdata;
+ 
+-    reg [63:0] delay_counter;
++    reg [127:0] delay_counter;
+ 
+     always @(posedge clock) begin
+         if (reset) begin
+-- 
+2.34.1
+

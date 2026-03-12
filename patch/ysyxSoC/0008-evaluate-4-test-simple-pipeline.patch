@@ -1,0 +1,24 @@
+From acefdeb61a8747b8fd23745cdfba454ee38f2524 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Mon, 23 Feb 2026 15:49:16 +0800
+Subject: [PATCH 08/21] evaluate 4, test simple pipeline
+
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index b308d793..1d2d47a5 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -82,8 +82,9 @@ module axi4_delayer(
+         1037  -> 10619 
+         975   -> 8960
+         1008  -> 9298
++        858   -> 7762
+     */
+-    parameter RATE_FIX = 9298;
++    parameter RATE_FIX = 7762;
+     
+     reg [3:0] state, nstate;
+ 
+-- 
+2.34.1
+

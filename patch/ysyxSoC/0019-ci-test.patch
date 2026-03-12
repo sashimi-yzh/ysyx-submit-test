@@ -1,0 +1,16 @@
+From 25043048e188d5af9450fa205c6c37f9713e87fe Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Wed, 11 Mar 2026 14:18:52 +0800
+Subject: [PATCH 19/21] ci test
+
+
+diff --git a/rocket-chip b/rocket-chip
+index ec4324c8..d0c6b50f 160000
+--- a/rocket-chip
++++ b/rocket-chip
+@@ -1 +1 @@
+-Subproject commit ec4324c832feb2229220e9248f00e97a5ffb6657
++Subproject commit d0c6b50fdefcdbe121e9788433ea51f7efaf1d32
+-- 
+2.34.1
+

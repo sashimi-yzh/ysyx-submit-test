@@ -1,0 +1,28 @@
+From 5341afe449117d36cb208cbee8ed0e8eb6ecd0f7 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Tue, 10 Mar 2026 11:31:59 +0800
+Subject: [PATCH 10/14] uart
+
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 03a4b1f..2161e69 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -38,10 +38,10 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  // char ch = io_read(AM_UART_RX).data; 
+-  // return (int)ch;
+-  static const char *p = "help\nam_hello\nam_microbench\n";
+-  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  char ch = io_read(AM_UART_RX).data; 
++  return (int)ch;
++  // static const char *p = "help\nam_hello\nam_microbench\n";
++  // return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

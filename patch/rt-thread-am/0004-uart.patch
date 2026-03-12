@@ -1,0 +1,204 @@
+From 9046eac51cba3c6656740ad824938a3b42255d7e Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Mon, 9 Mar 2026 17:59:43 +0800
+Subject: [PATCH 04/14] uart
+
+
+diff --git a/0001-complete-for-rtt.patch b/0001-complete-for-rtt.patch
+deleted file mode 100644
+index ce42f47..0000000
+--- a/0001-complete-for-rtt.patch
++++ /dev/null
+@@ -1,156 +0,0 @@
+-From 5ffd5ca08e80728462e329a1319129d7005b5d5d Mon Sep 17 00:00:00 2001
+-From: hhh <3224318821@qq.com>
+-Date: Fri, 6 Mar 2026 15:41:36 +0800
+-Subject: [PATCH 1/2] complete for rtt
+-
+-
+-diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+-index ee38829..2214509 100644
+---- a/bsp/abstract-machine/src/context.c
+-+++ b/bsp/abstract-machine/src/context.c
+-@@ -2,30 +2,101 @@
+- #include <klib.h>
+- #include <rtthread.h>
+- 
+--static Context* ev_handler(Event e, Context *c) {
+--  switch (e.event) {
+--    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+--  }
+--  return c;
+-+static Context *ev_handler(Event e, Context *c)
+-+{
+-+    rt_thread_t ct;
+-+    rt_ubase_t *para;
+-+    switch (e.event) {
+-+        case EVENT_YIELD: 
+-+            ct = rt_thread_self();
+-+            para = (rt_ubase_t *)(ct->user_data);
+-+            rt_ubase_t to = para[0];
+-+            rt_ubase_t from = para[1];
+-+            if (from) {
+-+                *((Context **)from) = c;
+-+            }
+-+            c = *(Context **)to;
+-+            break;
+-+        case EVENT_IRQ_TIMER:
+-+            break;
+-+        default:
+-+            printf("Unhandled event ID = %d\n", e.event);
+-+            assert(0);
+-+    }
+-+    
+-+    return c;
+- }
+- 
+--void __am_cte_init() {
+--  cte_init(ev_handler);
+-+void __am_cte_init()
+-+{
+-+    cte_init(ev_handler);
+- }
+- 
+--void rt_hw_context_switch_to(rt_ubase_t to) {
+--  assert(0);
+-+void rt_hw_context_switch_to(rt_ubase_t to)
+-+{
+-+    rt_ubase_t temp;
+-+    rt_ubase_t ud_ct[2];
+-+    rt_thread_t ct = rt_thread_self();
+-+    temp = ct->user_data;
+-+
+-+    ud_ct[0] = to;
+-+    ud_ct[1] = 0;
+-+    ct->user_data = (rt_ubase_t)ud_ct;
+-+
+-+    yield();
+-+
+-+    ct->user_data = temp;
+-+}
+-+
+-+void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to)
+-+{
+-+    rt_ubase_t temp;
+-+    rt_ubase_t ud_ct[2];
+-+    rt_thread_t ct = rt_thread_self();
+-+    temp = ct->user_data;
+-+
+-+    ud_ct[0] = to;
+-+    ud_ct[1] = from;
+-+    ct->user_data = (rt_ubase_t)ud_ct;
+-+
+-+    yield();
+-+
+-+    ct->user_data = temp;
+- }
+- 
+--void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+--  assert(0);
+-+void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread)
+-+{
+-+    assert(0);
+- }
+- 
+--void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+--  assert(0);
+-+typedef struct {
+-+    void (*entry)(void *);
+-+    void *parameter;
+-+    void (*texit)(void);
+-+} wrapper_arg_t;
+-+
+-+static void _thread_entry(wrapper_arg_t *arg)
+-+{
+-+    arg->entry(arg->parameter);
+-+    arg->texit();
+-+    while (1)
+-+        ;
+- }
+- 
+--rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+--  assert(0);
+--  return NULL;
+-+rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit)
+-+{
+-+    stack_addr = (rt_uint8_t *)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
+-+
+-+    stack_addr -= sizeof(wrapper_arg_t);
+-+
+-+    wrapper_arg_t *wrp_arg = (wrapper_arg_t *)stack_addr;
+-+    wrp_arg->entry = (void (*)(void *))tentry;
+-+    wrp_arg->parameter = parameter;
+-+    wrp_arg->texit = (void (*)(void))texit;
+-+
+-+    Area stack_area = {.end = (rt_uint8_t *)stack_addr};
+-+
+-+    Context *ctx = kcontext(stack_area, (void *)_thread_entry, (void *)wrp_arg);
+-+
+-+    return (rt_uint8_t *)ctx;
+- }
+-diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+-index e4eb866..1c32f3c 100644
+---- a/bsp/abstract-machine/src/uart.c
+-+++ b/bsp/abstract-machine/src/uart.c
+-@@ -11,6 +11,7 @@
+- #include <rtthread.h>
+- #include <am.h>
+- #include <klib.h>
+-+#include <klib-macros.h>
+- 
+- #define UART_DEFAULT_BAUDRATE 115200
+- 
+-@@ -37,8 +38,10 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+- }
+- 
+- static int _uart_getc(struct rt_serial_device *serial) {
+--  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+--  return (*p != '\0' ? *(p ++) : -1);
+-+  char ch = io_read(AM_UART_RX).data; 
+-+  return (int)ch;
+-+  // static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-+  // return (*p != '\0' ? *(p ++) : -1);
+- }
+- 
+- const struct rt_uart_ops _uart_ops = {
+--- 
+-2.34.1
+-
+diff --git a/0002-complete-for-rtt.patch b/0002-complete-for-rtt.patch
+deleted file mode 100644
+index 393276a..0000000
+--- a/0002-complete-for-rtt.patch
++++ /dev/null
+@@ -1,27 +0,0 @@
+-From bb04a87a0869167fc3d8598ff3db7e844222f839 Mon Sep 17 00:00:00 2001
+-From: hhh <3224318821@qq.com>
+-Date: Fri, 6 Mar 2026 15:42:03 +0800
+-Subject: [PATCH 2/2] complete for rtt
+-
+-
+-diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+-index 8968df3..54e1642 100644
+---- a/bsp/abstract-machine/integrate-am-apps.py
+-+++ b/bsp/abstract-machine/integrate-am-apps.py
+-@@ -7,11 +7,11 @@ from pathlib import Path
+- AM_HOME = Path(os.environ["AM_HOME"])
+- AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+- app_dir_list = [
+--  AM_KERNELS_HOME / "kernels" / "hello",
+-+#   AM_KERNELS_HOME / "kernels" / "hello",
+-   AM_KERNELS_HOME / "benchmarks" / "microbench",
+-   AM_KERNELS_HOME / "kernels" / "typing-game",
+-   AM_KERNELS_HOME / "kernels" / "snake",
+--  AM_KERNELS_HOME / ".." / "fceux-am",
+-+#   AM_KERNELS_HOME / ".." / "fceux-am",
+- ]
+- 
+- if len(sys.argv) != 3:
+--- 
+-2.34.1
+-
+-- 
+2.34.1
+

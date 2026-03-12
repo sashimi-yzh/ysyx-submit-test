@@ -1,0 +1,22 @@
+From 4aa4dbac423a947becffa563ce6ce5c89ff23633 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Mon, 9 Mar 2026 20:19:21 +0800
+Subject: [PATCH 06/14] am_hello
+
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 54e1642..5ce2e8f 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -7,7 +7,7 @@ from pathlib import Path
+ AM_HOME = Path(os.environ["AM_HOME"])
+ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+-#   AM_KERNELS_HOME / "kernels" / "hello",
++  AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-- 
+2.34.1
+

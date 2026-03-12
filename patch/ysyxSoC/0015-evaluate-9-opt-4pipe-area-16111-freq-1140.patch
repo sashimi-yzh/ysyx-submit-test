@@ -1,0 +1,41 @@
+From 5e9dc7dda18d6c0e45651d54ad2027cb34ff37aa Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Sun, 1 Mar 2026 14:34:54 +0800
+Subject: [PATCH 15/21] evaluate 9, opt, 4pipe, area 16111, freq 1140
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 9d398431..64c92690 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -40,9 +40,9 @@ module apb_delayer(
+         796   -> 7127
+         736   -> 6512
+         1072  -> 9953
+-        1125  -> 10496
++        1140  -> 10650
+     */
+-    parameter RATE_FIX = 10496; 
++    parameter RATE_FIX = 10650; 
+     
+     reg [1:0] state, nstate;
+ 
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 79769038..5989bb6f 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -87,9 +87,9 @@ module axi4_delayer(
+         796   -> 7127
+         736   -> 6512
+         1072  -> 9953
+-        1125  -> 10496
++        1140  -> 10650
+     */
+-    parameter RATE_FIX = 10496; 
++    parameter RATE_FIX = 10650; 
+     
+     reg [3:0] state, nstate;
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,108 @@
+From 32e0a7f072179546cac7185cdfcd0caed6de985d Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Tue, 10 Mar 2026 13:57:41 +0800
+Subject: [PATCH 11/14] extra
+
+
+diff --git a/.gitignore b/.gitignore
+index 558b09f..504a0b8 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -51,3 +51,4 @@ tags
+ CMakeLists.txt
+ cmake-build-debug
+ *.mk
++*.patch
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f31..90f1765 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,11 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++ifeq ($(ARCH),riscv32e-ysyxsoc)
++LDFLAGS += -T soc_extra.ld
++else
++LDFLAGS += -T linker.ld
++endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 7d4af6f..f899bf7 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -27,7 +27,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  } > sdram AT> flash : data
++  }
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +40,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  } > sdram
++  }
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/soc_extra.ld b/bsp/abstract-machine/soc_extra.ld
+new file mode 100644
+index 0000000..7d4af6f
+--- /dev/null
++++ b/bsp/abstract-machine/soc_extra.ld
+@@ -0,0 +1,45 @@
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } > sdram AT> flash : data
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra (NOLOAD) : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > sdram
++}
++INSERT BEFORE .bss;
+-- 
+2.34.1
+

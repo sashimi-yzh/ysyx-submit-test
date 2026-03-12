@@ -1,0 +1,47 @@
+From 083f65bdcc5e093c34e79288b17699f854a38f42 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Tue, 10 Mar 2026 18:08:26 +0800
+Subject: [PATCH 14/14] fix bug for linker
+
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index f899bf7..ef23176 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -29,7 +29,7 @@ SECTIONS {
+     . = ALIGN(8);
+   }
+ }
+-INSERT BEFORE .data;
++INSERT AFTER .data;
+ 
+ SECTIONS {
+   .bss.extra (NOLOAD) : {
+@@ -42,4 +42,4 @@ SECTIONS {
+     . = ALIGN(8);
+   }
+ }
+-INSERT BEFORE .bss;
++INSERT AFTER .bss;
+diff --git a/bsp/abstract-machine/soc_extra.ld b/bsp/abstract-machine/soc_extra.ld
+index 7d4af6f..00993e9 100644
+--- a/bsp/abstract-machine/soc_extra.ld
++++ b/bsp/abstract-machine/soc_extra.ld
+@@ -29,7 +29,7 @@ SECTIONS {
+     . = ALIGN(8);
+   } > sdram AT> flash : data
+ }
+-INSERT BEFORE .data;
++INSERT AFTER .data;
+ 
+ SECTIONS {
+   .bss.extra (NOLOAD) : {
+@@ -42,4 +42,4 @@ SECTIONS {
+     . = ALIGN(8);
+   } > sdram
+ }
+-INSERT BEFORE .bss;
++INSERT AFTER .bss;
+-- 
+2.34.1
+

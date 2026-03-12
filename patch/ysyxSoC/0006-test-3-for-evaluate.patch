@@ -1,0 +1,285 @@
+From 61892d2647751d55074fc5ac84b9392909d0cf62 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Mon, 9 Feb 2026 19:25:20 +0800
+Subject: [PATCH 06/21] test 3 for evaluate.
+
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803b..b308d793 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -62,35 +62,216 @@ module axi4_delayer(
+   input  [3:0]  out_bid,
+   input  [1:0]  out_bresp
+ );
++    parameter IDLE     = 4'b0000;
++    parameter ARACCESS = 4'b0001;
++    parameter ARWAIT   = 4'b0010;
++    parameter RACCESS  = 4'b0011;
++    parameter RWAIT    = 4'b0100;
++    parameter AWACCESS = 4'b0101;
++    parameter AWWAIT   = 4'b0110;
++    parameter WACCESS  = 4'b0111;
++    parameter WWAIT    = 4'b1000;
++    parameter BACCESS  = 4'b1001;
++    parameter BWAIT    = 4'b1010;
+ 
+-  assign in_arready = out_arready;
+-  assign out_arvalid = in_arvalid;
+-  assign out_arid = in_arid;
+-  assign out_araddr = in_araddr;
+-  assign out_arlen = in_arlen;
+-  assign out_arsize = in_arsize;
+-  assign out_arburst = in_arburst;
+-  assign out_rready = in_rready;
+-  assign in_rvalid = out_rvalid;
+-  assign in_rid = out_rid;
+-  assign in_rdata = out_rdata;
+-  assign in_rresp = out_rresp;
+-  assign in_rlast = out_rlast;
+-  assign in_awready = out_awready;
+-  assign out_awvalid = in_awvalid;
+-  assign out_awid = in_awid;
+-  assign out_awaddr = in_awaddr;
+-  assign out_awlen = in_awlen;
+-  assign out_awsize = in_awsize;
+-  assign out_awburst = in_awburst;
+-  assign in_wready = out_wready;
+-  assign out_wvalid = in_wvalid;
+-  assign out_wdata = in_wdata;
+-  assign out_wstrb = in_wstrb;
+-  assign out_wlast = in_wlast;
+-  assign out_bready = in_bready;
+-  assign in_bvalid = out_bvalid;
+-  assign in_bid = out_bid;
+-  assign in_bresp = out_bresp;
++    parameter FREQ_CPU = 1008;
++    parameter FREQ_PER = 100;
++
++    parameter FACTOR = 10;
++     /* (freq - 1) * 1024  
++        1037  -> 10619 
++        975   -> 8960
++        1008  -> 9298
++    */
++    parameter RATE_FIX = 9298;
++    
++    reg [3:0] state, nstate;
++
++    reg [31:0] rdata;
++
++    reg [127:0] delay_counter;
++    reg [16:0] resp_delay;
++
++    always @(posedge clock) begin
++        if (reset) begin
++            state <= IDLE;
++        end else begin
++            state <= nstate;
++        end
++    end
++
++    always @(*) begin
++        if(reset) begin
++            nstate = IDLE;
++        end else begin
++            case(state)
++                IDLE: begin
++                    nstate = in_arvalid ? ARACCESS : (in_awvalid ? AWACCESS : IDLE);
++                end
++                ARACCESS: begin
++                    nstate = out_arready ? ARWAIT : ARACCESS;
++                end
++                ARWAIT: begin
++                    nstate = (delay_counter == 0) ? RACCESS : ARWAIT;
++                end
++                RACCESS: begin
++                    nstate = out_rvalid && in_rready ? RWAIT : RACCESS;
++                end
++                RWAIT: begin
++                    nstate = (resp_delay == 0) ? (out_rlast ? IDLE : RACCESS) : RWAIT;
++                end
++                AWACCESS: begin
++                    nstate = out_awready ? (in_wvalid & out_wready ? WWAIT : AWWAIT) : AWACCESS;
++                end
++                AWWAIT: begin
++                    nstate = (delay_counter == 0) ? WACCESS : AWWAIT;
++                end
++                WACCESS: begin
++                    nstate = out_wready && in_wvalid ? WWAIT : WACCESS;
++                end
++                WWAIT: begin
++                    nstate = (delay_counter == 0) ? (in_wlast ? BACCESS : WACCESS) : WWAIT;
++                end
++                BACCESS: begin
++                    nstate = out_bvalid && in_bready ? BWAIT : BACCESS;
++                end
++                BWAIT: begin
++                    nstate = (resp_delay == 0) ? IDLE : BWAIT;
++                end
++                default: begin
++                    nstate = IDLE;
++                end
++            endcase
++        end
++    end
++    
++    always @(posedge clock) begin
++        if(reset) begin
++            delay_counter <= 0;
++            resp_delay <= 0;
++        end else begin
++            case(state)
++                IDLE: begin
++                    delay_counter <= 0;
++                    resp_delay <= 0;
++                end
++                ARACCESS: begin
++                    if(!out_arready) begin
++                        delay_counter <= delay_counter + RATE_FIX;
++                    end else begin
++                        delay_counter <= delay_counter >> FACTOR;
++                        resp_delay <= resp_delay + RATE_FIX;
++                    end
++                end
++                ARWAIT: begin
++                    delay_counter <= delay_counter == 0 ? 0 : delay_counter - 1;
++                    if(!(out_rvalid && in_rready)) begin
++                        resp_delay <= resp_delay + RATE_FIX;
++                    end
++                end
++                RACCESS: begin
++                    if(!(out_rvalid && in_rready)) begin
++                        resp_delay <= resp_delay + RATE_FIX;
++                    end else begin
++                        resp_delay <= resp_delay >> FACTOR;
++                    end
++                end
++                RWAIT: begin
++                    resp_delay <= resp_delay == 0 ? 0 : resp_delay - 1;
++                end
++                AWACCESS: begin
++                    if(!out_awready) begin
++                        delay_counter <= delay_counter + RATE_FIX;
++                    end else begin
++                        delay_counter <= delay_counter >> FACTOR;
++                    end
++                end
++                AWWAIT: begin
++                    delay_counter <= delay_counter == 0 ? 0 : delay_counter - 1;
++                end
++                WACCESS: begin
++                    if(!(in_wvalid && out_wready)) begin
++                        delay_counter <= delay_counter + RATE_FIX;
++                    end else begin
++                        delay_counter <= delay_counter >> FACTOR;
++                    end
++                end
++                WWAIT: begin
++                    delay_counter <= delay_counter == 0 ? 0 : delay_counter - 1;
++                    if(!(out_bvalid && in_bready)) begin
++                        resp_delay <= resp_delay + RATE_FIX;
++                    end
++                end
++                BACCESS: begin
++                    if(!(out_bvalid && in_bready)) begin
++                        resp_delay <= resp_delay + RATE_FIX;
++                    end else begin
++                        resp_delay <= resp_delay >> FACTOR;
++                    end
++                end
++                BWAIT: begin
++                    resp_delay <= resp_delay == 0 ? 0 : resp_delay - 1;
++                end
++                default: begin
++                    delay_counter <= 0;
++                    resp_delay <= 0;
++                end
++            endcase
++        end
++    end
++
++    always @(posedge clock) begin
++        if(reset) begin
++            rdata <= 0;
++        end else if(state == RACCESS && out_rvalid) begin
++            rdata <= out_rdata;
++        end
++    end
++
++    reg arvalid;
++    reg awvalid;
++    reg wvalid;
++    always @(posedge clock) begin
++        if(reset) begin
++            arvalid <= 0;
++            awvalid <= 0;
++            wvalid <= 0;
++        end else begin
++            arvalid <= out_arready ? 0 : (state == ARACCESS || (state == IDLE && in_arvalid));
++            awvalid <= out_awready ? 0 : (state == AWACCESS || (state == IDLE && in_awvalid));
++            wvalid  <= out_wready  ? 0 : (state == WACCESS && in_wvalid);
++        end
++    end
++
++    assign in_arready = (state == ARWAIT) && (delay_counter == 0);
++    assign out_arvalid = arvalid;
++    assign out_arid = in_arid;
++    assign out_araddr = in_araddr;
++    assign out_arlen = in_arlen;
++    assign out_arsize = in_arsize;
++    assign out_arburst = in_arburst;
++    assign out_rready = (state == RWAIT) && (resp_delay == 0);
++    assign in_rvalid = (state == RWAIT) && (resp_delay == 0);
++    assign in_rid = out_rid;
++    assign in_rdata = rdata;
++    assign in_rresp = out_rresp;
++    assign in_rlast = out_rlast;
++
++    assign in_awready = (state == AWWAIT) && (delay_counter == 0) || (state == WWAIT) && (delay_counter == 0) && in_awvalid;
++    assign out_awvalid = awvalid;
++    assign out_awid = in_awid;
++    assign out_awaddr = in_awaddr;
++    assign out_awlen = in_awlen;
++    assign out_awsize = in_awsize;
++    assign out_awburst = in_awburst;
++    assign in_wready = (state == WWAIT) && (delay_counter == 0);
++    assign out_wvalid = wvalid || awvalid;
++    assign out_wdata = in_wdata;
++    assign out_wstrb = in_wstrb;
++    assign out_wlast = in_wlast;
++    assign out_bready = (state == BWAIT) && (resp_delay == 0);
++    assign in_bvalid = (state == BWAIT) && (resp_delay == 0);
++    assign in_bid = out_bid;
++    assign in_bresp = out_bresp;
+ 
+ endmodule
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 4984e720..aa033d6a 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -94,7 +94,7 @@ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+ // Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
+ 
+ // SM states
+ localparam STATE_W           = 4;
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.34.1
+

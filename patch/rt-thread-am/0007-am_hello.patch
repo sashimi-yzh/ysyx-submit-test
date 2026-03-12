@@ -1,0 +1,22 @@
+From 1d50cb94c7a2d1737c65b48e6797eaeb42a4e70f Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Mon, 9 Mar 2026 20:28:54 +0800
+Subject: [PATCH 07/14] am_hello
+
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 0a2c86f..1b8df7a 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -40,7 +40,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ static int _uart_getc(struct rt_serial_device *serial) {
+   // char ch = io_read(AM_UART_RX).data; 
+   // return (int)ch;
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_microbench test\n";
++  static const char *p = "help\nam_microbench\n";
+   return (*p != '\0' ? *(p ++) : -1);
+ }
+ 
+-- 
+2.34.1
+

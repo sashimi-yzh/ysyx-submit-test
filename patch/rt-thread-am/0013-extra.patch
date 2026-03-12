@@ -1,0 +1,22 @@
+From fe85833083a644cc6e6d0dba41d16fa882002b68 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Tue, 10 Mar 2026 14:01:35 +0800
+Subject: [PATCH 13/14] extra
+
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index f9be882..2c5a654 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -11,7 +11,7 @@ CFLAGS += -Wno-nonnull-compare
+ ifeq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T soc_extra.ld
+ else
+-LDFLAGS += -T extar.ld
++LDFLAGS += -T extra.ld
+ endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+-- 
+2.34.1
+
