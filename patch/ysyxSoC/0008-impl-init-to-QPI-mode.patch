@@ -1,0 +1,290 @@
+From e8185eb9c108c62a5ffdb11666c3fdbb5562d8a8 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Thu, 22 Jan 2026 11:46:49 +0800
+Subject: [PATCH 08/28] impl init to QPI mode and make psram ctrl use QPI mode
+
+---
+ perip/psram/efabless/EF_PSRAM_CTRL.v    | 76 ++++++++++++++++---------
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v | 38 +++++++++++--
+ src/device/PSRAM.scala                  | 35 +++++-------
+ 3 files changed, 98 insertions(+), 51 deletions(-)
+
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e9..85c87f51 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -1,3 +1,4 @@
++/*verilator public_on*/
+ /*
+ 	Copyright 2020 Efabless Corp.
+ 
+@@ -60,7 +61,9 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    // wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++		wire [7:0]  FINAL_COUNT = 14 + size*2; // QPI
++		wire [7:0]  DATA_START = 15;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -113,22 +116,33 @@ module PSRAM_READER (
+             saddr <= {addr[23:0]};
+ 
+     // Sample with the negedge of sck
+-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++		// (counter - 20) / 2 = (counter/2 - 10)
++    // wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++
++		// for QPI mode
++		// should be (counter - DATA_START) / 2
++		wire[1:0] byte_index = {counter - DATA_START}[2:1];
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
++        if(counter >= DATA_START && counter <= FINAL_COUNT)
+             if(sck)
+                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
++		localparam CMD_COUNT    = 2;
++		localparam OUT_COUNT    = CMD_COUNT + 6;
++		localparam ADDR_CNT_BEG = CMD_COUNT;
++
++    // assign dout     =   (counter < CMD_COUNT)         ? {3'b0, CMD_EBH[7 - counter]}:
++    assign dout     =   (counter < CMD_COUNT)         ? 
++										         ((counter == 0) ? CMD_EBH[7:4] : CMD_EBH[3:0]) :
++                        (counter == ADDR_CNT_BEG)     ? saddr[23:20]        :
++                        (counter == ADDR_CNT_BEG + 1) ? saddr[19:16]        :
++                        (counter == ADDR_CNT_BEG + 2) ? saddr[15:12]        :
++                        (counter == ADDR_CNT_BEG + 3) ? saddr[11:8]         :
++                        (counter == ADDR_CNT_BEG + 4) ? saddr[7:4]          :
++                        (counter == ADDR_CNT_BEG + 5) ? saddr[3:0]          :
+                         4'h0;
+ 
+-    assign douten   = (counter < 14);
++    assign douten   = (counter < OUT_COUNT);
+ 
+     assign done     = (counter == FINAL_COUNT+1);
+ 
+@@ -157,11 +171,12 @@ module PSRAM_WRITER (
+     output  wire [3:0]      dout,
+     output  wire            douten
+ );
+-    //localparam  DATA_START = 14;
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    // wire[7:0]        FINAL_COUNT = 13 + size*2;
++    localparam  DATA_START = 8;
++    wire[7:0]        FINAL_COUNT = DATA_START-1 + size*2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,20 +227,26 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
+-                        (counter == 14) ?   line[7:4]           :
+-                        (counter == 15) ?   line[3:0]           :
+-                        (counter == 16) ?   line[15:12]         :
+-                        (counter == 17) ?   line[11:8]          :
+-                        (counter == 18) ?   line[23:20]         :
+-                        (counter == 19) ?   line[19:16]         :
+-                        (counter == 20) ?   line[31:28]         :
++		localparam CMD_COUNT    = 2;
++		localparam ADDR_CNT_BEG = CMD_COUNT;
++		localparam WDATA_CNT_BEG = ADDR_CNT_BEG + 6;
++
++    // assign dout     =   (counter < CMD_COUNT)  ?   {3'b0, CMD_38H[7 - counter]}:
++    assign dout     =   (counter < CMD_COUNT)  ? 
++											          ((counter == 0) ? CMD_38H[7:4] : CMD_38H[3:0]) :
++                        (counter == ADDR_CNT_BEG)      ?   saddr[23:20]        :
++                        (counter == ADDR_CNT_BEG + 1)  ?   saddr[19:16]        :
++                        (counter == ADDR_CNT_BEG + 2)  ?   saddr[15:12]        :
++                        (counter == ADDR_CNT_BEG + 3)  ?   saddr[11:8]         :
++                        (counter == ADDR_CNT_BEG + 4)  ?   saddr[7:4]          :
++                        (counter == ADDR_CNT_BEG + 5)  ?   saddr[3:0]          :
++                        (counter == WDATA_CNT_BEG)     ?   line[7:4]           :
++                        (counter == WDATA_CNT_BEG + 1) ?   line[3:0]           :
++                        (counter == WDATA_CNT_BEG + 2) ?   line[15:12]         :
++                        (counter == WDATA_CNT_BEG + 3) ?   line[11:8]          :
++                        (counter == WDATA_CNT_BEG + 4) ?   line[23:20]         :
++                        (counter == WDATA_CNT_BEG + 5) ?   line[19:16]         :
++                        (counter == WDATA_CNT_BEG + 6) ?   line[31:28]         :
+                         line[27:24];
+ 
+     assign douten   = (~ce_n);
+@@ -234,3 +255,4 @@ module PSRAM_WRITER (
+ 
+ 
+ endmodule
++/*verilator public_off*/
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+index 7b5296db..8ff20d86 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -1,3 +1,4 @@
++/*verilator public_on*/
+ /*
+ 	Copyright 2020 Efabless Corp.
+ 
+@@ -161,12 +162,41 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mw_doe)
+     );
+ 
+-    assign sck  = wb_we ? mw_sck  : mr_sck;
+-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
+-    assign dout = wb_we ? mw_dout : mr_dout;
+-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
++		localparam ST_SENDING_INIT = 1'b0,
++							 ST_AFTER_INIT   = 1'b1;
++		localparam INIT_CMD = 8'h35; // Enter QPI mode
++		reg init_state;
++		reg [3:0] init_counter; // 0 to 15
++		wire init_sck = (init_state == ST_SENDING_INIT) ? (~init_counter[0]) : 1'b0;
++		always @(posedge clk_i or posedge rst_i) begin
++			if (rst_i) begin
++				init_state <= ST_SENDING_INIT;
++				init_counter <= 4'd0;
++			end else begin
++				case (init_state)
++					ST_SENDING_INIT: begin
++						if (init_counter == 4'd15) begin
++							init_state <= ST_AFTER_INIT;
++						end else begin
++							init_counter <= init_counter + 4'd1;
++						end
++					end
++					ST_AFTER_INIT: begin
++						// stay here
++					end
++				endcase
++			end
++		end
++
++		wire init_done = (init_state == ST_AFTER_INIT);
++
++    assign sck    = init_done ? (wb_we ? mw_sck:      mr_sck):      init_sck;
++    assign ce_n   = init_done ? (wb_we ? mw_ce_n:     mr_ce_n):     1'b0;
++    assign dout   = init_done ? (wb_we ? mw_dout:     mr_dout):     {3'b0,INIT_CMD[7 - (init_counter>>1)]};
++    assign douten = init_done ? (wb_we ? {4{mw_doe}}: {4{mr_doe}}): 4'b1111;
+ 
+     assign mw_din = din;
+     assign mr_din = din;
+     assign ack_o = wb_we ? mw_done :mr_done ;
+ endmodule
++/*verilator public_off*/
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index 9d16f143..bca68344 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -43,6 +43,7 @@ class psramChisel extends RawModule {
+     val QIO_READ = "hEB".U(8.W)
+     val QIO_WRITE = "h38".U(8.W)
+     val ENTER_QPI = "h35".U(8.W)
++    val EXIT_QPI = "hF5".U(8.W)
+   }
+ 
+   object State extends ChiselEnum {
+@@ -58,10 +59,13 @@ class psramChisel extends RawModule {
+     val cmdReg = RegInit(0.U(8.W))
+     val curCmd = WireDefault(0.U(8.W))
+ 
+-    val isQPIMode = RegInit(false.B)
+-    when(cmdReg === CMD.ENTER_QPI) {
++    val isQPIMode = Reg(Bool())
++    when(curCmd === CMD.ENTER_QPI) {
+       isQPIMode := true.B
+     }
++    when(curCmd === CMD.EXIT_QPI) {
++      isQPIMode := false.B
++    }
+ 
+     val addrReg = Reg(UInt(24.W))
+     addr := addrReg
+@@ -75,13 +79,14 @@ class psramChisel extends RawModule {
+ 
+     switch(state) {
+       is(State.readCmd) {
+-        when(cnt === 7.U) {
++        val cmdBeats = Mux(isQPIMode, 2.U, 8.U)
++        when(cnt === cmdBeats - 1.U) {
+           state := Mux(curCmd === CMD.ENTER_QPI, State.readCmd, State.readAddr)
+           cnt := 0.U
+         }.otherwise {
+           cnt := cnt + 1.U
+         }
+-        curCmd := Cat(cmdReg(6, 0), di(0))
++        curCmd := Mux(isQPIMode, cmdReg(3, 0) ## di, cmdReg(6, 0) ## di(0))
+         cmdReg := curCmd
+       }
+       is(State.readAddr) {
+@@ -99,17 +104,18 @@ class psramChisel extends RawModule {
+         }.otherwise {
+           cnt := cnt + 1.U
+         }
+-        addrReg := Cat(addrReg(19, 0), di)
++        addrReg := addrReg(19, 0) ## di
+       }
+       is(State.waitDelay) {
+         // wait 6 cycles and then
+         // begin to send data at next cycle
+-        when(cnt === readDelay - 1.U + 1.U) {
++        // for QPI mode, need 1 extra cycles
++        when(cnt === readDelay - 1.U + Mux(isQPIMode, 2.U, 1.U)) {
+           state := State.sendRData
+           cnt := 0.U
+           data := RawUnclockedNonVoidFunctionCall("psram_read", UInt(32.W))(
+             true.B,
+-            Cat(0.U(8.W), addrReg)
++            addrReg.pad(32)
+           )
+         }.otherwise {
+           cnt := cnt + 1.U
+@@ -146,13 +152,7 @@ class psramChisel extends RawModule {
+             "psram_write",
+             UInt(32.W),
+             Some(Seq("addr", "strb", "data"))
+-          )(
+-            io.sck.asClock,
+-            true.B,
+-            Cat(0.U(8.W), addr),
+-            "hF".U(8.W),
+-            data
+-          )
++          )(io.sck.asClock, true.B, addrReg.pad(32), "hF".U(8.W), data)
+         }.otherwise {
+           cnt := cnt + 1.U
+         }
+@@ -191,12 +191,7 @@ class psramChisel extends RawModule {
+             "psram_write",
+             UInt(32.W),
+             Some(Seq("addr", "strb", "data"))
+-          )(
+-            true.B,
+-            Cat(0.U(8.W), addr),
+-            strb,
+-            nxtData
+-          )
++          )(true.B, addrReg.pad(32), strb, nxtData)
+         }
+       }
+     }
+-- 
+2.43.0
+

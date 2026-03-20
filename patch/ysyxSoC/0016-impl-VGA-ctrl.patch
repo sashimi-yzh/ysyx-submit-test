@@ -1,0 +1,178 @@
+From d6f3f4afb18ee5b38e8421fae86e0e1deb8b6c04 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Mon, 26 Jan 2026 19:08:50 +0800
+Subject: [PATCH 16/28] impl VGA ctrl
+
+---
+ src/device/VGA.scala | 131 +++++++++++++++++++++++++++++++++++++++----
+ 1 file changed, 121 insertions(+), 10 deletions(-)
+
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index 6724bc38..7faca82f 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -7,6 +7,7 @@ import freechips.rocketchip.amba.apb._
+ import org.chipsalliance.cde.config.Parameters
+ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
++import java.lang
+ 
+ class VGAIO extends Bundle {
+   val r = Output(UInt(8.W))
+@@ -20,7 +21,9 @@ class VGAIO extends Bundle {
+ class VGACtrlIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Bool())
+-  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++  val in = Flipped(
++    new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))
++  )
+   val vga = new VGAIO
+ }
+ 
+@@ -28,25 +31,133 @@ class vga_top_apb extends BlackBox {
+   val io = IO(new VGACtrlIO)
+ }
+ 
++// read valid after one cycle delay
++class vgaFrameBuffer extends Module {
++  val io = IO(new Bundle {
++    val rdAddrH = Input(UInt(10.W))
++    val rdAddrV = Input(UInt(10.W))
++    val rdData = Output(UInt(24.W))
++
++    val wrEn = Input(Bool())
++    val wrAddrH = Input(UInt(10.W))
++    val wrAddrV = Input(UInt(10.W))
++    val wrData = Input(UInt(24.W))
++  })
++
++  val mem = SyncReadMem(640 * 480, UInt(24.W))
++  val rdAddr = io.rdAddrV * 640.U + io.rdAddrH
++  val wrAddr = io.wrAddrV * 640.U + io.wrAddrH
++  io.rdData := mem.read(rdAddr, true.B)
++
++  when(io.wrEn) {
++    mem.write(wrAddr, io.wrData)
++  }
++}
++
+ class vgaChisel extends Module {
+   val io = IO(new VGACtrlIO)
++  object APBState extends ChiselEnum {
++    val idle, setup, access = Value
++  }
++  val state = RegInit(APBState.idle)
++
++  state := MuxCase(
++    state,
++    Array(
++      (state === APBState.idle) -> Mux(
++        io.in.psel,
++        APBState.setup,
++        APBState.idle
++      ),
++      (state === APBState.setup) -> APBState.access,
++      (state === APBState.access) -> Mux(
++        io.in.pready,
++        APBState.idle,
++        APBState.access
++      )
++    )
++  )
++
++  val h_frontporch = 96;
++  val h_active = 144;
++  val h_backporch = 784;
++  val h_total = 800;
++
++  val v_frontporch = 2;
++  val v_active = 35;
++  val v_backporch = 515;
++  val v_total = 525;
++
++  val x_cnt = RegInit(0.U(10.W))
++  val y_cnt = RegInit(0.U(10.W))
++
++  val buffer = Module(new vgaFrameBuffer)
++
++  when(x_cnt === (h_total - 1).U) {
++    x_cnt := 0.U
++    when(y_cnt === (v_total - 1).U) {
++      y_cnt := 0.U
++    }.otherwise {
++      y_cnt := y_cnt + 1.U
++    }
++  }.otherwise {
++    x_cnt := x_cnt + 1.U
++  }
++
++  io.vga.hsync := (x_cnt >= h_frontporch.U)
++  io.vga.vsync := (y_cnt >= v_frontporch.U)
++
++  val h_valid = (x_cnt >= h_active.U) && (x_cnt < h_backporch.U)
++  val v_valid = (y_cnt >= v_active.U) && (y_cnt < v_backporch.U)
++
++  val readAddrH = Mux(h_valid, x_cnt - h_active.U, 0.U)
++  val readAddrV = Mux(v_valid, y_cnt - v_active.U, 0.U)
++
++  buffer.io.rdAddrH := readAddrH
++  buffer.io.rdAddrV := readAddrV
++  io.vga.r := buffer.io.rdData(23, 16)
++  io.vga.g := buffer.io.rdData(15, 8)
++  io.vga.b := buffer.io.rdData(7, 0)
++
++  io.vga.valid := h_valid && v_valid
++
++  val wAddrInWord = io.in.paddr >> 2
++
++  buffer.io.wrEn := io.in.pwrite && (state === APBState.access)
++  buffer.io.wrAddrH := wAddrInWord(9, 0)
++  buffer.io.wrAddrV := wAddrInWord(19, 10)
++  buffer.io.wrData := io.in.pwdata(23, 0)
++
++  io.in.pready := (state === APBState.access)
++  io.in.pslverr := false.B
++  io.in.prdata := "hbaadf00d".U // unsupport read
++
+ }
+ 
+-class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBVGA(address: Seq[AddressSet])(implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(
++    Seq(
++      APBSlavePortParameters(
++        Seq(
++          APBSlaveParameters(
++            address = address,
++            executable = true,
++            supportsRead = true,
++            supportsWrite = true
++          )
++        ),
++        beatBytes = 4
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     val (in, _) = node.in(0)
+     val vga_bundle = IO(new VGAIO)
+ 
+-    val mvga = Module(new vga_top_apb)
++    val mvga = Module(new vgaChisel)
+     mvga.io.clock := clock
+     mvga.io.reset := reset
+     mvga.io.in <> in
+-- 
+2.43.0
+

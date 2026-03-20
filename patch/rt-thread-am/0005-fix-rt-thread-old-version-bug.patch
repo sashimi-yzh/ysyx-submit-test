@@ -1,0 +1,27 @@
+From a608209c4932c260b542114de0604633958abb8f Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Fri, 27 Feb 2026 17:28:21 +0800
+Subject: [PATCH 5/7] fix rt-thread old version bug
+
+---
+ components/libc/compilers/common/ctime.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/components/libc/compilers/common/ctime.c b/components/libc/compilers/common/ctime.c
+index 4e4f8e8..e9d1450 100644
+--- a/components/libc/compilers/common/ctime.c
++++ b/components/libc/compilers/common/ctime.c
+@@ -65,8 +65,8 @@ static const short __spm[13] =
+     (31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 31 + 30 + 31),
+ };
+ 
+-rt_align(RT_ALIGN_SIZE) static const char *days = "Sun Mon Tue Wed Thu Fri Sat ";
+-rt_align(RT_ALIGN_SIZE) static const char *months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ";
++rt_align(RT_ALIGN_SIZE) static const char days[] = "Sun Mon Tue Wed Thu Fri Sat ";
++rt_align(RT_ALIGN_SIZE) static const char months[] = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ";
+ 
+ static int __isleap(int year)
+ {
+-- 
+2.43.0
+

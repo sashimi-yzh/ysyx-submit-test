@@ -1,0 +1,3 @@
+leak:V*__Syms::
+leak:*_protectlib_create
+leak:SDL_*

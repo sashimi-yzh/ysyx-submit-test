@@ -1,0 +1,106 @@
+name: common
+inputs:
+  YSYX_HOME:
+    required: true
+  MAKEFLAGS:
+    required: true
+  install-toolchain:
+    required: true
+    default: 'true'
+runs:
+  using: "composite"
+  steps:
+    - name: Download workbench
+      uses: actions/download-artifact@v6
+      with:
+        name: workbench
+        path: /tmp/artifact-download
+    - name: Extract workbench
+      shell: bash
+      run: |
+        PARENT=$(dirname ${{ inputs.YSYX_HOME }})
+        mkdir -p $PARENT
+        cd $PARENT
+        tar -xzf /tmp/artifact-download/ysyx-workbench.tar.gz
+
+    - name: Cache oss-cad-suite
+      id: oss-cad-suite-cache
+      uses: actions/cache@v5
+      with:
+        path: oss-cad-suite
+        key: ${{ runner.os }}-oss-cad-suite-${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
+
+    - name: Download oss-cad-suite
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      if: steps.oss-cad-suite-cache.outputs.cache-hit != 'true'
+      run: |
+        TAG=${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
+        echo "oss-cad-suite cache missed. Downloading and extracting release $TAG"
+        ASSET_NAME=$(gh release view $TAG --repo YosysHQ/oss-cad-suite-build --json assets --jq ".assets[] | select(.name | contains(\"linux-x64\")) | .name")
+        gh release download $TAG --repo YosysHQ/oss-cad-suite-build --pattern "$ASSET_NAME"
+        tar xf $ASSET_NAME
+
+    - name: Install Mill
+      shell: bash
+      run: |
+        mkdir -p ~/.local/bin
+        MILL_VERSION=0.11.13
+        if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+          MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
+        fi
+        echo "Downloading mill with version $MILL_VERSION"
+        curl -L "https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION" -o ~/.local/bin/mill
+        chmod +x ~/.local/bin/mill
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Set environment variables
+      shell: bash
+      run: |
+        MONITOR_PY="$GITHUB_WORKSPACE/.github/monitor.py"
+        echo "MONITOR_PY=$MONITOR_PY" >> $GITHUB_ENV
+
+        YSYX_HOME=${{ inputs.YSYX_HOME }}
+        echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
+        echo "NEMU_HOME=$YSYX_HOME/nemu" >> $GITHUB_ENV
+        echo "AM_HOME=$YSYX_HOME/abstract-machine" >> $GITHUB_ENV
+        echo "NAVY_HOME=$YSYX_HOME/navy-apps" >> $GITHUB_ENV
+        echo "NPC_HOME=$YSYX_HOME/npc" >> $GITHUB_ENV
+        echo "NVBOARD_HOME=$YSYX_HOME/nvboard" >> $GITHUB_ENV
+
+        MAKEFLAGS=${{ inputs.MAKEFLAGS }}
+        echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_ENV
+
+        OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
+        echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
+
+      # TODO: 优化 apt 安装速度，缓存 /usr/bin 较为麻烦
+      # 考虑安装到 workspace 目录下缓存，或者使用 docker 镜像等
+    - name: Install RISC-V toolchain
+      shell: bash
+      if: inputs.install-toolchain == 'true'
+      run: |
+        sudo apt update
+        sudo apt install -y g++-riscv64-linux-gnu llvm llvm-dev
+        sudo sed -i -e '8d' /usr/riscv64-linux-gnu/include/gnu/stubs.h
+
+    - name: Install dependency for NVBoard
+      shell: bash
+      if: inputs.install-toolchain == 'true'
+      run: sudo apt install -y libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+
+    - name: Clone other repos
+      shell: bash
+      run: |
+        git config --global user.email "ci@ysyx.org"
+        git config --global user.name "ysyx-ci"
+        cd $YSYX_HOME
+        git clone --depth 1 -b ci https://github.com/NJU-ProjectN/am-kernels
+        git clone --depth 1 https://github.com/NJU-ProjectN/rt-thread-am
+
+        cd rt-thread-am
+        git am $YSYX_HOME/patch/rt-thread-am/*
+        cd $YSYX_HOME
+
+

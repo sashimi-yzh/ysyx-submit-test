@@ -1,0 +1,21 @@
+`verilator_config
+
+/*
+// Can be used to hierarchy block
+hier_block -module "AXI4Xbar"
+hier_block -module "APBGPIO"
+hier_block -module "APBKeyboard"
+hier_block -module "APBVGA"
+hier_block -module "bitrev" 
+*/
+
+// hier_block -module "ASIC"
+// hier_block -module "AXI4RAM"
+//  // hier_block -module "APBSDRAM"
+// hier_block -module "AXI4UserYanker"
+//  // hier_block -module "AXI4Fragmenter"
+// hier_block -module "flash"
+//  // hier_block -module "psram"
+//  // hier_block -module "sdram"
+// hier_block -module "ysyx_25100261"
+//no_inline -module "*"

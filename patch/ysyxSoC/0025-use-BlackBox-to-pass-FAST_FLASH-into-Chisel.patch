@@ -1,0 +1,86 @@
+From 6a105319e46dbf1ecd34fc0217d02d7ed087c170 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sun, 1 Mar 2026 00:21:47 +0800
+Subject: [PATCH 25/28] use BlackBox to pass FAST_FLASH into Chisel
+
+---
+ perip/spi/rtl/spi_top_apb.v | 16 +++++++++++++++-
+ src/Top.scala               |  1 -
+ src/device/SPI.scala        | 11 +++++++++--
+ 3 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d37516..4f36f0d6 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,18 @@
++/*verilator public_on*/
++/*verilator public_on*/
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-//`define FAST_FLASH
++// `define FAST_FLASH
++
++module EnFastFlashProvider(
++	output enFastFlash
++);
++`ifdef FAST_FLASH
++	assign enFastFlash = 1'b1;
++`else
++	assign enFastFlash = 1'b0;
++`endif
++endmodule
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+@@ -71,3 +83,5 @@ spi_top u0_spi_top (
+ `endif // FAST_FLASH
+ 
+ endmodule
++/*verilator public_off*/
++/*verilator public_off*/
+diff --git a/src/Top.scala b/src/Top.scala
+index 52a09489..5c882d56 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -9,7 +9,6 @@ object Config {
+   def hasChipLink: Boolean = false
+   def sdramUseAXI: Boolean = true
+   def DelayRatio: Float = sys.env.getOrElse("DELAY_RATIO", "10").toFloat
+-  def useFastFlash: Boolean = sys.env.getOrElse("USE_FAST_FLASH", "0") == "1"
+ }
+ 
+ class ysyxSoCTop extends Module {
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index 2b2ca053..ce7cedca 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -30,6 +30,13 @@ class flash extends BlackBox {
+   val io = IO(Flipped(new SPIIO(1)))
+ }
+ 
++class EnFastFlashProvider extends BlackBox {
++  val io = IO(new Bundle {
++    val enFastFlash = Output(Bool())
++  })
++}
++
++
+ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+     extends LazyModule {
+   val node = APBSlaveNode(
+@@ -119,9 +126,9 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+     val mspiReady = mspi.io.in.pready
+     val mspiRData = mspi.io.in.prdata
+ 
+-    val enFastFlash = Config.useFastFlash
++    val enFastFlash = Module(new EnFastFlashProvider).io.enFastFlash
+ 
+-    when(in.paddr >= 0x30000000.U && in.paddr < 0x40000000.U && (!enFastFlash).B) {
++    when(in.paddr >= 0x30000000.U && in.paddr < 0x40000000.U && (!enFastFlash)) {
+       mspi.io.in.psel := (!isIdle) && (!isDone) && (!currentCheckBusy)
+       mspi.io.in.penable := (~isSetupStage) && (!currentCheckBusy)
+       mspi.io.in.paddr := currentAddr
+-- 
+2.43.0
+

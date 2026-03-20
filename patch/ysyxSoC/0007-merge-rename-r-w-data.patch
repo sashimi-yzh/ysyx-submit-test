@@ -1,0 +1,116 @@
+From 76761bbc5f679a53ec295bdafe26f5fa6b2ab8b3 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Thu, 22 Jan 2026 09:36:07 +0800
+Subject: [PATCH 07/28] merge rename r/w data make addr and data reg no init
+
+---
+ src/device/PSRAM.scala | 33 +++++++++++++++++++++------------
+ 1 file changed, 21 insertions(+), 12 deletions(-)
+
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index 6dfdad90..9d16f143 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -42,6 +42,7 @@ class psramChisel extends RawModule {
+   object CMD {
+     val QIO_READ = "hEB".U(8.W)
+     val QIO_WRITE = "h38".U(8.W)
++    val ENTER_QPI = "h35".U(8.W)
+   }
+ 
+   object State extends ChiselEnum {
+@@ -55,8 +56,14 @@ class psramChisel extends RawModule {
+     val state = RegInit(State.readCmd)
+     val cnt = RegInit(0.U(3.W))
+     val cmdReg = RegInit(0.U(8.W))
++    val curCmd = WireDefault(0.U(8.W))
+ 
+-    val addrReg = RegInit(0.U(24.W))
++    val isQPIMode = RegInit(false.B)
++    when(cmdReg === CMD.ENTER_QPI) {
++      isQPIMode := true.B
++    }
++
++    val addrReg = Reg(UInt(24.W))
+     addr := addrReg
+ 
+     val isCmdRead = cmdReg === CMD.QIO_READ
+@@ -64,18 +71,18 @@ class psramChisel extends RawModule {
+ 
+     val readDelay = 6.U
+ 
+-    val rdData = RegInit(0.U(32.W))
+-    val wrDataRev = RegInit(0.U(32.W))
++    val data = Reg(UInt(32.W))
+ 
+     switch(state) {
+       is(State.readCmd) {
+         when(cnt === 7.U) {
+-          state := State.readAddr
++          state := Mux(curCmd === CMD.ENTER_QPI, State.readCmd, State.readAddr)
+           cnt := 0.U
+         }.otherwise {
+           cnt := cnt + 1.U
+         }
+-        cmdReg := Cat(cmdReg(6, 0), di(0))
++        curCmd := Cat(cmdReg(6, 0), di(0))
++        cmdReg := curCmd
+       }
+       is(State.readAddr) {
+         // 24b = 6*4
+@@ -84,7 +91,9 @@ class psramChisel extends RawModule {
+             state := State.waitDelay
+           }.otherwise {
+             state := State.readWData
+-            wrDataRev := 0.U
++            // use bit or to write new byte
++            // requires that data is initialized to 0
++            data := 0.U
+           }
+           cnt := 0.U
+         }.otherwise {
+@@ -98,7 +107,7 @@ class psramChisel extends RawModule {
+         when(cnt === readDelay - 1.U + 1.U) {
+           state := State.sendRData
+           cnt := 0.U
+-          rdData := RawUnclockedNonVoidFunctionCall("psram_read", UInt(32.W))(
++          data := RawUnclockedNonVoidFunctionCall("psram_read", UInt(32.W))(
+             true.B,
+             Cat(0.U(8.W), addrReg)
+           )
+@@ -126,7 +135,7 @@ class psramChisel extends RawModule {
+         //
+         val isSendByteLow = cnt(0)
+         val curByteOffset = cnt(2, 1) << 3
+-        val curByte = (rdData >> curByteOffset)(7, 0)
++        val curByte = (data >> curByteOffset)(7, 0)
+         dout := Mux(isSendByteLow, curByte(3, 0), curByte(7, 4))
+       }
+       is(State.readWData) {
+@@ -142,7 +151,7 @@ class psramChisel extends RawModule {
+             true.B,
+             Cat(0.U(8.W), addr),
+             "hF".U(8.W),
+-            wrDataRev
++            data
+           )
+         }.otherwise {
+           cnt := cnt + 1.U
+@@ -158,11 +167,11 @@ class psramChisel extends RawModule {
+         val curByteOffset = cnt(2, 1) << 3
+         nxtData := Mux(
+           isRecvByteLow,
+-          wrDataRev | (Cat(0.U(4.W), di) << curByteOffset),
+-          wrDataRev | (Cat(di, 0.U(4.W)) << curByteOffset)
++          data | (Cat(0.U(4.W), di) << curByteOffset),
++          data | (Cat(di, 0.U(4.W)) << curByteOffset)
+         )
+ 
+-        wrDataRev := nxtData
++        data := nxtData
+       }
+     }
+     dout_en := (state === State.sendRData)
+-- 
+2.43.0
+

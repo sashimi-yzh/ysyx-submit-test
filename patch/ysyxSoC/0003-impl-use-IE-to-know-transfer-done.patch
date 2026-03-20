@@ -1,0 +1,75 @@
+From cfa2c96c78567b045a920ee1ed35a7f700751e40 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Wed, 21 Jan 2026 14:27:34 +0800
+Subject: [PATCH 03/28] impl use IE to know transfer done
+
+---
+ src/device/SPI.scala | 28 +++++++++++++++++++---------
+ 1 file changed, 19 insertions(+), 9 deletions(-)
+
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index 456bc489..07526b12 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -63,6 +63,7 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+       val Tx1 = 0x10001004.U
+       val Rx1 = 0x10001004.U
+       val Ctrl = 0x10001010.U
++      val Div = 0x10001014.U
+       val SS = 0x10001018.U
+     }
+     case class ApbOp(
+@@ -74,11 +75,15 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+     val destAddr = RegInit(0.U(32.W))
+     val readDataReg = Reg(UInt(32.W))
+     val readFlashInst = Cat(0x3.U(8.W), destAddr(23, 0))
+-    // 64bit transfer
++
++    // IE
+     // go busy
+-    val spiCtrlValue = "b1_0100_0000".U(32.W)
++    // 64bit transfer
++    val spiCtrlValue = "b1_0001_0100_0000".U(32.W)
+ 
+     val ops = Seq(
++      // ApbOp(FlashRegAddr.Div, Some(114.U)),
++      ApbOp(FlashRegAddr.Ctrl, Some(0.U)),
+       ApbOp(FlashRegAddr.SS, Some(1.U)),
+       // write anything in read mode
+       // MSB first leading flash
+@@ -114,9 +119,9 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+     val mspiReady = mspi.io.in.pready
+     val mspiRData = mspi.io.in.prdata
+ 
+-    when(in.paddr >= 0x30000000.U && in.paddr < 0x40000000.U) {
+-      mspi.io.in.psel := !isIdle
+-      mspi.io.in.penable := ~isSetupStage
++    when(in.paddr >= 0x30000000.U && in.paddr < 0x40000000.U){
++      mspi.io.in.psel := (!isIdle)&&(!currentCheckBusy)
++      mspi.io.in.penable := (~isSetupStage)&&(!currentCheckBusy)
+       mspi.io.in.paddr := currentAddr
+       mspi.io.in.pwrite := currentIsWrite
+       mspi.io.in.pwdata := currentWriteData
+@@ -149,10 +154,15 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+             when(!currentIsWrite && !currentCheckBusy) {
+               readDataReg := mspiRData
+             }
+-
+-            val curDone = Mux(currentCheckBusy, ~mspiRData(8), true.B)
+-            step := Mux(curDone, step + 1.U, step)
+-            isSetupStage := curDone
++            step := step + 1.U
++            isSetupStage := true.B
++          }.otherwise{
++            // Interrupt signal is deasserted after a Read or Write to any register.
++            // so only when isCheckBusy need goto next step
++            when(mspi.io.spi_irq_out && currentCheckBusy){
++              step:=step+1.U
++              isSetupStage := true.B
++            }
+           }
+         }
+       }
+-- 
+2.43.0
+

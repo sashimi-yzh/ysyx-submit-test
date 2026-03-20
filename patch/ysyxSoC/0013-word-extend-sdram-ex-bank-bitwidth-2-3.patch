@@ -1,0 +1,289 @@
+From 94eb6952cd865b8fa5d4ebfaf86ce8ef40de6add Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sun, 25 Jan 2026 17:30:25 +0800
+Subject: [PATCH 13/28] word extend sdram (ex bank bitwidth 2->3)
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  11 +-
+ perip/sdram/sdram_top_apb.v                  |   4 +-
+ src/device/SDRAM.scala                       | 141 ++++++++++++-------
+ 3 files changed, 98 insertions(+), 58 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 5443bc10..9a5c1fb7 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -59,7 +59,7 @@ module sdram_axi_core
+     ,output          sdram_we_o
+     ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+-    ,output [  1:0]  sdram_ba_o
++    ,output [  2:0]  sdram_ba_o
+     ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+@@ -79,7 +79,8 @@ parameter SDRAM_READ_LATENCY     = 2;
+ //-----------------------------------------------------------------
+ // Defines / Local params
+ //-----------------------------------------------------------------
+-localparam SDRAM_BANK_W          = 2;
++// localparam SDRAM_BANK_W          = 2;
++localparam SDRAM_BANK_W          = 3;
+ // localparam SDRAM_DQM_W           = 2;
+ localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+@@ -184,8 +185,10 @@ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
+ wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
+-wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+-wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++// wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
++// wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+SDRAM_BANK_W+1];
++wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+SDRAM_BANK_W:SDRAM_COL_W+1];
+ 
+ //-----------------------------------------------------------------
+ // SDRAM State Machine
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 5fb16c8f..11782a28 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -21,7 +21,7 @@ module sdram_top_apb (
+   output        sdram_cas,
+   output        sdram_we,
+   output [12:0] sdram_a,
+-  output [ 1:0] sdram_ba,
++  output [ 2:0] sdram_ba,
+   output [ 3:0] sdram_dqm,
+   inout  [31:0] sdram_dq
+ );
+@@ -49,7 +49,7 @@ module sdram_top_apb (
+   wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
+   sdram_axi_core #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(1)
+   ) u_sdram_ctrl(
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index e3da13e8..b7f44875 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -12,7 +12,7 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ import chisel3.util.circt.dpi._
+ 
+-class SDRAMIO(dqWidth:Width=32.W) extends Bundle {
++class SDRAMIO(dqWidth: Width = 32.W, baWidth: Width = 3.W) extends Bundle {
+   val clk = Output(Bool())
+   val cke = Output(Bool())
+   val cs = Output(Bool())
+@@ -20,7 +20,7 @@ class SDRAMIO(dqWidth:Width=32.W) extends Bundle {
+   val cas = Output(Bool())
+   val we = Output(Bool())
+   val a = Output(UInt(13.W))
+-  val ba = Output(UInt(2.W))
++  val ba = Output(UInt(baWidth))
+   val dqm = Output(UInt(4.W))
+   val dq = Analog(dqWidth)
+ }
+@@ -52,46 +52,92 @@ class sdram extends BlackBox {
+   val io = IO(Flipped(new SDRAMIO))
+ }
+ 
++  object CMD {
++    val NOP = "b111".U(3.W)
++    val ACTIVE = "b011".U(3.W)
++    val READ = "b101".U(3.W)
++    val WRITE = "b100".U(3.W)
++    val BURST_STOP = "b110".U(3.W)
++    val PRECHARGE = "b010".U(3.W)
++    val REFRESH = "b001".U(3.W)
++    val LOAD_MODE = "b000".U(3.W)
++  }
++
++// bit extension to 32 bits
++// word extension:
++//  extend row address +1 bit
+ class sdramChisel extends RawModule {
+   val io = IO(Flipped(new SDRAMIO(32.W)))
+   dontTouch(io)
+-  val block0 = Module(new sdramChiselBlock(0))
+-  val block1 = Module(new sdramChiselBlock(1))
+ 
+   val dout = WireDefault(0.U(32.W))
+   val dout_en = WireDefault(false.B)
+   val di = TriStateInBuf(io.dq, dout, dout_en)
+ 
+-  block0.io.clk := io.clk
+-  block0.io.cke := io.cke
+-  block0.io.cs := io.cs
+-  block0.io.ras := io.ras
+-  block0.io.cas := io.cas
+-  block0.io.we := io.we
+-  block0.io.a := io.a
+-  block0.io.ba := io.ba
+-  block0.io.dqm := io.dqm(1,0)
+-
+-  block0.dataio.din := di(15,0)
+-  val block0_dout = block0.dataio.dout
+-  val block0_dout_en = block0.dataio.dout_en
+-
+-  block1.io.clk := io.clk
+-  block1.io.cke := io.cke
+-  block1.io.cs := io.cs
+-  block1.io.ras := io.ras
+-  block1.io.cas := io.cas
+-  block1.io.we := io.we
+-  block1.io.a := io.a
+-  block1.io.ba := io.ba
+-  block1.io.dqm := io.dqm(3,2)
+-
+-  block1.dataio.din := di(31,16)
+-  val block1_dout = block1.dataio.dout
+-  val block1_dout_en = block1.dataio.dout_en
+-
+-  dout := Cat(block1_dout, block0_dout)
+-  dout_en := block0_dout_en || block1_dout_en
++  def connectExceptDQ(from: SDRAMIO, to: SDRAMIO, en: Bool): Unit = {
++    to.clk := from.clk
++    to.cke := from.cke
++    to.cs := Mux(en, from.cs, true.B)
++    to.ras := from.ras
++    to.cas := from.cas
++    to.we := from.we
++    to.a := from.a
++    to.ba := from.ba(1, 0)
++  }
++
++  class BitExtenedBlock(block: Int = 0) extends RawModule {
++    val io = IO(Flipped(new SDRAMIO(32.W, 2.W)))
++    val dataio = IO(new Bundle {
++      val dout = Output(UInt(32.W))
++      val dout_en = Output(Bool())
++      val din = Input(UInt(32.W))
++    })
++    val en = IO(Input(Bool()))
++
++    val blockLo = Module(new sdramChiselBlock(block))
++    val blockHi = Module(new sdramChiselBlock(block + 1))
++
++    connectExceptDQ(io, blockLo.io,en)
++    blockLo.io.dqm := io.dqm(1, 0)
++    blockLo.dataio.din := dataio.din(15, 0)
++
++    connectExceptDQ(io, blockHi.io,en)
++    blockHi.io.dqm := io.dqm(3, 2)
++    blockHi.dataio.din := dataio.din(31, 16)
++
++    dataio.dout := Cat(blockHi.dataio.dout, blockLo.dataio.dout)
++    dataio.dout_en := (blockHi.dataio.dout_en | blockLo.dataio.dout_en)
++  }
++
++  val exBlock0 = Module(new BitExtenedBlock(0))
++  val exBlock1 = Module(new BitExtenedBlock(2))
++
++  val cmd = Wire(UInt(3.W))
++  dontTouch(cmd)
++  cmd := Mux(io.cs === false.B, io.ras ## io.cas ## io.we, "b111".U(3.W))
++
++  val enBlock0 = WireDefault(false.B)
++  val enBlock1 = WireDefault(false.B)
++  dontTouch(enBlock0)
++  dontTouch(enBlock1)
++
++  enBlock0 := (io.ba(2) === 0.U)||(cmd === CMD.LOAD_MODE)
++  enBlock1 := (io.ba(2) === 1.U)||(cmd === CMD.LOAD_MODE)
++
++  connectExceptDQ(io, exBlock0.io, enBlock0)
++  exBlock0.en := enBlock0
++  exBlock0.dataio.din := di
++  exBlock0.io.dqm := io.dqm
++  connectExceptDQ(io, exBlock1.io, enBlock1)
++  exBlock1.en := enBlock1
++  exBlock1.dataio.din := di
++  exBlock1.io.dqm := io.dqm
++
++  dout := Mux(exBlock0.dataio.dout_en, exBlock0.dataio.dout, exBlock1.dataio.dout)
++  // when reading from both blocks
++  // ba only valid 1 cycle when sending command
++  // 
++  dout_en := exBlock1.dataio.dout_en || exBlock0.dataio.dout_en
+ }
+ 
+ // MT48LC16M16A2
+@@ -100,10 +146,12 @@ class sdramChisel extends RawModule {
+ // Bank addressing: 4 B[1:0]
+ // Column addressing: 512 A[8:0]
+ //
+-// one block dq: 16 bits
++// one block
++// dq: 16 bits
++// a: 13 bits
+ //
+-class sdramChiselBlock(block:Int=0) extends RawModule {
+-  val io = IO(Flipped(new SDRAMIO(16.W)))
++class sdramChiselBlock(block: Int = 0) extends RawModule {
++  val io = IO(Flipped(new SDRAMIO(16.W, 13.W)))
+ 
+   val dataio = IO(new Bundle {
+     val dout = Output(UInt(16.W))
+@@ -123,16 +171,6 @@ class sdramChiselBlock(block:Int=0) extends RawModule {
+ 
+   val InvalidValue = "hcccc".U(16.W)
+ 
+-  object CMD {
+-    val NOP = "b111".U(3.W)
+-    val ACTIVE = "b011".U(3.W)
+-    val READ = "b101".U(3.W)
+-    val WRITE = "b100".U(3.W)
+-    val BURST_STOP = "b110".U(3.W)
+-    val PRECHARGE = "b010".U(3.W)
+-    val REFRESH = "b001".U(3.W)
+-    val LOAD_MODE = "b000".U(3.W)
+-  }
+ 
+   val cmd = Wire(UInt(3.W))
+   dontTouch(cmd)
+@@ -153,7 +191,7 @@ class sdramChiselBlock(block:Int=0) extends RawModule {
+   withClockAndReset(io.clk.asClock, false.B) {
+     when(cmd === CMD.LOAD_MODE) { mode := io.a(11, 0) }
+ 
+-    val row = Reg(Vec(4,UInt(13.W)))
++    val row = Reg(Vec(4, UInt(13.W)))
+     val bank = Reg(UInt(2.W))
+     val col = Reg(UInt(9.W))
+ 
+@@ -174,8 +212,8 @@ class sdramChiselBlock(block:Int=0) extends RawModule {
+     val rData = RawUnclockedNonVoidFunctionCall(
+       "sdram_read",
+       UInt(16.W),
+-      Some(Seq("block","bank", "row", "col"))
+-    )(enReadCall, block.U(8.W),bank.pad(8), row(bank).pad(16), col.pad(16))
++      Some(Seq("block", "bank", "row", "col"))
++    )(enReadCall, block.U(8.W), bank.pad(8), row(bank).pad(16), col.pad(16))
+ 
+     val wData = WireDefault(InvalidValue)
+     val enWriteCall = WireDefault(false.B)
+@@ -195,7 +233,7 @@ class sdramChiselBlock(block:Int=0) extends RawModule {
+     dontTouch(enWriteCall)
+     RawClockedVoidFunctionCall(
+       "sdram_write",
+-      Some(Seq("block","bank", "row", "col", "data", "mask"))
++      Some(Seq("block", "bank", "row", "col", "data", "mask"))
+     )(
+       io.clk.asClock,
+       enWriteCall,
+@@ -241,7 +279,6 @@ class sdramChiselBlock(block:Int=0) extends RawModule {
+   }
+ }
+ 
+-
+ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters)
+     extends LazyModule {
+   val beatBytes = 4
+-- 
+2.43.0
+

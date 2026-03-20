@@ -1,0 +1,78 @@
+Perf Counters Report
+Git commit: c46e1282ee3dc09e5e9e07be55c8a6f067c87540
+
+Statistics:
+cycle and instruction counts:
+  total cycle count: 5777203285
+  total instruction count: 259281068
+  IPC: 0.0449
+  CPI: 22.2816
+handshake counts:
++-----------------+-----------------+------------+
+|   Description   | Handshake Count |  Frequency |
++-----------------+-----------------+------------+
+|  IFU fetch inst |       365527491 |  0.0632707 |
+|   EXU load data |        16654208 | 0.00288275 |
+| IDU decode inst |       259281069 |    0.04488 |
++-----------------+-----------------+------------+
+AXI4 Performance Counters Statistics:
++---------------+--------------+------------+---------+---------+------------+
+|      Name     | Transactions |    Total   |   Avg   |   Max   |  Max Start |
+|               |              |   Cycles   | Latency | Latency | (sim time) |
++---------------+--------------+------------+---------+---------+------------+
+|  lsu_mem_read |     16654185 | 1314541548 | 78.9316 |    3655 |      83150 |
+|  ifu_mem_read |    194199447 | 5332412561 | 27.4584 |    3658 |      88024 |
+| lsu_mem_write |      8247985 |  221180327 | 26.8163 |    1227 |      24484 |
++---------------+--------------+------------+---------+---------+------------+
+Pipeline Performance Counter Statistics:
++-------+--------------+------------+-----------+--------------+---------+---------+
+| Stage | Backpressure |   Bubble   |    Fire   | Backpressure |  Bubble |   Fire  |
+|       |    Cycles    |   Cycles   |   Cycles  |       %      |    %    |    %    |
++-------+--------------+------------+-----------+--------------+---------+---------+
+|   IFU |    748458557 | 4663217207 | 365527491 |      12.9554 | 80.7176 | 6.32707 |
+|   IDU |    667661825 | 4850260361 | 259281069 |      11.5568 | 83.9552 |   4.488 |
+|   EXU |   1535721808 | 3982200378 | 259281069 |      26.5824 | 68.9296 |   4.488 |
+|   LSU |            0 | 5517922186 | 259281069 |            0 |  95.512 |   4.488 |
++-------+--------------+------------+-----------+--------------+---------+---------+
+RAW Stall Performance Counter Statistics:
+total RAW stall cycles: 551344849 (9.54346 %)
++--------------+--------------+----------+-----------------+
+|    Reason    | Stall Cycles |  Stall % |     Stall %     |
+|              |              | (in tot) | (in all stalls) |
++--------------+--------------+----------+-----------------+
+| EXU conflict |     78597704 |  1.36048 |         14.2556 |
+| LSU conflict |    519051626 |  8.98448 |         94.1428 |
+| WBU conflict |      7755658 | 0.134246 |         1.40668 |
++--------------+--------------+----------+-----------------+
+IDU Flush Performance Counter Statistics:
+total IDU flush cycles: 2296748221 (39.7554 %)
++-------------+------------+----------+------------------+
+|    Reason   |    Flush   |  Flush % |      Flush %     |
+|             |   Cycles   | (in tot) | (in all flushes) |
++-------------+------------+----------+------------------+
+| BranchTaken | 1644687333 |  28.4686 |          71.6094 |
+|        JALR |  236312738 |  4.09043 |           10.289 |
+|         JAL |  415748150 |  7.19636 |          18.1016 |
+|   Exception |          0 |        0 |                0 |
+|     Unknown |          0 |        0 |                0 |
++-------------+------------+----------+------------------+
+Branch Prediction Performance Counter Statistics:
+total branch count: 81086533
+total mispredict count: 45055492
+total accuracy count: 36031041
+accuracy: 44.4353 %
+mispredict rate: 55.5647 %
++-----------+----------+------------+----------+----------+--------------+
+|    Type   |   Total  | Mispredict | Accuracy |  Count % | Mispredict % |
+|           |   Count  |    Count   |     %    | (in tot) |   (in tot)   |
++-----------+----------+------------+----------+----------+--------------+
+|    Branch | 75202704 |   40667934 |  45.9222 |  92.7438 |      50.1537 |
+|       JAL |  3206876 |    2720876 |  15.1549 |  3.95488 |      3.35552 |
+|      JALR |  2676953 |    1666682 |  37.7396 |  3.30135 |      2.05544 |
+| Exception |        0 |          0 |      nan |        0 |            0 |
++-----------+----------+------------+----------+----------+--------------+
+Cache Performance Counter Statistics:
+hit rate: 310971761 / 365527492 = 85.0748 %
+average hit access cycles: 0
+average miss access cycles: 64.743
+AMAT : 9.66303

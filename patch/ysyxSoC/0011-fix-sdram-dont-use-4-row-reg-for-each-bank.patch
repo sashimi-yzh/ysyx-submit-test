@@ -1,0 +1,60 @@
+From be4153cb7b791b39a4d31b73b06ec01e47804f59 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sat, 24 Jan 2026 20:38:39 +0800
+Subject: [PATCH 11/28] fix sdram dont use 4 row reg for each bank
+
+---
+ src/device/SDRAM.scala | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index 9ebf9107..f867af6f 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -96,14 +96,14 @@ class sdramChisel extends RawModule {
+   withClockAndReset(io.clk.asClock, false.B) {
+     when(cmd === CMD.LOAD_MODE) { mode := io.a(11, 0) }
+ 
+-    val row = Reg(UInt(13.W))
++    val row = Reg(Vec(4,UInt(13.W)))
+     val bank = Reg(UInt(2.W))
+     val col = Reg(UInt(9.W))
+ 
+     val state = Reg(State())
+ 
+     when(cmd === CMD.ACTIVE) {
+-      row := io.a(12, 0)
++      row(io.ba) := io.a(12, 0)
+       bank := io.ba
+     }
+     when(cmd === CMD.READ || cmd === CMD.WRITE) {
+@@ -130,7 +130,7 @@ class sdramChisel extends RawModule {
+       "sdram_read",
+       UInt(16.W),
+       Some(Seq("bank", "row", "col"))
+-    )(enReadCall, bank.pad(8), row.pad(16), col.pad(16))
++    )(enReadCall, bank.pad(8), row(bank).pad(16), col.pad(16))
+ 
+     val wData = WireDefault(InvalidValue)
+     val enWriteCall = WireDefault(false.B)
+@@ -139,6 +139,8 @@ class sdramChisel extends RawModule {
+     val wBank = Wire(UInt(2.W))
+     dontTouch(wBank)
+     val inCount = Wire(UInt(3.W))
++    val wRow = WireInit(row(wBank))
++    dontTouch(wRow)
+     // TODO: support burst write
+     inCount := Mux(state === State.recvWData, 1.U, 0.U)
+ 
+@@ -153,7 +155,7 @@ class sdramChisel extends RawModule {
+       io.clk.asClock,
+       enWriteCall,
+       wBank.pad(8),
+-      row.pad(16),
++      row(wBank).pad(16),
+       wCol,
+       wData.pad(16),
+       io.dqm.pad(8)
+-- 
+2.43.0
+

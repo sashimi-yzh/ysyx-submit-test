@@ -1,0 +1,47 @@
+From 2ddcfaa1b86853c03cf65c9e28d737e213c36815 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sun, 1 Mar 2026 00:22:25 +0800
+Subject: [PATCH 26/28] fix using old default ratio
+
+---
+ src/amba/AXI4Delayer.scala | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index a48c722c..f3e8796e 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -26,7 +26,7 @@ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
+-class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
++class DelayCounter(val ratio: Double, val scale: Int = 32)
+     extends Module {
+   val io = IO(new Bundle {
+     val start = Input(Bool())
+@@ -116,7 +116,7 @@ class AXI4DelayerChisel extends Module {
+ 
+     // Read
+ 
+-    val rdDelayCtr = Module(new DelayCounter())
++    val rdDelayCtr = Module(new DelayCounter(ratio))
+ 
+     object DelayState extends ChiselEnum {
+       val idle, waitReady, waitDelay = Value
+@@ -207,9 +207,9 @@ class AXI4DelayerChisel extends Module {
+       "AXI4DelayerChisel write only supports len=0"
+     )
+ 
+-    val awDelayCtr = Module(new DelayCounter())
+-    val wDelayCtr = Module(new DelayCounter())
+-    val bDelayCtr = Module(new DelayCounter())
++    val awDelayCtr = Module(new DelayCounter(ratio))
++    val wDelayCtr = Module(new DelayCounter(ratio))
++    val bDelayCtr = Module(new DelayCounter(ratio))
+ 
+     val awState =
+       makeDelayState(io.in.aw.valid, io.out.aw.ready, awDelayCtr.io.delayDone)
+-- 
+2.43.0
+

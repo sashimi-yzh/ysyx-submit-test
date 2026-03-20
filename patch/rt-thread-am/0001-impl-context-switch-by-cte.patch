@@ -1,0 +1,100 @@
+From 706850d22b90eda45a3eaedecd8b6be068fc3962 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Thu, 20 Nov 2025 18:01:24 +0800
+Subject: [PATCH 1/7] impl context switch by cte
+
+---
+ bsp/abstract-machine/.gitignore    |  3 ++
+ bsp/abstract-machine/src/context.c | 48 ++++++++++++++++++++++++++----
+ 2 files changed, 45 insertions(+), 6 deletions(-)
+
+diff --git a/bsp/abstract-machine/.gitignore b/bsp/abstract-machine/.gitignore
+index 27ab723..1c132cb 100644
+--- a/bsp/abstract-machine/.gitignore
++++ b/bsp/abstract-machine/.gitignore
+@@ -1,2 +1,5 @@
+ rtconfig.h
+ files.mk
++compile_commands.json
++.cache
++*.swp
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829..73e1c02 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,30 +2,66 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++static rt_ubase_t g_arg_from, g_arg_to;
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++		case EVENT_YIELD:
++			{
++				if(g_arg_from!=0){
++					*(void**)g_arg_from=c;
++				}
++				c=*(Context**)g_arg_to;
++				break;
++			}
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+ 
++
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++	g_arg_from = from;
++	g_arg_to = to;
++	yield();
++}
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++	rt_hw_context_switch(0, to);
+ }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
+-}
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++typedef struct{
++	void* tentry;
++	void* parameter;
++	void* texit;
++}entry_arg_t;
++
++static void wrap_entry(void *_varg){
++	entry_arg_t *arg=(entry_arg_t*)_varg;
++	void* (*entry)(void*)=(void*(*)(void*))arg->tentry;
++	void* parameter=arg->parameter;
++	void(*texit)(void)=arg->texit;
++
++	entry(parameter);
++	texit();
++}
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++	uintptr_t stk=(uintptr_t)stack_addr;
++	stk=stk-stk%sizeof(uintptr_t);
++
++	entry_arg_t *arg=(entry_arg_t*)(stk-sizeof(entry_arg_t));
++	arg->tentry=tentry;
++	arg->parameter=parameter;
++	arg->texit=texit;
++	stk-=sizeof(entry_arg_t);
++
++	return (rt_uint8_t*)kcontext((Area){0,(void*)stk},wrap_entry,arg);
+ }
+-- 
+2.43.0
+

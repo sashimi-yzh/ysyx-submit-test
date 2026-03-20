@@ -1,0 +1,531 @@
+name: Auto-test Workflow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'npc/**'
+      - 'patch/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      comment:
+        description: '注释 (可为空)'
+        required: false
+        default: ''
+
+run-name: >-
+  ${{
+    github.event_name == 'push' && github.event.head_commit.message ||
+    github.event_name == 'pull_request' && github.event.pull_request.title ||
+    github.event.inputs.comment != '' && github.event.inputs.comment ||
+    'Manual trigger'
+  }}
+
+permissions:
+  issues: write
+
+env:
+  OSS_CAD_SUITE_RELEASE_TAG: 2025-11-24
+
+jobs:
+  setup:
+    runs-on: ubuntu-22.04
+    outputs:
+      STUID:     ${{ steps.check-stuid.outputs.STUID }}
+      YSYX_HOME: ${{ steps.set-ysyx-home.outputs.YSYX_HOME }}
+      VFILE:     ${{ steps.vfilename.outputs.VFILE }}
+      MAKEFLAGS: ${{ steps.set-env.outputs.MAKEFLAGS }}
+    steps:
+      - name: Set Git user and email
+        run: |
+          git config --global user.email "ci@ysyx.org"
+          git config --global user.name "ysyx-ci"
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Show current branch
+        run: |
+          git branch --show-current
+
+      - name: Set YSYX_HOME
+        id: set-ysyx-home
+        run: |
+          YSYX_HOME=$(pwd)
+          echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_ENV
+          echo "YSYX_HOME=$YSYX_HOME" >> $GITHUB_OUTPUT
+
+      - name: Check student ID
+        id: check-stuid
+        run: |
+          cd $YSYX_HOME
+          stuid=$(grep -E -o "STUID = ysyx_[0-9]{8}" Makefile)
+          if [[ $stuid == "" ]]; then
+            echo "Missing STUID in Makefile (format: STUID = ysyx_XXXXXXXX). Abort."
+            false
+          fi
+          STUID=$(echo $stuid | grep -E -o "[0-9]{8}$")
+          echo "STUID=$STUID" >> $GITHUB_ENV
+          echo "STUID=$STUID" >> $GITHUB_OUTPUT
+
+      - name: Set environment variables
+        id: set-env
+        run: |
+          cd $YSYX_HOME
+          NEMU_HOME="`pwd`/nemu"
+          AM_HOME="`pwd`/abstract-machine"
+          NAVY_HOME="`pwd`/navy-apps"
+          NPC_HOME="`pwd`/npc"
+          NVBOARD_HOME="`pwd`/nvboard"
+
+          echo "NEMU_HOME=$NEMU_HOME" >> $GITHUB_ENV
+          echo "AM_HOME=$AM_HOME" >> $GITHUB_ENV
+          echo "NAVY_HOME=$NAVY_HOME" >> $GITHUB_ENV
+          echo "NPC_HOME=$NPC_HOME" >> $GITHUB_ENV
+          echo "NVBOARD_HOME=$NVBOARD_HOME" >> $GITHUB_ENV
+
+          MAKEFLAGS="-j`nproc`"
+          echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_ENV
+          echo "MAKEFLAGS=$MAKEFLAGS" >> $GITHUB_OUTPUT
+
+      - name: Check the version of AM
+        run: |
+          if [[ ! -e $AM_HOME/tools/insert-arg.py ]] ; then
+            URL="https://github.com/NJU-ProjectN/abstract-machine/commit/c52a41181f8ea5d0e970008e51f58867a3ce65bb"
+            echo "$AM_HOME/tools/insert-arg.py does not exist. Abort."
+            echo "You may use AM with the version older than May, 2024."
+            echo "Please refer to $URL to apply the patch to AM. After that, the CI flow can insert mainargs to the binary by the python script."
+            false
+          fi
+
+          sed -i -e 's/MAINARGS_PLACEHOLDER = .*/MAINARGS_PLACEHOLDER = the_insert-arg_rule_in_Makefile_will_insert_mainargs_here/' $AM_HOME/scripts/platform/npc.mk
+
+      - name: Disable git tracer
+        run: |
+          cd $YSYX_HOME
+          echo ".git_commit:" >> Makefile
+          echo -e "\t@echo git tracer is disabled" >> Makefile
+
+      - name: Check patch size
+        run: |
+          SIZE=`du -sb $YSYX_HOME/patch | grep -o '^[0-9]*'`
+          SIZE_LIMIT=1048576 # 1MB
+          if [[ $SIZE -gt $SIZE_LIMIT ]] ; then
+            echo "Patch size($SIZE) is larger than the limit($SIZE_LIMIT)."
+            false
+          fi
+
+      - name: Setup tools
+        run: |
+          mkdir -p ~/.local/bin
+          MILL_VERSION=0.11.13
+          if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+            MILL_VERSION=`cat $YSYX_HOME/npc/.mill-version`
+          fi
+          echo "Downloading mill with version $MILL_VERSION"
+          sh -c "curl -L https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION > ~/.local/bin/mill && chmod +x ~/.local/bin/mill"
+
+      - name: Get ysyxSoC tag
+        id: soc-tag
+        run: |
+          SOC_REV=$(git ls-remote https://github.com/OSCPU/ysyxSoC.git ysyx6 | cut -f1)
+          echo "tag=$SOC_REV" >> $GITHUB_OUTPUT
+
+      - name: Cache ysyxSoC verilog
+        id: soc-verilog-cache
+        uses: actions/cache@v5
+        with:
+          path: ysyxSoC-verilog
+          key: ${{ runner.os }}-soc-verilog-${{ steps.check-stuid.outputs.STUID }}-${{ steps.soc-tag.outputs.tag }}-${{ hashFiles('patch/ysyxSoC/*') }}
+
+      - name: Cache inited ysyxSoC
+        id: soc-cache
+        if: steps.soc-verilog-cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v5
+        with:
+          path: ysyxSoC-inited
+          key: ${{ runner.os }}-soc-inited-${{ steps.soc-tag.outputs.tag }}
+
+      - name: Init ysyxSoC
+        if: steps.soc-verilog-cache.outputs.cache-hit != 'true' && steps.soc-cache.outputs.cache-hit != 'true'
+        run: |
+          echo "No inited ysyxSoC cache. Cloning and initializing ..."
+
+          git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC ysyxSoC-inited
+          # 代替原先的 sed 修改 .gitmodules, 有学员的 patch 中修改了 .gitmodules
+          # 现在的流程中 soc 的初始化在 patch 之前，需要保证之后能正常 apply patch
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          cd ysyxSoC-inited
+          make dev-init
+          mill __.compile
+
+      - name: Patch ysyxSoC
+        run: |
+          if [[ "${{ steps.soc-verilog-cache.outputs.cache-hit }}" != "true" ]]; then
+            mkdir -p $YSYX_HOME/ysyxSoC/
+            cp -a ysyxSoC-inited/. $YSYX_HOME/ysyxSoC/
+          else
+            cd $YSYX_HOME
+            # 命中生成结果，不需要初始化的缓存，直接克隆不传递初始化的缓存
+            git clone --depth 1 -b ysyx6 https://github.com/OSCPU/ysyxSoC
+          fi
+          cd $YSYX_HOME/ysyxSoC
+          git am $YSYX_HOME/patch/ysyxSoC/*
+
+      - name: Clone other repos
+        run: |
+          cd $YSYX_HOME
+          git clone --depth 1 -b no-gui https://github.com/NJU-ProjectN/nvboard
+
+      - name: Clean up
+        run: |
+          make -C $NEMU_HOME clean
+          make -C $AM_HOME clean-all
+          make -C $NPC_HOME clean
+
+        # TODO: 考虑优化使用 Chisel 的学员生成 verilog 的流程
+      - name: Generate verilog for NPC
+        run: |
+          touch $NPC_HOME/.timestamp
+          make -C $NPC_HOME verilog
+
+      - name: Check verilog file name
+        id: vfilename
+        run: |
+          FILE_SV=$NPC_HOME/build/ysyx_$STUID.sv
+          FILE_V=$NPC_HOME/build/ysyx_$STUID.v
+          if [[ -f $FILE_SV ]]; then
+            echo "Find $FILE_SV"
+            VFILE=$FILE_SV
+          elif [[ -f $FILE_V ]]; then
+            echo "Find $FILE_V"
+            VFILE=$FILE_V
+          else
+            echo "$FILE_SV or $FILE_V does not exist. Abort."
+            false
+          fi
+
+          if [[ $NPC_HOME/.timestamp -nt $VFILE ]]; then
+            echo "$VFILE is older than .timestamp. Abort."
+            false
+          fi
+
+          echo "VFILE=$VFILE" >> $GITHUB_OUTPUT
+
+      - name: Check verilog top module name
+        run: |
+          VFILE=${{ steps.vfilename.outputs.VFILE }}
+          STR=`cat $VFILE | tr '\n' ' ' | grep -E "module\s+ysyx_$STUID" 2> /dev/null`
+          if [[ $STR == "" ]]; then
+            echo "Can not find module ysyx_$STUID in $VFILE. Abort."
+            false
+          fi
+
+      - name: Check verilog clock edge
+        run: |
+          VFILE=${{ steps.vfilename.outputs.VFILE }}
+          if grep "negedge" $VFILE; then
+            echo "$VFILE contains negedge. Abort."
+            false
+          fi
+
+      - name: Generate verilog for ysyxSoC
+        run: |
+          CACHED_SOC_VERILOG_DIR=`pwd`/ysyxSoC-verilog
+          if [[ "${{ steps.soc-verilog-cache.outputs.cache-hit }}" == "true" ]]; then
+            mkdir -p $YSYX_HOME/ysyxSoC/build
+            cp -a $CACHED_SOC_VERILOG_DIR/. $YSYX_HOME/ysyxSoC/build
+            if [[ ! -f $YSYX_HOME/ysyxSoC/build/ysyxSoCFull.v ]]; then
+              echo "Cached verilog file does not exist. Abort."
+              false
+            fi
+          else
+            make -C $YSYX_HOME/ysyxSoC verilog
+            mkdir -p $CACHED_SOC_VERILOG_DIR
+            cp -a $YSYX_HOME/ysyxSoC/build/. $CACHED_SOC_VERILOG_DIR
+          fi
+
+      - name: Upload verilog file
+        uses: actions/upload-artifact@v6
+        with:
+          name: verilog
+          path: ${{ steps.vfilename.outputs.VFILE }}
+
+      - name: Pack workbench
+        run: |
+          PARENT=$(dirname $YSYX_HOME)
+          BASENAME=$(basename $YSYX_HOME)
+          mkdir -p /tmp/artifact-upload
+          cd $PARENT
+          tar -czf /tmp/artifact-upload/ysyx-workbench.tar.gz \
+            --exclude="$BASENAME/.git" \
+            --exclude="$BASENAME/oss-cad-suite" \
+            --exclude="$BASENAME/ysyxSoC-inited" \
+            --exclude="$BASENAME/ysyxSoC-verilog" \
+            $BASENAME
+      - name: Upload workbench
+        uses: actions/upload-artifact@v6
+        with:
+          name: workbench
+          path: /tmp/artifact-upload/
+          retention-days: 1
+
+  hello:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: hello
+        run: |
+          KEY=$(head -c 5 /dev/urandom | base32)
+          python $MONITOR_PY --middle="Hello, AbstractMachine!" --good=$KEY make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/kernels/hello run mainargs=$KEY
+
+  cpu-tests:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: cpu-tests
+        run: |
+          make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run ALL=dummy
+          make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/tests/cpu-tests run
+
+  riscv-tests:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: riscv-tests
+        run: |
+          git clone --depth 1 https://github.com/NJU-ProjectN/riscv-tests-am
+          make ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i ALL=auipc
+          make ARCH=riscv32e-ysyxsoc -C riscv-tests-am run TEST_ISA=i
+
+  riscv-arch-test:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: riscv-arch-test
+        run: |
+          git clone --depth 1 https://github.com/NJU-ProjectN/riscv-arch-test-am
+          make ARCH=riscv32e-npc -C riscv-arch-test-am run TEST_ISA=E ALL=add-01
+          make ARCH=riscv32e-npc -C riscv-arch-test-am run TEST_ISA="E Zifencei"
+
+  microbench:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: microbench
+        run: |
+          KEY=$(head -c 5 /dev/urandom | base32)
+          python $MONITOR_PY --good="$KEY" make ARCH=riscv32e-ysyxsoc -C $YSYX_HOME/am-kernels/benchmarks/microbench run mainargs=$KEY
+
+  rt-thread:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: Install dependency
+        run: sudo apt install -y scons
+
+      - name: rt-thread
+        run: |
+          cd $YSYX_HOME/rt-thread-am/bsp/abstract-machine
+          make ARCH=riscv32e-ysyxsoc init
+          KEY=$(head -c 5 /dev/urandom | base32)
+          python $MONITOR_PY --good=$KEY make ARCH=riscv32e-ysyxsoc run
+
+  iverilog-microbench:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: compile microbench
+        run: |
+          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench mainargs=the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
+
+      - name: run microbench with iverilog
+        run: |
+          make -C $NPC_HOME clean
+          KEY=$(head -c 5 /dev/urandom | base32)
+          IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
+          python $AM_HOME/tools/insert-arg.py $IMG 64 the_insert-arg_rule_in_Makefile_will_insert_mainargs_here $KEY
+          python $MONITOR_PY --good=$KEY make -C $NPC_HOME sim-iverilog IMG=$IMG
+
+  yosys-sta:
+    needs: setup
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+          install-toolchain: 'false'
+
+      - name: Install dependency
+        run: |
+          sudo apt install -y libunwind-dev liblzma-dev
+
+      - name: Clone yosys-sta
+        run: |
+          git clone -b ci https://github.com/OSCPU/yosys-sta
+          cd yosys-sta
+          make init
+          echo exit | ./bin/iEDA -v
+
+      - name: Generate Verilog
+        run: |
+          make -C $NPC_HOME verilog
+
+      - name: Set environment variables
+        run: |
+          echo "STUID=${{ needs.setup.outputs.STUID }}" >> $GITHUB_ENV
+          echo "VFILE=${{ needs.setup.outputs.VFILE }}" >> $GITHUB_ENV
+
+      - name: Run STA
+        run: |
+          make -C yosys-sta sta DESIGN=ysyx_$STUID CLK_FREQ_MHZ=500 CLK_PORT_NAME=clock RTL_FILES=$VFILE
+
+      - name: Check latch
+        run: |
+          YOSYS_LOG=yosys-sta/result/ysyx_$STUID-500MHz/synth_stat.txt
+          if grep "DLL\|DLH" $YOSYS_LOG ; then
+            echo "The design contains latch, which is not allowed."
+            false
+          fi
+
+      - name: Parse area
+        run: |
+          YOSYS_LOG=yosys-sta/result/ysyx_$STUID-500MHz/yosys-fixed.log
+          AREA=`grep -o "Chip area for module .*: .*" $YOSYS_LOG | sed -e 's/.*: \([0-9]*\.[0-9]*\)$/\1/'`
+          if [[ $AREA == "" ]] ; then
+            echo "Can not obtain area from yosys-sta. Abort."
+            false
+          fi
+          echo "Area: $AREA"
+          echo "AREA=$AREA" >> $GITHUB_ENV
+
+      - name: Upload STA result
+        uses: actions/upload-artifact@v6
+        with:
+          name: sta-result
+          path: yosys-sta/result/ysyx_${{ needs.setup.outputs.STUID }}-500MHz
+
+      - name: Upload netlist file
+        uses: actions/upload-artifact@v6
+        with:
+          name: netlist
+          path: yosys-sta/result/ysyx_${{ needs.setup.outputs.STUID }}-500MHz/ysyx_${{ needs.setup.outputs.STUID }}.netlist.fixed.v
+
+  iverilog-netlist-microbench:
+    needs: [setup, yosys-sta]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Common operations
+        uses: ./.github/actions/common
+        with:
+          YSYX_HOME: ${{ needs.setup.outputs.YSYX_HOME }}
+          MAKEFLAGS: ${{ needs.setup.outputs.MAKEFLAGS }}
+
+      - name: Download verilog file
+        uses: actions/download-artifact@v6
+        with:
+          name: netlist
+
+      - name: Clone yosys-sta
+        run: |
+          git clone -b ci https://github.com/OSCPU/yosys-sta
+          cd yosys-sta
+          make init
+          echo exit | ./bin/iEDA -v
+
+      - name: compile microbench
+        run: |
+          make ARCH=riscv32e-npc -C $YSYX_HOME/am-kernels/benchmarks/microbench mainargs=the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
+
+      - name: run microbench with iverilog netlist
+        run: |
+          make -C $NPC_HOME clean
+          NETLIST=`pwd`/ysyx_${{ needs.setup.outputs.STUID }}.netlist.fixed.v
+          CELLS=`pwd`/yosys-sta/pdk/nangate45/sim/cells.v
+          KEY=$(head -c 5 /dev/urandom | base32)
+          IMG=$YSYX_HOME/am-kernels/benchmarks/microbench/build/microbench-riscv32e-npc.bin
+          python $AM_HOME/tools/insert-arg.py $IMG 64 the_insert-arg_rule_in_Makefile_will_insert_mainargs_here $KEY
+          python $MONITOR_PY --good=$KEY make -C $NPC_HOME sim-iverilog-netlist IMG=$IMG NETLIST=$NETLIST CELLS=$CELLS

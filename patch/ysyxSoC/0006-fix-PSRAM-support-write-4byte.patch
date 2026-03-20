@@ -1,0 +1,91 @@
+From 10f7ffc816552e4028550b8038dc7c3bd260a7d4 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Wed, 21 Jan 2026 21:34:00 +0800
+Subject: [PATCH 06/28] fix PSRAM support write <4byte
+
+---
+ src/device/PSRAM.scala | 45 ++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 39 insertions(+), 6 deletions(-)
+
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index c3efdbe0..6dfdad90 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -48,12 +48,16 @@ class psramChisel extends RawModule {
+     val readCmd, readAddr, waitDelay, sendRData, readWData = Value
+   }
+ 
+-  withClockAndReset(io.sck.asClock, io.ce_n) {
++  val addr = WireDefault(0.U(24.W))
++  val nxtData = WireDefault(0.U(32.W))
++
++  withClockAndReset(io.sck.asClock, io.ce_n.asAsyncReset) {
+     val state = RegInit(State.readCmd)
+     val cnt = RegInit(0.U(3.W))
+     val cmdReg = RegInit(0.U(8.W))
+ 
+     val addrReg = RegInit(0.U(24.W))
++    addr := addrReg
+ 
+     val isCmdRead = cmdReg === CMD.QIO_READ
+     val isCmdWrite = cmdReg === CMD.QIO_WRITE
+@@ -126,15 +130,19 @@ class psramChisel extends RawModule {
+         dout := Mux(isSendByteLow, curByte(3, 0), curByte(7, 4))
+       }
+       is(State.readWData) {
+-        val nxtData = Wire(UInt(32.W))
+         when(cnt === 7.U) {
+           state := State.readCmd
+           cnt := 0.U
+-          RawClockedVoidFunctionCall("psram_write")(
++          RawClockedNonVoidFunctionCall(
++            "psram_write",
++            UInt(32.W),
++            Some(Seq("addr", "strb", "data"))
++          )(
+             io.sck.asClock,
+-            (!io.ce_n),
+-            Cat(0.U(8.W), addrReg),
+-            nxtData
++            true.B,
++            Cat(0.U(8.W), addr),
++            "hF".U(8.W),
++            wrDataRev
+           )
+         }.otherwise {
+           cnt := cnt + 1.U
+@@ -158,6 +166,31 @@ class psramChisel extends RawModule {
+       }
+     }
+     dout_en := (state === State.sendRData)
++    when(io.ce_n) {
++      state := State.readCmd
++      cnt := 0.U
++      switch(state) {
++        is(State.readWData) {
++          val strb = MuxLookup(cnt, "h0".U(8.W))(
++            Seq(
++              2.U -> "h1".U(8.W),
++              4.U -> "h3".U(8.W),
++              6.U -> "h7".U(8.W)
++            )
++          )
++          RawUnclockedNonVoidFunctionCall(
++            "psram_write",
++            UInt(32.W),
++            Some(Seq("addr", "strb", "data"))
++          )(
++            true.B,
++            Cat(0.U(8.W), addr),
++            strb,
++            nxtData
++          )
++        }
++      }
++    }
+   }
+ }
+ 
+-- 
+2.43.0
+

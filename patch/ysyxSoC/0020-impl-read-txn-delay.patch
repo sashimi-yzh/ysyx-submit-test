@@ -1,0 +1,224 @@
+From d3395d96e4a667b75304019b6cb93bc28873b1b4 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Mon, 2 Feb 2026 11:55:13 +0800
+Subject: [PATCH 20/28] impl read txn delay
+
+---
+ src/amba/AXI4Delayer.scala | 169 ++++++++++++++++++++++++++-----------
+ 1 file changed, 120 insertions(+), 49 deletions(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 8a1d40f2..5e551032 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -12,87 +12,158 @@ import freechips.rocketchip.util._
+ class AXI4DelayerIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Reset())
+-  val in = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
+-  val out = new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4))
++  val in = Flipped(
++    new AXI4Bundle(
++      AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)
++    )
++  )
++  val out = new AXI4Bundle(
++    AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)
++  )
+ }
+ 
+ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
+-class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32) extends Module {
++class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
++    extends Module {
+   val io = IO(new Bundle {
+-    val devStart = Input(Bool())
+-    val devDone = Input(Bool())
+-    val hasDevDone = Output(Bool())
++    val start = Input(Bool())
++    val stop = Input(Bool())
++    val cnt = Output(UInt(16.W))
+     val delayDone = Output(Bool())
++
++    // when is high, the delay counter will insert a task to send done signal
++    // act as stop signal high at this time but not actually stop the counter
++    //
++    // will send a insertStopDone signal
++    // at the time (t_insert - t_start) * ratio + t_start
++    val insertStop = Input(Bool())
++    val insertStopDone = Output(Bool())
+   })
+ 
++  // use timer to match totDelay
++  // no need to (ratio - 1) to minus prev totDelay cost
++  val totDelayAddStep = (ratio * scale).toInt.U
+   object State extends ChiselEnum {
+-    val idle, waitDevice, waitDelay = Value
++    val idle, waitStop, waitDelay = Value
+   }
+   val state = RegInit(State.idle)
+ 
+-  val needDelay = io.devStart && (!io.devDone)
++  val needDelay = io.start && (!io.stop)
+ 
+-  val delayCounter = RegInit(0.U(16.W))
+-  state := MuxLookup(state,State.idle)(Seq(
+-    State.idle -> Mux(needDelay, State.waitDevice, State.idle),
+-    State.waitDevice -> Mux(io.devDone, State.waitDelay, State.waitDevice),
+-    State.waitDelay -> Mux(delayCounter === 0.U, State.idle, State.waitDelay)
+-  ))
+-  val delayStep = ((ratio - 1) * scale).toInt.U
+-
+-
+-  delayCounter := MuxLookup(state, 0.U)(
++  val totDelay = RegInit(0.U(16.W))
++  val timer = RegInit(0.U(16.W))
++  io.cnt := totDelay
++  state := MuxLookup(state, State.idle)(
+     Seq(
+-      State.idle -> Mux(needDelay, delayStep, 0.U),
+-      State.waitDevice -> Mux(
+-        io.devDone,
+-        (delayCounter / scale.U - 1.U),
+-        delayCounter + delayStep
+-      ),
+-      State.waitDelay -> Mux(delayCounter === 0.U, 0.U, delayCounter - 1.U)
++      State.idle -> Mux(needDelay, State.waitStop, State.idle),
++      State.waitStop -> Mux(io.stop, State.waitDelay, State.waitStop),
++      State.waitDelay -> Mux(timer >= totDelay, State.idle, State.waitDelay)
+     )
+   )
++  totDelay := MuxLookup(state, 0.U)(
++    Seq(
++      State.idle -> Mux(needDelay, totDelayAddStep, 0.U),
++      // when stop received, need change totDelay scale back
++      // since the last delayDone is determined by compare timer and totDelay
++      // where timer is counting up without scale
++      State.waitStop -> Mux(io.stop, totDelay/scale.U, totDelay + totDelayAddStep),
++      State.waitDelay -> totDelay
++    )
++  )
++  timer := Mux(state === State.idle && needDelay, 1.U, timer + 1.U)
++
++  val insertedStopTargetDelays = Module(new Queue(UInt(16.W), 8))
++  insertedStopTargetDelays.io.enq.valid := io.insertStop && (state === State.waitStop)
++  insertedStopTargetDelays.io.enq.bits := (totDelay / scale.U)
++
++  val isInsertedStopDone = WireDefault(false.B)
++  dontTouch(isInsertedStopDone)
++  when(insertedStopTargetDelays.io.deq.valid) {
++    val targetDelay = insertedStopTargetDelays.io.deq.bits
++    when(timer === targetDelay) {
++      isInsertedStopDone := true.B
++      insertedStopTargetDelays.io.deq.ready := true.B
++    }.otherwise {
++      insertedStopTargetDelays.io.deq.ready := false.B
++    }
++  }.otherwise {
++    insertedStopTargetDelays.io.deq.ready := false.B
++  }
++  io.insertStopDone := isInsertedStopDone
+ 
+-  val needDelayDone = (state === State.waitDelay) && (delayCounter === 0.U)
++  val needDelayDone = WireDefault((state === State.waitDelay) && (timer >= totDelay))
++  dontTouch(needDelayDone)
+ 
+-  io.hasDevDone := (state === State.idle) || (state === State.waitDelay)
+-  io.delayDone := needDelayDone || (state === State.idle && io.devStart && io.devDone)
++  io.delayDone := needDelayDone || (state === State.idle && io.start && io.stop)
+ }
+ 
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+ 
+-  val arDevReqSent = RegInit(false.B)
+-  val arDelayDone = RegInit(false.B)
+-  dontTouch(arDelayDone)
+-  val arDelay = Module(new DelayCounter())
++  val rdDelayCtr = Module(new DelayCounter())
+ 
+-  io.out.ar.valid := io.in.ar.valid && (!arDevReqSent)
+-  io.in.ar.ready := arDelay.io.delayDone
+-  arDelay.io.devStart := io.out.ar.valid
+-  arDelay.io.devDone := io.out.ar.ready
+-  io.out.ar.bits := io.in.ar.bits
+ 
+-  when(io.out.ar.fire) {
+-    arDevReqSent := true.B
+-  } .elsewhen(io.in.r.fire && io.in.r.bits.last) {
+-    arDevReqSent := false.B
++  object RState extends ChiselEnum {
++    val idle, waitOutARReady, waitDelay = Value
+   }
++  val rState = RegInit(RState.idle)
++  rState := MuxLookup(rState, RState.idle)(
++    Seq(
++      RState.idle -> Mux(io.in.ar.valid, RState.waitOutARReady, RState.idle),
++      RState.waitOutARReady -> Mux(
++        io.out.ar.ready,
++        RState.waitDelay,
++        RState.waitOutARReady
++      ),
++      RState.waitDelay -> Mux(
++        rdDelayCtr.io.delayDone,
++        RState.idle,
++        RState.waitDelay
++      )
++    )
++  )
++  val isWaitingOutARReady = rState === RState.waitOutARReady ||
++    (rState === RState.idle && io.in.ar.valid)
++
++  io.out.ar.valid := isWaitingOutARReady
++  io.out.ar.bits := io.in.ar.bits
+ 
++  val rdDelayInsertStop = WireDefault(false.B)
++  rdDelayCtr.io.start := (rState === RState.idle && io.in.ar.valid)
++  rdDelayCtr.io.stop := io.out.r.valid && io.out.r.bits.last
++  rdDelayCtr.io.insertStop := rdDelayInsertStop
++
++  // insert stop when
++  //   - ar out aready (ar handshake done) -> delay ready to resp io.in.ar
++  //   - r valid but not last (means more data to come) -> delay valid to resp io.in.r
++  rdDelayInsertStop := io.out.ar.ready || (io.out.r.valid && (!io.out.r.bits.last))
++
++  io.in.ar.ready := rdDelayCtr.io.insertStopDone
++
++  val rDataFIFO = Module(new Queue(io.out.r.bits.cloneType, 16))
++  rDataFIFO.io.enq.valid := io.out.r.valid
++  rDataFIFO.io.enq.bits := io.out.r.bits
++  io.out.r.ready := rDataFIFO.io.enq.ready
++
++  // when can not push data into FIFO
++  assert(rDataFIFO.io.enq.ready || !io.out.r.valid)
++
++  val arReadySent = RegInit(false.B)
+   when(io.in.ar.fire) {
+-    arDelayDone := true.B
+-  } .elsewhen(io.in.r.fire && io.in.r.bits.last) {
+-    arDelayDone := false.B
++    arReadySent := true.B
++  }.elsewhen(rdDelayCtr.io.delayDone) {
++    arReadySent := false.B
+   }
+ 
+-  io.out.r.ready := io.in.r.ready && arDelayDone
+-  io.in.r.valid := io.out.r.valid && arDelayDone
+-  io.in.r.bits := io.out.r.bits
+-  io.in.r.bits.last := io.out.r.bits.last
+-  io.in.r.bits.resp := io.out.r.bits.resp
++  val hasRDataDelayDone =
++    (rdDelayCtr.io.insertStopDone || rdDelayCtr.io.delayDone) && arReadySent
++
++  io.in.r.valid := rDataFIFO.io.deq.valid && hasRDataDelayDone
++  io.in.r.bits := rDataFIFO.io.deq.bits
++  rDataFIFO.io.deq.ready := io.in.r.ready && hasRDataDelayDone
+ 
+   io.out.w <> io.in.w
+   io.out.b <> io.in.b
+-- 
+2.43.0
+

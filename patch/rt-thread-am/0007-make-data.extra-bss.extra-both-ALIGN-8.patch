@@ -1,0 +1,32 @@
+From 4df83c4a68ca69498dc190f7cbc6189f2bb50ca6 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Tue, 3 Mar 2026 14:25:21 +0800
+Subject: [PATCH 7/7] make data.extra bss.extra both ALIGN 8
+
+---
+ bsp/abstract-machine/extra.soc.ld | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.soc.ld b/bsp/abstract-machine/extra.soc.ld
+index d24982f..803e761 100644
+--- a/bsp/abstract-machine/extra.soc.ld
++++ b/bsp/abstract-machine/extra.soc.ld
+@@ -1,5 +1,5 @@
+ SECTIONS {
+-  .data.extra : {
++  .data.extra : ALIGN(8) {
+ 		_data_extra_start = .;
+ 
+     /* section information for finsh shell */
+@@ -37,7 +37,7 @@ SECTIONS {
+ INSERT BEFORE .data;
+ 
+ SECTIONS {
+-  .bss.extra : {
++  .bss.extra : ALIGN(8) {
+ 		_bss_extra_start = .;
+ 
+     . = ALIGN(8);
+-- 
+2.43.0
+

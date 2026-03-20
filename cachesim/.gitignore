@@ -1,0 +1,9 @@
+!*.cc
+!*.c
+!*.h
+
+.cache
+
+build/
+
+compile_commands.json

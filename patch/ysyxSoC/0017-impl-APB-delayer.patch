@@ -1,0 +1,160 @@
+From 1cf43e98abdb9dc016685588ea1915c83e7984e4 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Fri, 30 Jan 2026 10:57:02 +0800
+Subject: [PATCH 17/28] impl APB delayer
+
+---
+ src/Top.scala             |  2 +-
+ src/amba/APBDelayer.scala | 95 +++++++++++++++++++++++++++++++++++++--
+ src/device/SDRAM.scala    |  2 +-
+ 3 files changed, 94 insertions(+), 5 deletions(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index 8cd5a774..cb82ca74 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ object Config {
+   def hasChipLink: Boolean = false
+   def sdramUseAXI: Boolean = false
+-  def useFastFlash: Boolean = true
++  def useFastFlash: Boolean = true//sys.env.getOrElse("USE_FAST_FLASH", "0") == "1"
+ }
+ 
+ class ysyxSoCTop extends Module {
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 0cfc3d0c..2b09726a 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -12,7 +12,9 @@ import freechips.rocketchip.util._
+ class APBDelayerIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Reset())
+-  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++  val in = Flipped(
++    new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))
++  )
+   val out = new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))
+ }
+ 
+@@ -22,7 +24,94 @@ class apb_delayer extends BlackBox {
+ 
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+-  io.out <> io.in
++
++  object State extends ChiselEnum {
++    val idle, waitOutReady, waitDelay = Value
++  }
++
++  val delayCounter = RegInit(0.U(16.W))
++  val state = RegInit(State.idle)
++  state := MuxLookup(state, State.idle)(
++    Seq(
++      State.idle -> Mux(io.in.psel, State.waitOutReady, State.idle),
++      State.waitOutReady -> Mux(
++        io.out.pready,
++        State.waitDelay,
++        State.waitOutReady
++      ),
++      State.waitDelay -> Mux(delayCounter === 0.U, State.idle, State.waitDelay),
++    )
++  )
++
++  //
++  // real device frequency is 1/ratio of the bus frequency
++  // to simulate this, every cycle cost on device, we need to wait ratio cycles
++  // on bus, for ratio is float, we use scale to scale it to int
++  //
++  // if transfer starts at t0, sim device responds at t1
++  // we should delay this response to t1' such that (t1 - t0) * ratio = (t1' - t0)
++  //
++
++  val ratio = sys.env.getOrElse("APB_DELAY_RATIO", "6").toFloat
++  println(s"APB Delayer ratio: $ratio")
++  val scale = 32;
++
++  //
++  // -1 to minus the cycle cost by device (t1 - t0)
++  //
++  // | device transfer | wait remaining cycles |
++  // | (State.waitOut) |   (State.waitDelay)   |
++  // t0 -------------- t1 -------------------- t1'
++  //        |          |
++  //        ^in this part delayCounter step (ratio-1)*scale every cycle
++  //                   |
++  //                   ^so at this time delayCounter (after div scale)
++  //                   counts to (t1-t0)*ratio - (t1-t0).
++  //                   later in waitDelay state, we just need minus 1 every
++  //                   cycle.
++  //
++
++  val outDelayStep = ((ratio - 1) * scale).toInt.U
++
++  delayCounter := MuxLookup(state, 0.U)(
++    Seq(
++      State.idle -> Mux(io.in.psel, outDelayStep, 0.U),
++      State.waitOutReady -> Mux(
++        io.out.pready,
++        (delayCounter / scale.U - 1.U),
++        delayCounter + outDelayStep
++      ),
++      State.waitDelay -> Mux(delayCounter === 0.U, 0.U, delayCounter - 1.U)
++    )
++  )
++
++  io.out.psel := io.in.psel && ((state === State.idle) || (state === State.waitOutReady))
++  io.out.penable := io.in.penable && (state === State.waitOutReady)
++
++  // payload connect directly
++  io.out.pwrite := io.in.pwrite
++  io.out.paddr := io.in.paddr
++  io.out.pprot := io.in.pprot
++  io.out.pwdata := io.in.pwdata
++  io.out.pstrb := io.in.pstrb
++  io.out.pauser := io.in.pauser
++
++  val rdataReg = Reg(chiselTypeOf(io.out.prdata))
++  val pslverrReg = Reg(chiselTypeOf(io.out.pslverr))
++  val pduserReg = Reg(chiselTypeOf(io.out.pduser))
++
++  when(io.out.pready) {
++    rdataReg := io.out.prdata
++    pslverrReg := io.out.pslverr
++    pduserReg := io.out.pduser
++  }
++
++  io.in.prdata := rdataReg
++  io.in.pslverr := pslverrReg
++  io.in.pduser := pduserReg
++
++  io.in.pready := (state === State.waitDelay) && (delayCounter === 0.U)
++
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +120,7 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new apb_delayer)
++      val delayer = Module(new APBDelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index b7f44875..52186604 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -151,7 +151,7 @@ class sdramChisel extends RawModule {
+ // a: 13 bits
+ //
+ class sdramChiselBlock(block: Int = 0) extends RawModule {
+-  val io = IO(Flipped(new SDRAMIO(16.W, 13.W)))
++  val io = IO(Flipped(new SDRAMIO(16.W, 2.W)))
+ 
+   val dataio = IO(new Bundle {
+     val dout = Output(UInt(16.W))
+-- 
+2.43.0
+

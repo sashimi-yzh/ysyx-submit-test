@@ -1,0 +1,57 @@
+From ba8efcf4580fc77efc9fcbc1b556a7522d4b5793 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Thu, 20 Nov 2025 18:54:32 +0800
+Subject: [PATCH 2/7] impl switch ctx no use global var
+
+---
+ bsp/abstract-machine/src/context.c | 21 +++++++++++++++------
+ 1 file changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 73e1c02..3c8dfa9 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,15 +2,21 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-static rt_ubase_t g_arg_from, g_arg_to;
++typedef struct{
++	rt_ubase_t from;
++	rt_ubase_t to;
++}ctx_switch_arg_t;
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
+ 		case EVENT_YIELD:
+ 			{
+-				if(g_arg_from!=0){
+-					*(void**)g_arg_from=c;
++				ctx_switch_arg_t *arg=(ctx_switch_arg_t*)rt_thread_self()->user_data;
++				assert(arg!=NULL);
++				if(arg->from!=0){
++					*(void**)arg->from=c;
+ 				}
+-				c=*(Context**)g_arg_to;
++				c=*(Context**)arg->to;
+ 				break;
+ 			}
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+@@ -24,9 +30,12 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-	g_arg_from = from;
+-	g_arg_to = to;
++	rt_thread_t self_th=rt_thread_self();
++	rt_ubase_t raw=self_th->user_data;
++	ctx_switch_arg_t arg={from,to};
++	self_th->user_data=(rt_ubase_t)&arg;
+ 	yield();
++	self_th->user_data=raw;
+ }
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+ 	rt_hw_context_switch(0, to);
+-- 
+2.43.0
+

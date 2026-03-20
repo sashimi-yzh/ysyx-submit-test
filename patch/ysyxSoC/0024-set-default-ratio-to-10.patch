@@ -1,0 +1,25 @@
+From 8e278922e4f2f54c2f353de01fe724cf41f89320 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Fri, 20 Feb 2026 14:10:11 +0800
+Subject: [PATCH 24/28] set default ratio to 10
+
+---
+ src/Top.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index 410985f7..52a09489 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ object Config {
+   def hasChipLink: Boolean = false
+   def sdramUseAXI: Boolean = true
+-  def DelayRatio: Float = sys.env.getOrElse("DELAY_RATIO", "4").toFloat
++  def DelayRatio: Float = sys.env.getOrElse("DELAY_RATIO", "10").toFloat
+   def useFastFlash: Boolean = sys.env.getOrElse("USE_FAST_FLASH", "0") == "1"
+ }
+ 
+-- 
+2.43.0
+

@@ -1,0 +1,42 @@
+From fc434ebf564d63ac2ff8c53509ba61ed50ffd04c Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sun, 1 Mar 2026 16:19:37 +0800
+Subject: [PATCH] fix unalign visit mem UB
+
+---
+ tests/cpu-tests/tests/load-store.c | 2 +-
+ tests/cpu-tests/tests/unalign.c    | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/tests/cpu-tests/tests/load-store.c b/tests/cpu-tests/tests/load-store.c
+index 343a9bc..20f0c77 100644
+--- a/tests/cpu-tests/tests/load-store.c
++++ b/tests/cpu-tests/tests/load-store.c
+@@ -32,7 +32,7 @@ int main() {
+ 	}
+ 
+ 	for(i = 0; i < ((LENGTH(mem) / 2) - 1); i ++) {
+-		unsigned x = ((unsigned*)((void*)mem + 1))[i];
++		unsigned x = DerefUnalignedU32((void*)mem + 1 + i * 4);
+ 		check(x == lwlr_ans[i]);
+ 	}
+ 
+diff --git a/tests/cpu-tests/tests/unalign.c b/tests/cpu-tests/tests/unalign.c
+index 92c2203..a136841 100644
+--- a/tests/cpu-tests/tests/unalign.c
++++ b/tests/cpu-tests/tests/unalign.c
+@@ -6,9 +6,9 @@ volatile unsigned char buf[16];
+ int main() {
+ 
+ 	for(int i = 0; i < 4; i++) {
+-		*((volatile unsigned*)(buf + 3)) = 0xaabbccdd;
++		DerefUnalignedU32(buf + 3) = 0xaabbccdd;
+ 
+-		x = *((volatile unsigned*)(buf + 3));
++		x = DerefUnalignedU32(buf + 3);
+ 		check(x == 0xaabbccdd);
+ 
+ 		buf[0] = buf[1] = 0;
+-- 
+2.43.0
+

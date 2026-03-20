@@ -1,0 +1,160 @@
+From 4914845e3252123f348e5c6681f52a2a6eb06dbc Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Mon, 2 Feb 2026 14:07:13 +0800
+Subject: [PATCH 21/28] impl axi4 write delay (no brust support)
+
+---
+ src/amba/AXI4Delayer.scala | 107 ++++++++++++++++++++++++++++---------
+ 1 file changed, 81 insertions(+), 26 deletions(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 5e551032..94bf02fd 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -69,7 +69,11 @@ class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
+       // when stop received, need change totDelay scale back
+       // since the last delayDone is determined by compare timer and totDelay
+       // where timer is counting up without scale
+-      State.waitStop -> Mux(io.stop, totDelay/scale.U, totDelay + totDelayAddStep),
++      State.waitStop -> Mux(
++        io.stop,
++        totDelay / scale.U,
++        totDelay + totDelayAddStep
++      ),
+       State.waitDelay -> totDelay
+     )
+   )
+@@ -94,7 +98,9 @@ class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
+   }
+   io.insertStopDone := isInsertedStopDone
+ 
+-  val needDelayDone = WireDefault((state === State.waitDelay) && (timer >= totDelay))
++  val needDelayDone = WireDefault(
++    (state === State.waitDelay) && (timer >= totDelay)
++  )
+   dontTouch(needDelayDone)
+ 
+   io.delayDone := needDelayDone || (state === State.idle && io.start && io.stop)
+@@ -103,36 +109,48 @@ class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+ 
+-  val rdDelayCtr = Module(new DelayCounter())
++  // Read
+ 
++  val rdDelayCtr = Module(new DelayCounter())
+ 
+-  object RState extends ChiselEnum {
+-    val idle, waitOutARReady, waitDelay = Value
++  object DelayState extends ChiselEnum {
++    val idle, waitReady, waitDelay = Value
+   }
+-  val rState = RegInit(RState.idle)
+-  rState := MuxLookup(rState, RState.idle)(
+-    Seq(
+-      RState.idle -> Mux(io.in.ar.valid, RState.waitOutARReady, RState.idle),
+-      RState.waitOutARReady -> Mux(
+-        io.out.ar.ready,
+-        RState.waitDelay,
+-        RState.waitOutARReady
+-      ),
+-      RState.waitDelay -> Mux(
+-        rdDelayCtr.io.delayDone,
+-        RState.idle,
+-        RState.waitDelay
++
++  def makeDelayState(inValid: Bool, outReady: Bool, delayDone: Bool) = {
++    val state = RegInit(DelayState.idle)
++    state := MuxLookup(state, DelayState.idle)(
++      Seq(
++        DelayState.idle -> Mux(inValid, DelayState.waitReady, DelayState.idle),
++        DelayState.waitReady -> Mux(
++          outReady,
++          DelayState.waitDelay,
++          DelayState.waitReady
++        ),
++        DelayState.waitDelay -> Mux(
++          delayDone,
++          DelayState.idle,
++          DelayState.waitDelay
++        )
+       )
+     )
+-  )
+-  val isWaitingOutARReady = rState === RState.waitOutARReady ||
+-    (rState === RState.idle && io.in.ar.valid)
++    state
++  }
++  def isWaitingOutReady(state: DelayState.Type, inValid: Bool) = {
++    (state === DelayState.waitReady) || (state === DelayState.idle && inValid)
++  }
++  def isTxnStartPoint(state: DelayState.Type, inValid: Bool) = {
++    (state === DelayState.idle && inValid)
++  }
++
++  val rState =
++    makeDelayState(io.in.ar.valid, io.out.ar.ready, rdDelayCtr.io.delayDone)
+ 
+-  io.out.ar.valid := isWaitingOutARReady
++  io.out.ar.valid := isWaitingOutReady(rState, io.in.ar.valid)
+   io.out.ar.bits := io.in.ar.bits
+ 
+   val rdDelayInsertStop = WireDefault(false.B)
+-  rdDelayCtr.io.start := (rState === RState.idle && io.in.ar.valid)
++  rdDelayCtr.io.start := isTxnStartPoint(rState, io.in.ar.valid)
+   rdDelayCtr.io.stop := io.out.r.valid && io.out.r.bits.last
+   rdDelayCtr.io.insertStop := rdDelayInsertStop
+ 
+@@ -165,9 +183,46 @@ class AXI4DelayerChisel extends Module {
+   io.in.r.bits := rDataFIFO.io.deq.bits
+   rDataFIFO.io.deq.ready := io.in.r.ready && hasRDataDelayDone
+ 
+-  io.out.w <> io.in.w
+-  io.out.b <> io.in.b
+-  io.out.aw <> io.in.aw
++  // Write
++
++  // no burst support
++
++  assert(io.in.aw.bits.len === 0.U, "AXI4DelayerChisel write only supports len=0")
++
++  val awDelayCtr = Module(new DelayCounter())
++  val wDelayCtr = Module(new DelayCounter())
++  val bDelayCtr = Module(new DelayCounter())
++
++  val awState =
++    makeDelayState(io.in.aw.valid, io.out.aw.ready, awDelayCtr.io.delayDone)
++  val wState =
++    makeDelayState(io.in.w.valid, io.out.w.ready, wDelayCtr.io.delayDone)
++
++  val isWriteTxnStartPoint = isTxnStartPoint(awState, io.in.aw.valid)
++
++  io.out.aw.valid := isWaitingOutReady(awState, io.in.aw.valid)
++  io.out.aw.bits := io.in.aw.bits
++  io.out.w.valid := isWaitingOutReady(wState, io.in.w.valid)
++  io.out.w.bits := io.in.w.bits
++
++  awDelayCtr.io.start := isWriteTxnStartPoint
++  awDelayCtr.io.stop := io.out.aw.ready
++  awDelayCtr.io.insertStop := false.B
++
++  wDelayCtr.io.start := isWriteTxnStartPoint
++  wDelayCtr.io.stop := io.out.w.ready && io.out.w.bits.last
++  wDelayCtr.io.insertStop := false.B
++
++  io.in.aw.ready := awDelayCtr.io.delayDone
++  io.in.w.ready := wDelayCtr.io.delayDone
++
++  bDelayCtr.io.start := isWriteTxnStartPoint
++  bDelayCtr.io.stop := io.out.b.valid
++  bDelayCtr.io.insertStop := false.B
++
++  io.in.b.valid := bDelayCtr.io.delayDone && io.out.b.valid
++  io.in.b.bits := io.out.b.bits
++  io.out.b.ready := io.in.b.ready && bDelayCtr.io.delayDone
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+-- 
+2.43.0
+
