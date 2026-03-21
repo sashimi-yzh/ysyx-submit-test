@@ -1,0 +1,111 @@
+From 2609d09dfdd39148b27ac93c8b156972e12e1b7a Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Fri, 6 Mar 2026 11:50:00 +0800
+Subject: [PATCH 16/22] auto replace sdram instance
+
+
+diff --git a/Makefile b/Makefile
+index 9a8e22ec..3ea0c338 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,7 @@
+ V_FILE_GEN   = build/ysyxSoCTop.sv
+ V_FILE_FINAL = build/ysyxSoCFull.v
+ SCALA_FILES = $(shell find src/ -name "*.scala")
++SDRAM_PATCH = patch/replace-sdram.pl
+ 
+ # Firtool version
+ FIRTOOL_VERSION = 1.105.0
+@@ -15,11 +16,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	mv $(V_FILE_GEN) $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+-# 	sed -i '/sdram/ { s/\[15:0\]/[31:0]/g }' $@
+-# 	sed -i '/sdram/ { s/\[12:0\]/[13:0]/g }' $@
+-# 	sed -i '/dq/ { s/\[15:0\]/[31:0]/g }' $@
+-# 	sed -i '/dq/ { s/\[1:0\]/[3:0]/g }' $@
+-# 	sed -i '/\<dqm\>/ { /\[.*\]/! s/\(output\|input\|wire\|reg\)[[:space:]]\+dqm/\1 [3:0] dqm/ }' $@
++	perl $(SDRAM_PATCH) $@
+ 
+ verilog: $(V_FILE_FINAL)
+ 
+diff --git a/patch/replace-sdram.pl b/patch/replace-sdram.pl
+new file mode 100644
+index 00000000..c5704213
+--- /dev/null
++++ b/patch/replace-sdram.pl
+@@ -0,0 +1,71 @@
++#!/usr/bin/env perl
++use strict;
++use warnings;
++
++my $file = shift @ARGV or die "Usage: $0 <verilog-file>\n";
++
++open my $in, '<', $file or die "Cannot open $file for reading: $!\n";
++local $/;
++my $content = <$in>;
++close $in;
++
++my $replacement = <<'EOF';
++  wire read = ~_asic_sdram_cs & _asic_sdram_ras & ~_asic_sdram_cas & _asic_sdram_we;
++  wire write = ~_asic_sdram_cs & _asic_sdram_ras & ~_asic_sdram_cas & ~_asic_sdram_we;
++
++  sdram #(.NUM(0)) l0sdram (
++    .clk (_asic_sdram_clk),
++    .cke (_asic_sdram_cke),
++    .cs  (_asic_sdram_a[13] & (read | write) ? 1'b0 : _asic_sdram_cs),
++    .ras (_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_ras),
++    .cas (_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_cas),
++    .we  (_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_we),
++    .a   (_asic_sdram_a[12:0]),
++    .ba  (_asic_sdram_ba),
++    .dqm (_asic_sdram_dqm[1:0]),
++    .dq  (_dq_wire[15:0])
++  );
++  sdram #(.NUM(1)) h0sdram (
++    .clk (_asic_sdram_clk),
++    .cke (_asic_sdram_cke),
++    .cs  (_asic_sdram_a[13] & (read | write) ? 1'b0 : _asic_sdram_cs),
++    .ras (_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_ras),
++    .cas (_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_cas),
++    .we  (_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_we),
++    .a   (_asic_sdram_a[12:0]),
++    .ba  (_asic_sdram_ba),
++    .dqm (_asic_sdram_dqm[3:2]),
++    .dq  (_dq_wire[31:16])
++  );
++  sdram #(.NUM(2)) l1sdram (
++    .clk (_asic_sdram_clk),
++    .cke (_asic_sdram_cke),
++    .cs  (~_asic_sdram_a[13] & (read | write) ? 1'b0 : _asic_sdram_cs),
++    .ras (~_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_ras),
++    .cas (~_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_cas),
++    .we  (~_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_we),
++    .a   (_asic_sdram_a[12:0]),
++    .ba  (_asic_sdram_ba),
++    .dqm (_asic_sdram_dqm[1:0]),
++    .dq  (_dq_wire[15:0])
++  );
++  sdram #(.NUM(3)) h1sdram (
++    .clk (_asic_sdram_clk),
++    .cke (_asic_sdram_cke),
++    .cs  (~_asic_sdram_a[13] & (read | write) ? 1'b0 : _asic_sdram_cs),
++    .ras (~_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_ras),
++    .cas (~_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_cas),
++    .we  (~_asic_sdram_a[13] & (read | write) ? 1'b1 : _asic_sdram_we),
++    .a   (_asic_sdram_a[12:0]),
++    .ba  (_asic_sdram_ba),
++    .dqm (_asic_sdram_dqm[3:2]),
++    .dq  (_dq_wire[31:16])
++  );
++EOF
++
++my $count = ($content =~ s{^[ \t]*(?://\s*)?sdram sdram\s*\(.*?^[ \t]*\);\s*(?://[^\n]*)?\n?}{$replacement\n}gms);
++die "Expected exactly one SDRAM instance block, replaced $count\n" unless $count == 1;
++
++open my $out, '>', $file or die "Cannot open $file for writing: $!\n";
++print {$out} $content;
++close $out;
+-- 
+2.34.1
+

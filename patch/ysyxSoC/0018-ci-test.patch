@@ -1,0 +1,18 @@
+From 18e13ee88b514337faac6e75e001394a4843f340 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Wed, 11 Mar 2026 13:05:29 +0800
+Subject: [PATCH 18/22] ci test
+
+
+diff --git a/.gitignore b/.gitignore
+index 3c0160d0..6f0b5699 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,3 @@
+ build/
+ out/
++*.patch
+\ No newline at end of file
+-- 
+2.34.1
+

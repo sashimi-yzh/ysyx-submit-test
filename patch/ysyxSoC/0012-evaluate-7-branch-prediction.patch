@@ -1,0 +1,75 @@
+From a625279fbcfab4d326b4d39eed389547fac18cac Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Thu, 26 Feb 2026 18:33:05 +0800
+Subject: [PATCH 12/22] evaluate 7, branch prediction
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 46396628..062e9566 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -27,20 +27,20 @@ module apb_delayer(
+     parameter ACCESS = 2'b01;
+     parameter WAIT   = 2'b10;
+ 
+-    parameter FREQ_CPU = 796; 
+-    parameter FREQ_PER = 100;
++    // parameter FREQ_CPU
++    // parameter FREQ_PER = 100;
+ 
+     parameter FACTOR = 10;
+      /* (freq - 1) * 1024  
+-        1037  -> 10619 
+-        975   -> 8960
+-        1008  -> 9298
+-        858   -> 7762
++        1003  -> 9247
++        1018  -> 9400
++        974   -> 8950
++        854   -> 7721
+         869   -> 7875
+-        807   -> 7261
+         796   -> 7127
++        736   -> 6512
+     */
+-    parameter RATE_FIX = 7127;
++    parameter RATE_FIX = 6512; 
+     
+     reg [1:0] state, nstate;
+ 
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 8588b59d..91ed949e 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -74,20 +74,20 @@ module axi4_delayer(
+     parameter BACCESS  = 4'b1001;
+     parameter BWAIT    = 4'b1010;
+ 
+-    parameter FREQ_CPU = 796; 
+-    parameter FREQ_PER = 100;
++    // parameter FREQ_CPU
++    // parameter FREQ_PER = 100;
+ 
+     parameter FACTOR = 10;
+      /* (freq - 1) * 1024  
+-        1037  -> 10619 
+-        975   -> 8960
+-        1008  -> 9298
+-        858   -> 7762
++        1003  -> 9247
++        1018  -> 9400
++        974   -> 8950
++        854   -> 7721
+         869   -> 7875
+-        807   -> 7261
+         796   -> 7127
++        736   -> 6512
+     */
+-    parameter RATE_FIX = 7127;
++    parameter RATE_FIX = 6512; 
+     
+     reg [3:0] state, nstate;
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,60 @@
+From dffb1b55f919001bcdcd9bc794ac2a534a5df349 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Sat, 21 Mar 2026 18:45:36 +0800
+Subject: [PATCH 2/2] del output to terminal and fix rtt am_uart_rx
+
+
+diff --git a/bsp/abstract-machine/soc_extra.ld b/bsp/abstract-machine/soc_extra.ld
+new file mode 100644
+index 0000000..00993e9
+--- /dev/null
++++ b/bsp/abstract-machine/soc_extra.ld
+@@ -0,0 +1,45 @@
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } > sdram AT> flash : data
++}
++INSERT AFTER .data;
++
++SECTIONS {
++  .bss.extra (NOLOAD) : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > sdram
++}
++INSERT AFTER .bss;
+-- 
+2.34.1
+

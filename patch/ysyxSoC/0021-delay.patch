@@ -1,0 +1,35 @@
+From cba2f2a829048fe75f2f8377092f462a7c2c7143 Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Wed, 11 Mar 2026 15:25:51 +0800
+Subject: [PATCH 21/22] delay
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index dea2c9a1..af19df15 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -24,7 +24,7 @@ module apb_delayer(
+     input         out_pslverr
+ );
+ 
+-`define DELAY
++// `define DELAY
+ 
+ `ifdef DELAY
+     parameter IDLE   = 2'b00;
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index c1e04252..8101526a 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -63,7 +63,7 @@ module axi4_delayer(
+   input  [1:0]  out_bresp
+ );
+ 
+-`define DELAY
++// `define DELAY
+ 
+ `ifdef DELAY
+ 
+-- 
+2.34.1
+

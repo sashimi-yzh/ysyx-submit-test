@@ -1,0 +1,40 @@
+From 8321165aba77b7fc249cb2e28d6aa2b09249a0cb Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Wed, 11 Feb 2026 23:31:26 +0800
+Subject: [PATCH 07/22] reconstruct ing
+
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index aa033d6a..34132329 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -178,7 +178,7 @@ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
+ wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W+1:2]};
+-wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+2];
++wire [SDRAM_ROW_W-1:0]  addr_row_w  = {1'b0, ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+2]};
+ wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2+1:SDRAM_COL_W+2];
+ 
+ //-----------------------------------------------------------------
+@@ -483,7 +483,7 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+@@ -537,7 +537,7 @@ begin
+         else if (refresh_timer_q == 10)
+         begin
+             command_q <= CMD_LOAD_MODE;
+-            addr_q    <= MODE_REG;
++            addr_q    <= {1'b0, MODE_REG};
+         end
+         // Other cycles during init - just NOP
+         else
+-- 
+2.34.1
+

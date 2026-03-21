@@ -1,0 +1,131 @@
+From 735c27a1bb064b17e43f5657a9614cc403864bed Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Wed, 11 Mar 2026 15:25:00 +0800
+Subject: [PATCH 20/22] delay
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 31a53e86..dea2c9a1 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -23,6 +23,10 @@ module apb_delayer(
+     input  [31:0] out_prdata,
+     input         out_pslverr
+ );
++
++`define DELAY
++
++`ifdef DELAY
+     parameter IDLE   = 2'b00;
+     parameter ACCESS = 2'b01;
+     parameter WAIT   = 2'b10;
+@@ -30,7 +34,10 @@ module apb_delayer(
+     // parameter FREQ_CPU
+     // parameter FREQ_PER = 100;
+ 
++
+     parameter FACTOR = 10;
++    parameter RATE_FIX = 971;
++
+      /* (freq - 1) * 1024  
+         1003  -> 9247
+         1018  -> 9400
+@@ -43,7 +50,6 @@ module apb_delayer(
+         1140  -> 10650
+         971   -> 8919
+     */
+-    parameter RATE_FIX = 8919;
+     
+     reg [1:0] state, nstate;
+ 
+@@ -142,14 +148,29 @@ module apb_delayer(
+     
+ 
+     assign out_paddr   = in_paddr;
+-    assign out_psel    = RATE_FIX == 0 ? in_psel : psel;
+-    assign out_penable = RATE_FIX == 0 ? in_penable : penable;
++    assign out_psel    = psel;
++    assign out_penable = penable;
+     assign out_pprot   = in_pprot;
+     assign out_pwrite  = in_pwrite;
+     assign out_pwdata  = in_pwdata;
+     assign out_pstrb   = in_pstrb;
+-    assign in_pready   = RATE_FIX == 0 ? out_pready : (state == WAIT) && (delay_counter == 1);
+-    assign in_prdata   = RATE_FIX == 0 ? out_prdata : rdata;
++    assign in_pready   = (state == WAIT) && (delay_counter == 1);
++    assign in_prdata   = rdata;
+     assign in_pslverr  = out_pslverr;
+ 
++`else
++
++    assign out_paddr   = in_paddr;
++    assign out_psel    = in_psel;
++    assign out_penable = in_penable;
++    assign out_pprot   = in_pprot;
++    assign out_pwrite  = in_pwrite;
++    assign out_pwdata  = in_pwdata;
++    assign out_pstrb   = in_pstrb;
++    assign in_pready   = out_pready;
++    assign in_prdata   = out_prdata;
++    assign in_pslverr  = out_pslverr;
++
++`endif
++
+ endmodule
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 00be471e..c1e04252 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -62,6 +62,11 @@ module axi4_delayer(
+   input  [3:0]  out_bid,
+   input  [1:0]  out_bresp
+ );
++
++`define DELAY
++
++`ifdef DELAY
++
+     parameter IDLE     = 4'b0000;
+     parameter ARACCESS = 4'b0001;
+     parameter ARWAIT   = 4'b0010;
+@@ -280,4 +285,37 @@ module axi4_delayer(
+     assign in_bid = out_bid;
+     assign in_bresp = out_bresp;
+ 
++`else 
++    assign in_arready = out_arready;
++    assign out_arvalid = in_arvalid;
++    assign out_arid = in_arid;
++    assign out_araddr = in_araddr;
++    assign out_arlen = in_arlen;
++    assign out_arsize = in_arsize;
++    assign out_arburst = in_arburst;
++    assign out_rready = in_rready;
++    assign in_rvalid = out_rvalid;
++    assign in_rid = out_rid;
++    assign in_rdata = out_rdata;
++    assign in_rresp = out_rresp;
++    assign in_rlast = out_rlast;
++    assign in_awready = out_awready;
++    assign out_awvalid = in_awvalid;
++    assign out_awid = in_awid;
++    assign out_awaddr = in_awaddr;
++    assign out_awlen = in_awlen;
++    assign out_awsize = in_awsize;
++    assign out_awburst = in_awburst;
++    assign in_wready = out_wready;
++    assign out_wvalid = in_wvalid;
++    assign out_wdata = in_wdata;
++    assign out_wstrb = in_wstrb;
++    assign out_wlast = in_wlast;
++    assign out_bready = in_bready;
++    assign in_bvalid = out_bvalid;
++    assign in_bid = out_bid;
++    assign in_bresp = out_bresp;
++
++`endif
++
+ endmodule
+-- 
+2.34.1
+

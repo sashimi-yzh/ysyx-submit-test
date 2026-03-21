@@ -1,0 +1,27 @@
+From a8183f0c23b7a057be2b6d94b346141012289e1a Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Mon, 9 Feb 2026 10:16:40 +0800
+Subject: [PATCH 05/22] test 2 for evaluate.
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 3d02261f..6e36f4b1 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -27,11 +27,11 @@ module apb_delayer(
+     parameter ACCESS = 2'b01;
+     parameter WAIT   = 2'b10;
+ 
+-    parameter FREQ_CPU = 1037;
++    parameter FREQ_CPU = 975;
+     parameter FREQ_PER = 100;
+ 
+     parameter FACTOR = 10;
+-    parameter RATE_FIX = 10619; // (freq - 1) * 1024  975 -> 8960, 1037 -> 10619
++    parameter RATE_FIX = 8960; // (freq - 1) * 1024  975 -> 8960, 1037 -> 10619
+     
+     reg [1:0] state, nstate;
+ 
+-- 
+2.34.1
+

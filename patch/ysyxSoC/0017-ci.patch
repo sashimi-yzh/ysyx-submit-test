@@ -1,0 +1,40 @@
+From 13b3a7c0d0150ebfbe771a9411fb47dbb55ee1ab Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Tue, 10 Mar 2026 23:41:47 +0800
+Subject: [PATCH 17/22] ci
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 64c92690..31a53e86 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -41,8 +41,9 @@ module apb_delayer(
+         736   -> 6512
+         1072  -> 9953
+         1140  -> 10650
++        971   -> 8919
+     */
+-    parameter RATE_FIX = 10650; 
++    parameter RATE_FIX = 8919;
+     
+     reg [1:0] state, nstate;
+ 
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 5989bb6f..00be471e 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -87,9 +87,9 @@ module axi4_delayer(
+         796   -> 7127
+         736   -> 6512
+         1072  -> 9953
+-        1140  -> 10650
++        971   -> 8919
+     */
+-    parameter RATE_FIX = 10650; 
++    parameter RATE_FIX = 8919;
+     
+     reg [3:0] state, nstate;
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,74 @@
+menu "Memory Configuration"
+
+config MROM_BASE
+  depends on SOC
+  hex "Mrom base address"
+  default 0x20000000
+
+config MROM_SIZE
+  depends on SOC
+  hex "Mrom size"
+  default 0x1000
+
+config SRAM_BASE
+  depends on SOC
+  hex "Sram base address"
+  default 0x0f000000
+
+config SRAM_SIZE
+  depends on SOC
+  hex "Sram size"
+  default 0x2000
+
+config FLASH_BASE
+  depends on SOC
+  hex "Flash base address"
+  default 0x30000000
+
+config FLASH_SIZE
+  depends on SOC
+  hex "Flash size"
+  default 0x10000000
+
+config PSRAM_BASE
+  depends on SOC
+  hex "Psram base address"
+  default 0x80000000
+
+config PSRAM_SIZE
+  depends on SOC
+  hex "Psram size"
+  default 0x400000
+
+config SDRAM_BASE
+  depends on SOC
+  hex "Sdram base address"
+  default 0xa0000000
+
+config SDRAM_SIZE
+  depends on SOC
+  hex "Sdram size"
+  default 0x8000000
+
+config MBASE
+  depends on !SOC
+  hex "Memory base address"
+  default 0x80000000
+
+config MSIZE
+  depends on !SOC
+  hex "Memory size"
+  default 0x8000000
+
+config PC_RESET_OFFSET
+  hex "Offset of reset vector from the base of memory"
+  default 0x00000000
+
+config MEM_RANDOM
+  depends on MODE_SYSTEM && !DIFFTEST 
+  bool "Initialize the memory with random values"
+  default y
+  help
+    This may help to find undefined behaviors.
+
+endmenu #MEMORY

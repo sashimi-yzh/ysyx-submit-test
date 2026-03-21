@@ -1,0 +1,40 @@
+From f6859bb5bad1f38203db42ba123a8241e0e233db Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Fri, 27 Feb 2026 16:26:16 +0800
+Subject: [PATCH 13/22] evaluate 8, opt3, btb 8 with freq 1072, area 21037, btb
+ 2 with freq 1163, area 19754
+
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 062e9566..c2ecdce9 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -39,8 +39,9 @@ module apb_delayer(
+         869   -> 7875
+         796   -> 7127
+         736   -> 6512
++        1072  -> 9953
+     */
+-    parameter RATE_FIX = 6512; 
++    parameter RATE_FIX = 9953; 
+     
+     reg [1:0] state, nstate;
+ 
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 91ed949e..3c89c6b1 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -86,8 +86,9 @@ module axi4_delayer(
+         869   -> 7875
+         796   -> 7127
+         736   -> 6512
++        1072  -> 9953
+     */
+-    parameter RATE_FIX = 6512; 
++    parameter RATE_FIX = 9953; 
+     
+     reg [3:0] state, nstate;
+ 
+-- 
+2.34.1
+

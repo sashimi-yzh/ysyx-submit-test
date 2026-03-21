@@ -1,0 +1,53 @@
+[*]
+[*] GTKWave Analyzer v3.4.0 (w)1999-2022 BSI
+[*] Tue Mar 10 05:25:40 2026
+[*]
+[dumpfile] "/home/hhh/Public/ysyx/ysyx-workbench/npc/build/waveform.vcd"
+[dumpfile_mtime] "Tue Mar 10 05:21:29 2026"
+[dumpfile_size] 7243322028
+[optimize_vcd]
+[savefile] "/home/hhh/Public/ysyx/ysyx-workbench/npc/constr/wave_signal.gtkw"
+[timestart] 1
+[size] 1920 985
+[pos] -27 -24
+*-13.799999 2770 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.ysyxSoCFull.
+[treeopen] TOP.ysyxSoCFull.asic.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.
+[treeopen] TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.
+[sst_width] 297
+[signals_width] 174
+[sst_expanded] 1
+[sst_vpaned_height] 418
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.clk
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.O_inst[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.O_inst_addr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.O_valid
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.icache_clear
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.ibus_arvalid
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.ibus_rvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_ifetch.ibus_rdata[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.I_inst[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.I_inst_addr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.lsu.dbus_arvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.lsu.dbus_araddr[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.lsu.dbus_rvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.lsu.dbus_rdata[31:0]
+@28
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.lsu.dbus_awvalid
+@22
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.lsu.dbus_awaddr[31:0]
+TOP.ysyxSoCFull.asic.cpu.cpu.cpu_core.u_exec.lsu.dbus_wdata[31:0]
+[pattern_trace] 1
+[pattern_trace] 0

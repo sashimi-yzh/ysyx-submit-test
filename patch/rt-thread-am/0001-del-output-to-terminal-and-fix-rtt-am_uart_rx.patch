@@ -1,0 +1,197 @@
+From 94a271a0bf88ca3ce26f0ad048610da27fa080ec Mon Sep 17 00:00:00 2001
+From: hhh <3224318821@qq.com>
+Date: Sat, 21 Mar 2026 18:43:55 +0800
+Subject: [PATCH 1/2] del output to terminal and fix rtt am_uart_rx
+
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f31..2c5a654 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,11 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
++ifeq ($(ARCH),riscv32e-ysyxsoc)
++LDFLAGS += -T soc_extra.ld
++else
+ LDFLAGS += -T extra.ld
++endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc656..f899bf7 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -32,7 +32,7 @@ SECTIONS {
+ INSERT BEFORE .data;
+ 
+ SECTIONS {
+-  .bss.extra : {
++  .bss.extra (NOLOAD) : {
+     . = ALIGN(8);
+     __am_apps_bss_start = .;
+     *(__am_apps.bss*)
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df3..5ce2e8f 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -11,7 +11,7 @@ app_dir_list = [
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++#   AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829..2214509 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,30 +2,101 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-static Context* ev_handler(Event e, Context *c) {
+-  switch (e.event) {
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+-  }
+-  return c;
++static Context *ev_handler(Event e, Context *c)
++{
++    rt_thread_t ct;
++    rt_ubase_t *para;
++    switch (e.event) {
++        case EVENT_YIELD: 
++            ct = rt_thread_self();
++            para = (rt_ubase_t *)(ct->user_data);
++            rt_ubase_t to = para[0];
++            rt_ubase_t from = para[1];
++            if (from) {
++                *((Context **)from) = c;
++            }
++            c = *(Context **)to;
++            break;
++        case EVENT_IRQ_TIMER:
++            break;
++        default:
++            printf("Unhandled event ID = %d\n", e.event);
++            assert(0);
++    }
++    
++    return c;
+ }
+ 
+-void __am_cte_init() {
+-  cte_init(ev_handler);
++void __am_cte_init()
++{
++    cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++void rt_hw_context_switch_to(rt_ubase_t to)
++{
++    rt_ubase_t temp;
++    rt_ubase_t ud_ct[2];
++    rt_thread_t ct = rt_thread_self();
++    temp = ct->user_data;
++
++    ud_ct[0] = to;
++    ud_ct[1] = 0;
++    ct->user_data = (rt_ubase_t)ud_ct;
++
++    yield();
++
++    ct->user_data = temp;
++}
++
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to)
++{
++    rt_ubase_t temp;
++    rt_ubase_t ud_ct[2];
++    rt_thread_t ct = rt_thread_self();
++    temp = ct->user_data;
++
++    ud_ct[0] = to;
++    ud_ct[1] = from;
++    ct->user_data = (rt_ubase_t)ud_ct;
++
++    yield();
++
++    ct->user_data = temp;
+ }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread)
++{
++    assert(0);
+ }
+ 
+-void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+-  assert(0);
++typedef struct {
++    void (*entry)(void *);
++    void *parameter;
++    void (*texit)(void);
++} wrapper_arg_t;
++
++static void _thread_entry(wrapper_arg_t *arg)
++{
++    arg->entry(arg->parameter);
++    arg->texit();
++    while (1)
++        ;
+ }
+ 
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit)
++{
++    stack_addr = (rt_uint8_t *)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
++
++    stack_addr -= sizeof(wrapper_arg_t);
++
++    wrapper_arg_t *wrp_arg = (wrapper_arg_t *)stack_addr;
++    wrp_arg->entry = (void (*)(void *))tentry;
++    wrp_arg->parameter = parameter;
++    wrp_arg->texit = (void (*)(void))texit;
++
++    Area stack_area = {.end = (rt_uint8_t *)stack_addr};
++
++    Context *ctx = kcontext(stack_area, (void *)_thread_entry, (void *)wrp_arg);
++
++    return (rt_uint8_t *)ctx;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb866..55da9a7 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -37,8 +38,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  // static const char *p = "help\nam_hello\n";
++  // return (*p != '\0' ? *(p ++) : io_read(AM_UART_CONFIG).present ? io_read(AM_UART_RX).data : -1);
++  return (io_read(AM_UART_CONFIG).present ? io_read(AM_UART_RX).data : -1);
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+
