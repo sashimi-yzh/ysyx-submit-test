@@ -276,6 +276,11 @@ jobs:
           fi
           echo "Downloading mill with version $MILL_VERSION"
           sh -c "curl -L https://github.com/com-lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION > ~/.local/bin/mill && chmod +x ~/.local/bin/mill"
+
+          if [[ -e $YSYX_HOME/npc/.mill-version ]]; then
+            # new version mill --version requires pwd has .mill-version file
+            cd $YSYX_HOME/npc
+          fi
           mill --version
 
       - name: Get ysyxSoC tag
