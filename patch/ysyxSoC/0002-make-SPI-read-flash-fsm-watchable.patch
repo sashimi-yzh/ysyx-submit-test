@@ -1,0 +1,264 @@
+From 4f7de626217d2d5c25d2fb1d59993be373202485 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Tue, 20 Jan 2026 20:26:32 +0800
+Subject: [PATCH 02/28] make SPI read flash fsm watchable
+
+---
+ src/device/SPI.scala | 218 ++++++++++++++++---------------------------
+ 1 file changed, 78 insertions(+), 140 deletions(-)
+
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index e8415926..456bc489 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -57,19 +57,6 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+     mspi.io.clock := clock
+     mspi.io.reset := reset
+ 
+-    object XIPState extends ChiselEnum {
+-      val idle,
+-      // fuck APB
+-      // setup, access
+-      sw_initSS, aw_initSS, sw_dummy, aw_dummy, sw_inst, aw_inst, sw_ctrl,
+-          aw_ctrl, sr_ctrl, ar_ctrl, sr_data, ar_data, sw_clearSS, aw_clearSS =
+-        Value
+-    }
+-    val xipState = RegInit(XIPState.idle)
+-    val destAddr = RegInit(0.U(32.W))
+-    val readDataReg = Reg(UInt(32.W))
+-    val readFlashInst = Cat(0x3.U(8.W), destAddr(23, 0))
+-
+     object FlashRegAddr {
+       val Tx0 = 0x10001000.U
+       val Rx0 = 0x10001000.U
+@@ -78,149 +65,100 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
+       val Ctrl = 0x10001010.U
+       val SS = 0x10001018.U
+     }
++    case class ApbOp(
++        addr: UInt,
++        writeData: Option[UInt],
++        checkBusy: Boolean = false
++    )
+ 
++    val destAddr = RegInit(0.U(32.W))
++    val readDataReg = Reg(UInt(32.W))
++    val readFlashInst = Cat(0x3.U(8.W), destAddr(23, 0))
++    // 64bit transfer
++    // go busy
++    val spiCtrlValue = "b1_0100_0000".U(32.W)
++
++    val ops = Seq(
++      ApbOp(FlashRegAddr.SS, Some(1.U)),
++      // write anything in read mode
++      // MSB first leading flash
++      // recieve  | TX1 | TX0 |
++      // sendback | RX1 | RX0 |
++      // RX0 is the data corresponding to the TX1
++      ApbOp(FlashRegAddr.Tx0, Some(readFlashInst)),
++      ApbOp(FlashRegAddr.Tx1, Some(readFlashInst)),
++      ApbOp(FlashRegAddr.Ctrl, Some(spiCtrlValue)),
++      ApbOp(FlashRegAddr.Ctrl, None, checkBusy = true),
++      ApbOp(FlashRegAddr.Rx0, None),
++      ApbOp(FlashRegAddr.SS, Some(0.U))
++    )
++    val stateBitWidth = log2Ceil(ops.length + 2).W
++    val sDone = ops.length.U(stateBitWidth)
++    val sIdle = ops.length.U + 1.U(stateBitWidth)
++
++    val step = RegInit(sIdle)
++    // APBStage: false = setup, true = access
++    val isSetupStage = RegInit(true.B)
++
++    val opAddrs = VecInit(ops.map(_.addr))
++    val opIsWrite = VecInit(ops.map(_.writeData.isDefined.B))
++    val opWriteData = VecInit(ops.map(_.writeData.getOrElse(0.U)))
++    val opCheckBusy = VecInit(ops.map(_.checkBusy.B))
++
++    val isIdle = step === sIdle
++    val isDone = step === sDone
++    val currentAddr = opAddrs(step)
++    val currentIsWrite = opIsWrite(step)
++    val currentWriteData = opWriteData(step)
++    val currentCheckBusy = opCheckBusy(step)
+     val mspiReady = mspi.io.in.pready
+     val mspiRData = mspi.io.in.prdata
+ 
+     when(in.paddr >= 0x30000000.U && in.paddr < 0x40000000.U) {
+-      // printf("SPI: XIP Flash access at addr 0x%x\n", in.paddr)
+-      xipState := MuxLookup(xipState, XIPState.idle)(
+-        Seq(
+-          XIPState.idle -> Mux(in.psel, XIPState.sw_initSS, XIPState.idle),
+-          XIPState.sw_initSS -> XIPState.aw_initSS,
+-          XIPState.aw_initSS -> Mux(
+-            mspiReady,
+-            XIPState.sw_dummy,
+-            XIPState.aw_initSS
+-          ),
+-          XIPState.sw_dummy -> XIPState.aw_dummy,
+-          XIPState.aw_dummy -> Mux(
+-            mspiReady,
+-            XIPState.sw_inst,
+-            XIPState.aw_dummy
+-          ),
+-          XIPState.sw_inst -> XIPState.aw_inst,
+-          XIPState.aw_inst -> Mux(
+-            mspiReady,
+-            XIPState.sw_ctrl,
+-            XIPState.aw_inst
+-          ),
+-          XIPState.sw_ctrl -> XIPState.aw_ctrl,
+-          XIPState.aw_ctrl -> Mux(
+-            mspiReady,
+-            XIPState.sr_ctrl,
+-            XIPState.aw_ctrl
+-          ),
+-
+-          // Read CTRL: Setup -> Access -> Check
+-          XIPState.sr_ctrl -> XIPState.ar_ctrl,
+-          XIPState.ar_ctrl -> Mux(
+-            mspiReady,
+-            // when CTRL read done but still busy, read CTRL again
+-            Mux(mspiRData(8) === 0.U, XIPState.sr_data, XIPState.sr_ctrl),
+-            XIPState.ar_ctrl
+-          ),
+-          XIPState.sr_data -> XIPState.ar_data,
+-          XIPState.ar_data -> Mux(
+-            mspiReady,
+-            XIPState.sw_clearSS,
+-            XIPState.ar_data
+-          ),
+-          XIPState.sw_clearSS -> XIPState.aw_clearSS,
+-          XIPState.aw_clearSS -> Mux(
+-            mspiReady,
+-            XIPState.idle,
+-            XIPState.aw_clearSS
+-          )
+-        )
+-      )
+-
+-      when(xipState === XIPState.idle && in.psel) {
+-        destAddr := in.paddr
+-      }
+-      when(xipState === XIPState.ar_data && mspiReady) {
+-        readDataReg := mspiRData
+-      }
+-      mspi.io.in.paddr := MuxLookup(xipState, 0.U)(
+-        Seq(
+-          XIPState.sw_dummy -> FlashRegAddr.Tx0,
+-          XIPState.aw_dummy -> FlashRegAddr.Tx0,
+-          XIPState.sw_inst -> FlashRegAddr.Tx1,
+-          XIPState.aw_inst -> FlashRegAddr.Tx1,
+-          XIPState.sw_ctrl -> FlashRegAddr.Ctrl,
+-          XIPState.aw_ctrl -> FlashRegAddr.Ctrl,
+-          XIPState.sr_ctrl -> FlashRegAddr.Ctrl,
+-          XIPState.ar_ctrl -> FlashRegAddr.Ctrl,
+-          XIPState.sr_data -> FlashRegAddr.Rx0,
+-          XIPState.ar_data -> FlashRegAddr.Rx0,
+-          XIPState.sw_initSS -> FlashRegAddr.SS,
+-          XIPState.aw_initSS -> FlashRegAddr.SS,
+-          XIPState.sw_clearSS -> FlashRegAddr.SS,
+-          XIPState.aw_clearSS -> FlashRegAddr.SS
+-        )
+-      )
+-
+-      // 64bit transfer
+-      // go busy
+-      val spiCtrlValue = "b1_0100_0000".U(32.W)
+-
+-      mspi.io.in.pwdata := MuxLookup(xipState, 0.U)(
+-        Seq(
+-          XIPState.sw_dummy -> readFlashInst,
+-          XIPState.aw_dummy -> readFlashInst,
+-          XIPState.sw_inst -> readFlashInst,
+-          XIPState.aw_inst -> readFlashInst,
+-          XIPState.sw_ctrl -> spiCtrlValue,
+-          XIPState.aw_ctrl -> spiCtrlValue,
+-          XIPState.sw_initSS -> (1 << 0).U,
+-          XIPState.aw_initSS -> (1 << 0).U
+-        )
+-      )
++      mspi.io.in.psel := !isIdle
++      mspi.io.in.penable := ~isSetupStage
++      mspi.io.in.paddr := currentAddr
++      mspi.io.in.pwrite := currentIsWrite
++      mspi.io.in.pwdata := currentWriteData
++      mspi.io.in.pprot := 1.U
++      mspi.io.in.pstrb := Mux(mspi.io.in.psel, "hF".U, 0.U)
+ 
+-      mspi.io.in.pwrite := VecInit(
+-        XIPState.sw_dummy,
+-        XIPState.aw_dummy,
+-        XIPState.sw_inst,
+-        XIPState.aw_inst,
+-        XIPState.sw_ctrl,
+-        XIPState.aw_ctrl,
+-        XIPState.sw_clearSS,
+-        XIPState.aw_clearSS,
+-        XIPState.sw_initSS,
+-        XIPState.aw_initSS
+-      ).map(xipState === _).reduce(_ || _)
+-
+-      mspi.io.in.psel := xipState =/= XIPState.idle
+-
+-      // only when access state
+-      mspi.io.in.penable := VecInit(
+-        XIPState.aw_dummy,
+-        XIPState.aw_inst,
+-        XIPState.aw_ctrl,
+-        XIPState.ar_ctrl,
+-        XIPState.ar_data,
+-        XIPState.aw_clearSS,
+-        XIPState.aw_initSS
+-      ).map(xipState === _).reduce(_ || _)
+-
+-      val xipDone = (xipState === XIPState.ar_data && mspi.io.in.pready)
+-
+-      in.pready := xipDone
+-
+-      val rawData = Mux(xipDone, mspiRData, readDataReg)
++      in.pready := isDone
+ 
++      val rawData = readDataReg
+       in.prdata := Cat(
+         rawData(7, 0),
+         rawData(15, 8),
+         rawData(23, 16),
+         rawData(31, 24)
+       )
+-
+       in.pslverr := false.B
+ 
+-      mspi.io.in.pprot := 1.U
+-      mspi.io.in.pstrb := Mux(mspi.io.in.psel, "hF".U, 0.U)
++      when(in.psel) {
++        destAddr := in.paddr
++      }
++      when(isIdle && in.psel) {
++        step := 0.U
++      }
+ 
++      when(!(isIdle || isDone)) {
++        when(isSetupStage) {
++          isSetupStage := false.B
++        }.otherwise {
++          when(mspiReady) {
++            when(!currentIsWrite && !currentCheckBusy) {
++              readDataReg := mspiRData
++            }
++
++            val curDone = Mux(currentCheckBusy, ~mspiRData(8), true.B)
++            step := Mux(curDone, step + 1.U, step)
++            isSetupStage := curDone
++          }
++        }
++      }
++      when(isDone) {
++        step := sIdle
++      }
+     }.otherwise {
+       // connect to SPI controller
+       mspi.io.in <> in
+-- 
+2.43.0
+

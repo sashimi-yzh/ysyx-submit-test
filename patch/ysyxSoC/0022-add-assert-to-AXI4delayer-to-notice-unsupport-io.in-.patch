@@ -1,0 +1,33 @@
+From 9e97166b6f7732c033d6d3791943576f9e4f7f2a Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Tue, 3 Feb 2026 16:23:16 +0800
+Subject: [PATCH 22/28] add assert to AXI4delayer to notice unsupport io.in
+ unready when rdata come
+
+---
+ src/amba/AXI4Delayer.scala | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 94bf02fd..4a66ad52 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -176,9 +176,15 @@ class AXI4DelayerChisel extends Module {
+     arReadySent := false.B
+   }
+ 
++  // TODO: support in didn't ready when r data come
+   val hasRDataDelayDone =
+     (rdDelayCtr.io.insertStopDone || rdDelayCtr.io.delayDone) && arReadySent
+ 
++  assert(
++    (!hasRDataDelayDone) || io.in.r.fire || !rDataFIFO.io.deq.valid,
++    "AXI4DelayerChisel doesn't support in.r not ready when r data come"
++  )
++
+   io.in.r.valid := rDataFIFO.io.deq.valid && hasRDataDelayDone
+   io.in.r.bits := rDataFIFO.io.deq.bits
+   rDataFIFO.io.deq.ready := io.in.r.ready && hasRDataDelayDone
+-- 
+2.43.0
+

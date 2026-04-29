@@ -1,0 +1,287 @@
+From 3038d2b666d5d19bc337525a57beee297efffe67 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sat, 24 Jan 2026 19:48:09 +0800
+Subject: [PATCH 10/28] impl sdram
+
+---
+ src/SoC.scala          |   2 +-
+ src/device/SDRAM.scala | 211 ++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 187 insertions(+), 26 deletions(-)
+
+diff --git a/src/SoC.scala b/src/SoC.scala
+index a86a9498..e82b3ad1 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -142,7 +142,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+ 
+     val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+-    val sdram = Module(new sdram)
++    val sdram = Module(new sdramChisel)
+     sdram.io <> masic.sdram
+ 
+     val externalPins = IO(new Bundle{
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index a823c718..9ebf9107 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -9,25 +9,30 @@ import freechips.rocketchip.amba.apb._
+ import org.chipsalliance.cde.config.Parameters
+ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
++import chisel3.util.circt.dpi._
+ 
+ class SDRAMIO extends Bundle {
+   val clk = Output(Bool())
+   val cke = Output(Bool())
+-  val cs  = Output(Bool())
++  val cs = Output(Bool())
+   val ras = Output(Bool())
+   val cas = Output(Bool())
+-  val we  = Output(Bool())
+-  val a   = Output(UInt(13.W))
+-  val ba  = Output(UInt(2.W))
++  val we = Output(Bool())
++  val a = Output(UInt(13.W))
++  val ba = Output(UInt(2.W))
+   val dqm = Output(UInt(2.W))
+-  val dq  = Analog(16.W)
++  val dq = Analog(16.W)
+ }
+ 
+ class sdram_top_axi extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Bool())
+-    val in = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
++    val in = Flipped(
++      new AXI4Bundle(
++        AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)
++      )
++    )
+     val sdram = new SDRAMIO
+   })
+ }
+@@ -36,7 +41,8 @@ class sdram_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Bool())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++    val in =
++      Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+     val sdram = new SDRAMIO
+   })
+ }
+@@ -45,21 +51,167 @@ class sdram extends BlackBox {
+   val io = IO(Flipped(new SDRAMIO))
+ }
+ 
++// MT48LC16M16A2
++//  16 Meg x 16
++// Row addressing: 8K A[12:0]
++// Bank addressing: 4 B[1:0]
++// Column addressing: 512 A[8:0]
+ class sdramChisel extends RawModule {
+   val io = IO(Flipped(new SDRAMIO))
++  val dout = WireDefault(0.U(16.W))
++  val dout_en = WireDefault(false.B)
++  val di = TriStateInBuf(io.dq, dout, dout_en)
++
++  dontTouch(io)
++
++  val InvalidValue = "hcccc".U(16.W)
++
++  object CMD {
++    val NOP = "b111".U(3.W)
++    val ACTIVE = "b011".U(3.W)
++    val READ = "b101".U(3.W)
++    val WRITE = "b100".U(3.W)
++    val BURST_STOP = "b110".U(3.W)
++    val PRECHARGE = "b010".U(3.W)
++    val REFRESH = "b001".U(3.W)
++    val LOAD_MODE = "b000".U(3.W)
++  }
++
++  val cmd = Wire(UInt(3.W))
++  dontTouch(cmd)
++  cmd := Mux(io.cs === false.B, io.ras ## io.cas ## io.we, CMD.NOP)
++
++  val mode = withClock(io.clk.asClock) { Reg(UInt(12.W)) }
++  // TODO: handle Full Page mode
++  val burstLength = WireInit(1.U << mode(2, 0))
++  val burstType = WireInit(mode(3))
++  val casLatency = WireInit(mode(6, 4) - 1.U)
++  val operatingMode = WireInit(mode(8, 7))
++  val writeBurstMode = WireInit(mode(9))
++
++  object State extends ChiselEnum {
++    val idle, casWait, sendRData, recvWData = Value
++  }
++
++  withClockAndReset(io.clk.asClock, false.B) {
++    when(cmd === CMD.LOAD_MODE) { mode := io.a(11, 0) }
++
++    val row = Reg(UInt(13.W))
++    val bank = Reg(UInt(2.W))
++    val col = Reg(UInt(9.W))
++
++    val state = Reg(State())
++
++    when(cmd === CMD.ACTIVE) {
++      row := io.a(12, 0)
++      bank := io.ba
++    }
++    when(cmd === CMD.READ || cmd === CMD.WRITE) {
++      col := io.a(8, 0)
++      bank := io.ba
++    }
++
++    val enReadCall = WireDefault(false.B)
++    dontTouch(enReadCall)
++
++    // val rdataReg = Wire(UInt(16.W))
++    // dontTouch(rdataReg)
++    // when(enReadCall){
++    //   rdataReg := MuxLookup(col, 0.U)(Seq(
++    //     0.U -> "h1234".U(16.W),
++    //     1.U -> "h5678".U(16.W),
++    //     2.U -> "habcd".U(16.W),
++    //     3.U -> "hef01".U(16.W)
++    //   ))
++    // } .otherwise {
++    //   rdataReg := 0.U(16.W)
++    // }
++    val rData = RawUnclockedNonVoidFunctionCall(
++      "sdram_read",
++      UInt(16.W),
++      Some(Seq("bank", "row", "col"))
++    )(enReadCall, bank.pad(8), row.pad(16), col.pad(16))
++
++    val wData = WireDefault(InvalidValue)
++    val enWriteCall = WireDefault(false.B)
++    val wCol = Wire(UInt(16.W))
++    dontTouch(wCol)
++    val wBank = Wire(UInt(2.W))
++    dontTouch(wBank)
++    val inCount = Wire(UInt(3.W))
++    // TODO: support burst write
++    inCount := Mux(state === State.recvWData, 1.U, 0.U)
++
++    wCol := io.a(8, 0).pad(16) + inCount.pad(16)
++    wBank := io.ba
++
++    dontTouch(enWriteCall)
++    RawClockedVoidFunctionCall(
++      "sdram_write",
++      Some(Seq("bank", "row", "col", "data", "mask"))
++    )(
++      io.clk.asClock,
++      enWriteCall,
++      wBank.pad(8),
++      row.pad(16),
++      wCol,
++      wData.pad(16),
++      io.dqm.pad(8)
++    )
++
++    val casCount = Reg(UInt(3.W))
++    val outCount = Reg(UInt(3.W))
++    when(cmd === CMD.READ) {
++      state := State.casWait
++      casCount := 0.U
++    }.elsewhen(cmd === CMD.WRITE) {
++      state := State.recvWData
++      wData := di
++      enWriteCall := true.B
++    }.elsewhen(state === State.recvWData) {
++      wData := di
++      enWriteCall := true.B
++      state := State.idle
++    }.elsewhen(state === State.casWait) {
++      when(casCount === (casLatency - 1.U)) {
++        state := State.sendRData
++      }.otherwise {
++        casCount := casCount + 1.U
++      }
++    }.elsewhen(state === State.sendRData) {
++      dout := rData
++      enReadCall := true.B
++      dout_en := true.B
++      when(outCount === (burstLength - 1.U)) {
++        state := State.idle
++        outCount := 0.U
++      }.otherwise {
++        outCount := outCount + 1.U
++        col := col + 1.U
++      }
++    }
++  }
+ }
+ 
+-class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
++class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters)
++    extends LazyModule {
+   val beatBytes = 4
+-  val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
+-    Seq(AXI4SlaveParameters(
+-        address       = address,
+-        executable    = true,
+-        supportsWrite = TransferSizes(1, beatBytes),
+-        supportsRead  = TransferSizes(1, beatBytes),
+-        interleavedId = Some(0))
+-    ),
+-    beatBytes  = beatBytes)))
++  val node = AXI4SlaveNode(
++    Seq(
++      AXI4SlavePortParameters(
++        Seq(
++          AXI4SlaveParameters(
++            address = address,
++            executable = true,
++            supportsWrite = TransferSizes(1, beatBytes),
++            supportsRead = TransferSizes(1, beatBytes),
++            interleavedId = Some(0)
++          )
++        ),
++        beatBytes = beatBytes
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+@@ -74,14 +226,23 @@ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyMo
+   }
+ }
+ 
+-class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(
++    Seq(
++      APBSlavePortParameters(
++        Seq(
++          APBSlaveParameters(
++            address = address,
++            executable = true,
++            supportsRead = true,
++            supportsWrite = true
++          )
++        ),
++        beatBytes = 4
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-- 
+2.43.0
+

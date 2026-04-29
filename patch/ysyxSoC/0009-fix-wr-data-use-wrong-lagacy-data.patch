@@ -1,0 +1,25 @@
+From 8a8052bf50a5da863ccaaec60b3f611cf826d02a Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Thu, 22 Jan 2026 13:38:07 +0800
+Subject: [PATCH 09/28] fix wr data use wrong lagacy data
+
+---
+ src/device/PSRAM.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index bca68344..9073e23b 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -152,7 +152,7 @@ class psramChisel extends RawModule {
+             "psram_write",
+             UInt(32.W),
+             Some(Seq("addr", "strb", "data"))
+-          )(io.sck.asClock, true.B, addrReg.pad(32), "hF".U(8.W), data)
++          )(io.sck.asClock, true.B, addrReg.pad(32), "hF".U(8.W), nxtData)
+         }.otherwise {
+           cnt := cnt + 1.U
+         }
+-- 
+2.43.0
+

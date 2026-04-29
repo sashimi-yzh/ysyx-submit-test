@@ -1,0 +1,85 @@
+From 6f24032aed0a052c903c637eabd76a73b22e5ad9 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Fri, 27 Feb 2026 16:49:16 +0800
+Subject: [PATCH 3/7] restore remove .git from workbench
+
+---
+ bsp/abstract-machine/extra.soc.ld  | 53 ++++++++++++++++++++++++++++++
+ bsp/abstract-machine/src/context.c |  1 +
+ 2 files changed, 54 insertions(+)
+ create mode 100644 bsp/abstract-machine/extra.soc.ld
+
+diff --git a/bsp/abstract-machine/extra.soc.ld b/bsp/abstract-machine/extra.soc.ld
+new file mode 100644
+index 0000000..d24982f
+--- /dev/null
++++ b/bsp/abstract-machine/extra.soc.ld
+@@ -0,0 +1,53 @@
++SECTIONS {
++  .data.extra : {
++		_data_extra_start = .;
++
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++
++  } > runtime AT> flash
++	__data_extra_load_start__  = LOADADDR(.data.extra);
++	__data_extra_size__   = SIZEOF(.data.extra);
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra : {
++		_bss_extra_start = .;
++
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > runtime
++	__bss_extra_size__   = SIZEOF(.bss.extra);
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 3c8dfa9..43dd0c0 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -19,6 +19,7 @@ static Context* ev_handler(Event e, Context *c) {
+ 				c=*(Context**)arg->to;
+ 				break;
+ 			}
++		case EVENT_IRQ_TIMER:break; // 目前识别出时钟中断事件之后什么都不用做, 直接返回相应的上下文结构即可.
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+-- 
+2.43.0
+

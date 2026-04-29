@@ -1,0 +1,301 @@
+From 33a5ca33d81baecad6b949e3af599ef5f5bfad68 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Tue, 20 Jan 2026 17:40:51 +0800
+Subject: [PATCH 01/28] impl read flash by spi
+
+---
+ src/CPU.scala           |   4 +-
+ src/SoC.scala           |   2 +-
+ src/device/BitRev.scala |  18 +++-
+ src/device/SPI.scala    | 198 ++++++++++++++++++++++++++++++++++++++--
+ 4 files changed, 207 insertions(+), 15 deletions(-)
+
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195f..5bae9605 100644
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_25100261 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_25100261)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 1c65cd87..29267c58 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -135,7 +135,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     val flash = Module(new flash)
+     flash.io <> masic.spi
+     flash.io.ss := masic.spi.ss(0)
+-    val bitrev = Module(new bitrev)
++    val bitrev = Module(new bitrevChisel)
+     bitrev.io <> masic.spi
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+index 6bd3d572..0c856060 100644
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -7,7 +7,21 @@ class bitrev extends BlackBox {
+   val io = IO(Flipped(new SPIIO(1)))
+ }
+ 
+-class bitrevChisel extends RawModule { // we do not need clock and reset
++class bitrevChisel extends RawModule { 
+   val io = IO(Flipped(new SPIIO(1)))
+-  io.miso := true.B
++  // Assuming LSB false
++  withClockAndReset(io.sck.asClock, io.ss(0).asAsyncReset) {
++    val inByte = RegInit(0.U(8.W))
++    val cnt = RegInit(0.U(4.W))
++
++    cnt := cnt + 1.U
++
++    inByte := Mux(cnt>7.U,inByte,Cat(inByte(6,0), io.mosi))
++
++    io.miso := Mux(
++      io.ss(0),
++      true.B,
++      Mux(cnt>7.U,inByte(cnt-8.U),0.U)
++    )
++  }
+ }
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index c354bb92..e8415926 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -19,7 +19,8 @@ class spi_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++    val in =
++      Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+     val spi = new SPIIO
+     val spi_irq_out = Output(Bool())
+   })
+@@ -29,14 +30,23 @@ class flash extends BlackBox {
+   val io = IO(Flipped(new SPIIO(1)))
+ }
+ 
+-class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBSPI(address: Seq[AddressSet])(implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(
++    Seq(
++      APBSlavePortParameters(
++        Seq(
++          APBSlaveParameters(
++            address = address,
++            executable = true,
++            supportsRead = true,
++            supportsWrite = true
++          )
++        ),
++        beatBytes = 4
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+@@ -46,7 +56,175 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     val mspi = Module(new spi_top_apb)
+     mspi.io.clock := clock
+     mspi.io.reset := reset
+-    mspi.io.in <> in
++
++    object XIPState extends ChiselEnum {
++      val idle,
++      // fuck APB
++      // setup, access
++      sw_initSS, aw_initSS, sw_dummy, aw_dummy, sw_inst, aw_inst, sw_ctrl,
++          aw_ctrl, sr_ctrl, ar_ctrl, sr_data, ar_data, sw_clearSS, aw_clearSS =
++        Value
++    }
++    val xipState = RegInit(XIPState.idle)
++    val destAddr = RegInit(0.U(32.W))
++    val readDataReg = Reg(UInt(32.W))
++    val readFlashInst = Cat(0x3.U(8.W), destAddr(23, 0))
++
++    object FlashRegAddr {
++      val Tx0 = 0x10001000.U
++      val Rx0 = 0x10001000.U
++      val Tx1 = 0x10001004.U
++      val Rx1 = 0x10001004.U
++      val Ctrl = 0x10001010.U
++      val SS = 0x10001018.U
++    }
++
++    val mspiReady = mspi.io.in.pready
++    val mspiRData = mspi.io.in.prdata
++
++    when(in.paddr >= 0x30000000.U && in.paddr < 0x40000000.U) {
++      // printf("SPI: XIP Flash access at addr 0x%x\n", in.paddr)
++      xipState := MuxLookup(xipState, XIPState.idle)(
++        Seq(
++          XIPState.idle -> Mux(in.psel, XIPState.sw_initSS, XIPState.idle),
++          XIPState.sw_initSS -> XIPState.aw_initSS,
++          XIPState.aw_initSS -> Mux(
++            mspiReady,
++            XIPState.sw_dummy,
++            XIPState.aw_initSS
++          ),
++          XIPState.sw_dummy -> XIPState.aw_dummy,
++          XIPState.aw_dummy -> Mux(
++            mspiReady,
++            XIPState.sw_inst,
++            XIPState.aw_dummy
++          ),
++          XIPState.sw_inst -> XIPState.aw_inst,
++          XIPState.aw_inst -> Mux(
++            mspiReady,
++            XIPState.sw_ctrl,
++            XIPState.aw_inst
++          ),
++          XIPState.sw_ctrl -> XIPState.aw_ctrl,
++          XIPState.aw_ctrl -> Mux(
++            mspiReady,
++            XIPState.sr_ctrl,
++            XIPState.aw_ctrl
++          ),
++
++          // Read CTRL: Setup -> Access -> Check
++          XIPState.sr_ctrl -> XIPState.ar_ctrl,
++          XIPState.ar_ctrl -> Mux(
++            mspiReady,
++            // when CTRL read done but still busy, read CTRL again
++            Mux(mspiRData(8) === 0.U, XIPState.sr_data, XIPState.sr_ctrl),
++            XIPState.ar_ctrl
++          ),
++          XIPState.sr_data -> XIPState.ar_data,
++          XIPState.ar_data -> Mux(
++            mspiReady,
++            XIPState.sw_clearSS,
++            XIPState.ar_data
++          ),
++          XIPState.sw_clearSS -> XIPState.aw_clearSS,
++          XIPState.aw_clearSS -> Mux(
++            mspiReady,
++            XIPState.idle,
++            XIPState.aw_clearSS
++          )
++        )
++      )
++
++      when(xipState === XIPState.idle && in.psel) {
++        destAddr := in.paddr
++      }
++      when(xipState === XIPState.ar_data && mspiReady) {
++        readDataReg := mspiRData
++      }
++      mspi.io.in.paddr := MuxLookup(xipState, 0.U)(
++        Seq(
++          XIPState.sw_dummy -> FlashRegAddr.Tx0,
++          XIPState.aw_dummy -> FlashRegAddr.Tx0,
++          XIPState.sw_inst -> FlashRegAddr.Tx1,
++          XIPState.aw_inst -> FlashRegAddr.Tx1,
++          XIPState.sw_ctrl -> FlashRegAddr.Ctrl,
++          XIPState.aw_ctrl -> FlashRegAddr.Ctrl,
++          XIPState.sr_ctrl -> FlashRegAddr.Ctrl,
++          XIPState.ar_ctrl -> FlashRegAddr.Ctrl,
++          XIPState.sr_data -> FlashRegAddr.Rx0,
++          XIPState.ar_data -> FlashRegAddr.Rx0,
++          XIPState.sw_initSS -> FlashRegAddr.SS,
++          XIPState.aw_initSS -> FlashRegAddr.SS,
++          XIPState.sw_clearSS -> FlashRegAddr.SS,
++          XIPState.aw_clearSS -> FlashRegAddr.SS
++        )
++      )
++
++      // 64bit transfer
++      // go busy
++      val spiCtrlValue = "b1_0100_0000".U(32.W)
++
++      mspi.io.in.pwdata := MuxLookup(xipState, 0.U)(
++        Seq(
++          XIPState.sw_dummy -> readFlashInst,
++          XIPState.aw_dummy -> readFlashInst,
++          XIPState.sw_inst -> readFlashInst,
++          XIPState.aw_inst -> readFlashInst,
++          XIPState.sw_ctrl -> spiCtrlValue,
++          XIPState.aw_ctrl -> spiCtrlValue,
++          XIPState.sw_initSS -> (1 << 0).U,
++          XIPState.aw_initSS -> (1 << 0).U
++        )
++      )
++
++      mspi.io.in.pwrite := VecInit(
++        XIPState.sw_dummy,
++        XIPState.aw_dummy,
++        XIPState.sw_inst,
++        XIPState.aw_inst,
++        XIPState.sw_ctrl,
++        XIPState.aw_ctrl,
++        XIPState.sw_clearSS,
++        XIPState.aw_clearSS,
++        XIPState.sw_initSS,
++        XIPState.aw_initSS
++      ).map(xipState === _).reduce(_ || _)
++
++      mspi.io.in.psel := xipState =/= XIPState.idle
++
++      // only when access state
++      mspi.io.in.penable := VecInit(
++        XIPState.aw_dummy,
++        XIPState.aw_inst,
++        XIPState.aw_ctrl,
++        XIPState.ar_ctrl,
++        XIPState.ar_data,
++        XIPState.aw_clearSS,
++        XIPState.aw_initSS
++      ).map(xipState === _).reduce(_ || _)
++
++      val xipDone = (xipState === XIPState.ar_data && mspi.io.in.pready)
++
++      in.pready := xipDone
++
++      val rawData = Mux(xipDone, mspiRData, readDataReg)
++
++      in.prdata := Cat(
++        rawData(7, 0),
++        rawData(15, 8),
++        rawData(23, 16),
++        rawData(31, 24)
++      )
++
++      in.pslverr := false.B
++
++      mspi.io.in.pprot := 1.U
++      mspi.io.in.pstrb := Mux(mspi.io.in.psel, "hF".U, 0.U)
++
++    }.otherwise {
++      // connect to SPI controller
++      mspi.io.in <> in
++    }
+     spi_bundle <> mspi.io.spi
+   }
+ }
+-- 
+2.43.0
+

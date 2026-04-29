@@ -1,0 +1,3 @@
+[submodule "nemu/tools/gen-inst"]
+	path = nemu/tools/gen-inst
+	url = https://github.com/WangYiJie020/ysyx-workbench-nemu-inst-gen.git

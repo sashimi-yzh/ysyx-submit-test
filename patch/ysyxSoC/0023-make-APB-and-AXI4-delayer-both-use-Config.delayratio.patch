@@ -1,0 +1,456 @@
+From 486d463b2cfd45bd61a1eb4fa5848405b20fd448 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Tue, 3 Feb 2026 22:03:51 +0800
+Subject: [PATCH 23/28] make APB and AXI4 delayer both use Config.delayratio
+ direct connect when ratio==1
+
+---
+ src/Top.scala              |   1 +
+ src/amba/APBDelayer.scala  | 146 +++++++++++++-------------
+ src/amba/AXI4Delayer.scala | 203 ++++++++++++++++++++-----------------
+ 3 files changed, 186 insertions(+), 164 deletions(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index 1b346ccd..410985f7 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -8,6 +8,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ object Config {
+   def hasChipLink: Boolean = false
+   def sdramUseAXI: Boolean = true
++  def DelayRatio: Float = sys.env.getOrElse("DELAY_RATIO", "4").toFloat
+   def useFastFlash: Boolean = sys.env.getOrElse("USE_FAST_FLASH", "0") == "1"
+ }
+ 
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index e6e87e06..162798f5 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -25,24 +25,6 @@ class apb_delayer extends BlackBox {
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+ 
+-  object State extends ChiselEnum {
+-    val idle, waitOutReady, waitDelay = Value
+-  }
+-
+-  val delayCounter = RegInit(0.U(16.W))
+-  val state = RegInit(State.idle)
+-  state := MuxLookup(state, State.idle)(
+-    Seq(
+-      State.idle -> Mux(io.in.psel, State.waitOutReady, State.idle),
+-      State.waitOutReady -> Mux(
+-        io.out.pready,
+-        State.waitDelay,
+-        State.waitOutReady
+-      ),
+-      State.waitDelay -> Mux(delayCounter === 0.U, State.idle, State.waitDelay),
+-    )
+-  )
+-
+   //
+   // real device frequency is 1/ratio of the bus frequency
+   // to simulate this, every cycle cost on device, we need to wait ratio cycles
+@@ -52,66 +34,92 @@ class APBDelayerChisel extends Module {
+   // we should delay this response to t1' such that (t1 - t0) * ratio = (t1' - t0)
+   //
+ 
+-  val ratio = sys.env.getOrElse("APB_DELAY_RATIO", "4").toFloat
++  val ratio = Config.DelayRatio
+   println(s"APB Delayer ratio: $ratio")
+   val scale = 32;
+ 
+-  //
+-  // -1 to minus the cycle cost by device (t1 - t0)
+-  //
+-  // | device transfer | wait remaining cycles |
+-  // | (State.waitOut) |   (State.waitDelay)   |
+-  // t0 -------------- t1 -------------------- t1'
+-  //        |          |
+-  //        ^in this part delayCounter step (ratio-1)*scale every cycle
+-  //                   |
+-  //                   ^so at this time delayCounter (after div scale)
+-  //                   counts to (t1-t0)*ratio - (t1-t0).
+-  //                   later in waitDelay state, we just need minus 1 every
+-  //                   cycle.
+-  //
++  if (ratio <= 1) {
++    io.in <> io.out
++  } else {
+ 
+-  val outDelayStep = ((ratio - 1) * scale).toInt.U
+-
+-  delayCounter := MuxLookup(state, 0.U)(
+-    Seq(
+-      State.idle -> Mux(io.in.psel, outDelayStep, 0.U),
+-      State.waitOutReady -> Mux(
+-        io.out.pready,
+-        (delayCounter / scale.U - 1.U),
+-        delayCounter + outDelayStep
+-      ),
+-      State.waitDelay -> Mux(delayCounter === 0.U, 0.U, delayCounter - 1.U)
++    object State extends ChiselEnum {
++      val idle, waitOutReady, waitDelay = Value
++    }
++
++    val delayCounter = RegInit(0.U(16.W))
++    val state = RegInit(State.idle)
++    state := MuxLookup(state, State.idle)(
++      Seq(
++        State.idle -> Mux(io.in.psel, State.waitOutReady, State.idle),
++        State.waitOutReady -> Mux(
++          io.out.pready,
++          State.waitDelay,
++          State.waitOutReady
++        ),
++        State.waitDelay -> Mux(
++          delayCounter === 0.U,
++          State.idle,
++          State.waitDelay
++        )
++      )
+     )
+-  )
+ 
+-  io.out.psel := io.in.psel && ((state === State.idle) || (state === State.waitOutReady))
+-  io.out.penable := io.in.penable && (state === State.waitOutReady)
+-
+-  // payload connect directly
+-  io.out.pwrite := io.in.pwrite  // && io.out.psel // seems no need??
+-  io.out.paddr := io.in.paddr
+-  io.out.pprot := io.in.pprot
+-  io.out.pwdata := io.in.pwdata
+-  io.out.pstrb := io.in.pstrb
+-  io.out.pauser := io.in.pauser
+-
+-  val rdataReg = Reg(chiselTypeOf(io.out.prdata))
+-  val pslverrReg = Reg(chiselTypeOf(io.out.pslverr))
+-  val pduserReg = Reg(chiselTypeOf(io.out.pduser))
+-
+-  when(io.out.pready) {
+-    rdataReg := io.out.prdata
+-    pslverrReg := io.out.pslverr
+-    pduserReg := io.out.pduser
+-  }
++    //
++    // -1 to minus the cycle cost by device (t1 - t0)
++    //
++    // | device transfer | wait remaining cycles |
++    // | (State.waitOut) |   (State.waitDelay)   |
++    // t0 -------------- t1 -------------------- t1'
++    //        |          |
++    //        ^in this part delayCounter step (ratio-1)*scale every cycle
++    //                   |
++    //                   ^so at this time delayCounter (after div scale)
++    //                   counts to (t1-t0)*ratio - (t1-t0).
++    //                   later in waitDelay state, we just need minus 1 every
++    //                   cycle.
++    //
++
++    val outDelayStep = ((ratio - 1) * scale).toInt.U
++
++    delayCounter := MuxLookup(state, 0.U)(
++      Seq(
++        State.idle -> Mux(io.in.psel, outDelayStep, 0.U),
++        State.waitOutReady -> Mux(
++          io.out.pready,
++          (delayCounter / scale.U - 1.U),
++          delayCounter + outDelayStep
++        ),
++        State.waitDelay -> Mux(delayCounter === 0.U, 0.U, delayCounter - 1.U)
++      )
++    )
+ 
+-  io.in.prdata := rdataReg
+-  io.in.pslverr := pslverrReg
+-  io.in.pduser := pduserReg
++    io.out.psel := io.in.psel && ((state === State.idle) || (state === State.waitOutReady))
++    io.out.penable := io.in.penable && (state === State.waitOutReady)
++
++    // payload connect directly
++    io.out.pwrite := io.in.pwrite // && io.out.psel // seems no need??
++    io.out.paddr := io.in.paddr
++    io.out.pprot := io.in.pprot
++    io.out.pwdata := io.in.pwdata
++    io.out.pstrb := io.in.pstrb
++    io.out.pauser := io.in.pauser
++
++    val rdataReg = Reg(chiselTypeOf(io.out.prdata))
++    val pslverrReg = Reg(chiselTypeOf(io.out.pslverr))
++    val pduserReg = Reg(chiselTypeOf(io.out.pduser))
++
++    when(io.out.pready) {
++      rdataReg := io.out.prdata
++      pslverrReg := io.out.pslverr
++      pduserReg := io.out.pduser
++    }
+ 
+-  io.in.pready := (state === State.waitDelay) && (delayCounter === 0.U)
++    io.in.prdata := rdataReg
++    io.in.pslverr := pslverrReg
++    io.in.pduser := pduserReg
+ 
++    io.in.pready := (state === State.waitDelay) && (delayCounter === 0.U)
++  }
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 4a66ad52..a48c722c 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -53,8 +53,8 @@ class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
+ 
+   val needDelay = io.start && (!io.stop)
+ 
+-  val totDelay = RegInit(0.U(16.W))
+-  val timer = RegInit(0.U(16.W))
++  val totDelay = RegInit(0.U(32.W))
++  val timer = RegInit(0.U(32.W))
+   io.cnt := totDelay
+   state := MuxLookup(state, State.idle)(
+     Seq(
+@@ -79,7 +79,7 @@ class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
+   )
+   timer := Mux(state === State.idle && needDelay, 1.U, timer + 1.U)
+ 
+-  val insertedStopTargetDelays = Module(new Queue(UInt(16.W), 8))
++  val insertedStopTargetDelays = Module(new Queue(UInt(32.W), 256))
+   insertedStopTargetDelays.io.enq.valid := io.insertStop && (state === State.waitStop)
+   insertedStopTargetDelays.io.enq.bits := (totDelay / scale.U)
+ 
+@@ -109,126 +109,139 @@ class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32)
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+ 
+-  // Read
++  val ratio = Config.DelayRatio
++  if (ratio <= 1) {
++    io.in <> io.out
++  } else {
+ 
+-  val rdDelayCtr = Module(new DelayCounter())
++    // Read
+ 
+-  object DelayState extends ChiselEnum {
+-    val idle, waitReady, waitDelay = Value
+-  }
++    val rdDelayCtr = Module(new DelayCounter())
++
++    object DelayState extends ChiselEnum {
++      val idle, waitReady, waitDelay = Value
++    }
+ 
+-  def makeDelayState(inValid: Bool, outReady: Bool, delayDone: Bool) = {
+-    val state = RegInit(DelayState.idle)
+-    state := MuxLookup(state, DelayState.idle)(
+-      Seq(
+-        DelayState.idle -> Mux(inValid, DelayState.waitReady, DelayState.idle),
+-        DelayState.waitReady -> Mux(
+-          outReady,
+-          DelayState.waitDelay,
+-          DelayState.waitReady
+-        ),
+-        DelayState.waitDelay -> Mux(
+-          delayDone,
+-          DelayState.idle,
+-          DelayState.waitDelay
++    def makeDelayState(inValid: Bool, outReady: Bool, delayDone: Bool) = {
++      val state = RegInit(DelayState.idle)
++      state := MuxLookup(state, DelayState.idle)(
++        Seq(
++          DelayState.idle -> Mux(
++            inValid,
++            DelayState.waitReady,
++            DelayState.idle
++          ),
++          DelayState.waitReady -> Mux(
++            outReady,
++            DelayState.waitDelay,
++            DelayState.waitReady
++          ),
++          DelayState.waitDelay -> Mux(
++            delayDone,
++            DelayState.idle,
++            DelayState.waitDelay
++          )
+         )
+       )
+-    )
+-    state
+-  }
+-  def isWaitingOutReady(state: DelayState.Type, inValid: Bool) = {
+-    (state === DelayState.waitReady) || (state === DelayState.idle && inValid)
+-  }
+-  def isTxnStartPoint(state: DelayState.Type, inValid: Bool) = {
+-    (state === DelayState.idle && inValid)
+-  }
++      state
++    }
++    def isWaitingOutReady(state: DelayState.Type, inValid: Bool) = {
++      (state === DelayState.waitReady) || (state === DelayState.idle && inValid)
++    }
++    def isTxnStartPoint(state: DelayState.Type, inValid: Bool) = {
++      (state === DelayState.idle && inValid)
++    }
+ 
+-  val rState =
+-    makeDelayState(io.in.ar.valid, io.out.ar.ready, rdDelayCtr.io.delayDone)
++    val rState =
++      makeDelayState(io.in.ar.valid, io.out.ar.ready, rdDelayCtr.io.delayDone)
+ 
+-  io.out.ar.valid := isWaitingOutReady(rState, io.in.ar.valid)
+-  io.out.ar.bits := io.in.ar.bits
++    io.out.ar.valid := isWaitingOutReady(rState, io.in.ar.valid)
++    io.out.ar.bits := io.in.ar.bits
+ 
+-  val rdDelayInsertStop = WireDefault(false.B)
+-  rdDelayCtr.io.start := isTxnStartPoint(rState, io.in.ar.valid)
+-  rdDelayCtr.io.stop := io.out.r.valid && io.out.r.bits.last
+-  rdDelayCtr.io.insertStop := rdDelayInsertStop
++    val rdDelayInsertStop = WireDefault(false.B)
++    rdDelayCtr.io.start := isTxnStartPoint(rState, io.in.ar.valid)
++    rdDelayCtr.io.stop := io.out.r.valid && io.out.r.bits.last
++    rdDelayCtr.io.insertStop := rdDelayInsertStop
+ 
+-  // insert stop when
+-  //   - ar out aready (ar handshake done) -> delay ready to resp io.in.ar
+-  //   - r valid but not last (means more data to come) -> delay valid to resp io.in.r
+-  rdDelayInsertStop := io.out.ar.ready || (io.out.r.valid && (!io.out.r.bits.last))
++    // insert stop when
++    //   - ar out aready (ar handshake done) -> delay ready to resp io.in.ar
++    //   - r valid but not last (means more data to come) -> delay valid to resp io.in.r
++    rdDelayInsertStop := io.out.ar.ready || (io.out.r.valid && (!io.out.r.bits.last))
+ 
+-  io.in.ar.ready := rdDelayCtr.io.insertStopDone
++    io.in.ar.ready := rdDelayCtr.io.insertStopDone
+ 
+-  val rDataFIFO = Module(new Queue(io.out.r.bits.cloneType, 16))
+-  rDataFIFO.io.enq.valid := io.out.r.valid
+-  rDataFIFO.io.enq.bits := io.out.r.bits
+-  io.out.r.ready := rDataFIFO.io.enq.ready
++    val rDataFIFO = Module(new Queue(io.out.r.bits.cloneType, 256))
++    rDataFIFO.io.enq.valid := io.out.r.valid
++    rDataFIFO.io.enq.bits := io.out.r.bits
++    io.out.r.ready := rDataFIFO.io.enq.ready
+ 
+-  // when can not push data into FIFO
+-  assert(rDataFIFO.io.enq.ready || !io.out.r.valid)
++    // when can not push data into FIFO
++    assert(rDataFIFO.io.enq.ready || !io.out.r.valid)
+ 
+-  val arReadySent = RegInit(false.B)
+-  when(io.in.ar.fire) {
+-    arReadySent := true.B
+-  }.elsewhen(rdDelayCtr.io.delayDone) {
+-    arReadySent := false.B
+-  }
++    val arReadySent = RegInit(false.B)
++    when(io.in.ar.fire) {
++      arReadySent := true.B
++    }.elsewhen(rdDelayCtr.io.delayDone) {
++      arReadySent := false.B
++    }
+ 
+-  // TODO: support in didn't ready when r data come
+-  val hasRDataDelayDone =
+-    (rdDelayCtr.io.insertStopDone || rdDelayCtr.io.delayDone) && arReadySent
++    // TODO: support in didn't ready when r data come
++    val hasRDataDelayDone =
++      (rdDelayCtr.io.insertStopDone || rdDelayCtr.io.delayDone) && arReadySent
+ 
+-  assert(
+-    (!hasRDataDelayDone) || io.in.r.fire || !rDataFIFO.io.deq.valid,
+-    "AXI4DelayerChisel doesn't support in.r not ready when r data come"
+-  )
++    assert(
++      (!hasRDataDelayDone) || io.in.r.fire || !rDataFIFO.io.deq.valid,
++      "AXI4DelayerChisel doesn't support in.r not ready when r data come"
++    )
+ 
+-  io.in.r.valid := rDataFIFO.io.deq.valid && hasRDataDelayDone
+-  io.in.r.bits := rDataFIFO.io.deq.bits
+-  rDataFIFO.io.deq.ready := io.in.r.ready && hasRDataDelayDone
++    io.in.r.valid := rDataFIFO.io.deq.valid && hasRDataDelayDone
++    io.in.r.bits := rDataFIFO.io.deq.bits
++    rDataFIFO.io.deq.ready := io.in.r.ready && hasRDataDelayDone
+ 
+-  // Write
++    // Write
+ 
+-  // no burst support
++    // no burst support
+ 
+-  assert(io.in.aw.bits.len === 0.U, "AXI4DelayerChisel write only supports len=0")
++    assert(
++      io.in.aw.bits.len === 0.U,
++      "AXI4DelayerChisel write only supports len=0"
++    )
+ 
+-  val awDelayCtr = Module(new DelayCounter())
+-  val wDelayCtr = Module(new DelayCounter())
+-  val bDelayCtr = Module(new DelayCounter())
++    val awDelayCtr = Module(new DelayCounter())
++    val wDelayCtr = Module(new DelayCounter())
++    val bDelayCtr = Module(new DelayCounter())
+ 
+-  val awState =
+-    makeDelayState(io.in.aw.valid, io.out.aw.ready, awDelayCtr.io.delayDone)
+-  val wState =
+-    makeDelayState(io.in.w.valid, io.out.w.ready, wDelayCtr.io.delayDone)
++    val awState =
++      makeDelayState(io.in.aw.valid, io.out.aw.ready, awDelayCtr.io.delayDone)
++    val wState =
++      makeDelayState(io.in.w.valid, io.out.w.ready, wDelayCtr.io.delayDone)
+ 
+-  val isWriteTxnStartPoint = isTxnStartPoint(awState, io.in.aw.valid)
++    val isWriteTxnStartPoint = isTxnStartPoint(awState, io.in.aw.valid)
+ 
+-  io.out.aw.valid := isWaitingOutReady(awState, io.in.aw.valid)
+-  io.out.aw.bits := io.in.aw.bits
+-  io.out.w.valid := isWaitingOutReady(wState, io.in.w.valid)
+-  io.out.w.bits := io.in.w.bits
++    io.out.aw.valid := isWaitingOutReady(awState, io.in.aw.valid)
++    io.out.aw.bits := io.in.aw.bits
++    io.out.w.valid := isWaitingOutReady(wState, io.in.w.valid)
++    io.out.w.bits := io.in.w.bits
+ 
+-  awDelayCtr.io.start := isWriteTxnStartPoint
+-  awDelayCtr.io.stop := io.out.aw.ready
+-  awDelayCtr.io.insertStop := false.B
++    awDelayCtr.io.start := isWriteTxnStartPoint
++    awDelayCtr.io.stop := io.out.aw.ready
++    awDelayCtr.io.insertStop := false.B
+ 
+-  wDelayCtr.io.start := isWriteTxnStartPoint
+-  wDelayCtr.io.stop := io.out.w.ready && io.out.w.bits.last
+-  wDelayCtr.io.insertStop := false.B
++    wDelayCtr.io.start := isWriteTxnStartPoint
++    wDelayCtr.io.stop := io.out.w.ready && io.out.w.bits.last
++    wDelayCtr.io.insertStop := false.B
+ 
+-  io.in.aw.ready := awDelayCtr.io.delayDone
+-  io.in.w.ready := wDelayCtr.io.delayDone
++    io.in.aw.ready := awDelayCtr.io.delayDone
++    io.in.w.ready := wDelayCtr.io.delayDone
+ 
+-  bDelayCtr.io.start := isWriteTxnStartPoint
+-  bDelayCtr.io.stop := io.out.b.valid
+-  bDelayCtr.io.insertStop := false.B
++    bDelayCtr.io.start := isWriteTxnStartPoint
++    bDelayCtr.io.stop := io.out.b.valid
++    bDelayCtr.io.insertStop := false.B
+ 
+-  io.in.b.valid := bDelayCtr.io.delayDone && io.out.b.valid
+-  io.in.b.bits := io.out.b.bits
+-  io.out.b.ready := io.in.b.ready && bDelayCtr.io.delayDone
++    io.in.b.valid := bDelayCtr.io.delayDone && io.out.b.valid
++    io.in.b.bits := io.out.b.bits
++    io.out.b.ready := io.in.b.ready && bDelayCtr.io.delayDone
++  }
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+-- 
+2.43.0
+

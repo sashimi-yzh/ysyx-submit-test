@@ -1,0 +1,25 @@
+From 13db37051874925c65262f2c188bb5708f6581c6 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sun, 1 Mar 2026 13:06:05 +0800
+Subject: [PATCH 27/28] set DELAY_RATIO 2 default
+
+---
+ src/Top.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index 5c882d56..84e7d8a4 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -8,7 +8,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ object Config {
+   def hasChipLink: Boolean = false
+   def sdramUseAXI: Boolean = true
+-  def DelayRatio: Float = sys.env.getOrElse("DELAY_RATIO", "10").toFloat
++  def DelayRatio: Float = sys.env.getOrElse("DELAY_RATIO", "2").toFloat
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.43.0
+

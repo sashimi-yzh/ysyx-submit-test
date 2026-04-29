@@ -1,0 +1,10 @@
+compile_commands.json
+!include/*
+!src/*
+build/
+*.swp
+*.d
+
+# like .vscode
+\.*/
+

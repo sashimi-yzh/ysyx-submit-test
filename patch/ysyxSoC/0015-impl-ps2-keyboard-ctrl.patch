@@ -1,0 +1,159 @@
+From 4468093818399f8c921ade2f00202497b9982234 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Mon, 26 Jan 2026 12:42:46 +0800
+Subject: [PATCH 15/28] impl ps2 keyboard ctrl
+
+---
+ src/device/Keyboard.scala | 121 ++++++++++++++++++++++++++++++++++----
+ 1 file changed, 111 insertions(+), 10 deletions(-)
+
+diff --git a/src/device/Keyboard.scala b/src/device/Keyboard.scala
+index 5bd7f5b4..2c3ad853 100644
+--- a/src/device/Keyboard.scala
++++ b/src/device/Keyboard.scala
+@@ -16,7 +16,9 @@ class PS2IO extends Bundle {
+ class PS2CtrlIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Bool())
+-  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++  val in = Flipped(
++    new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))
++  )
+   val ps2 = new PS2IO
+ }
+ 
+@@ -26,23 +28,122 @@ class ps2_top_apb extends BlackBox {
+ 
+ class ps2Chisel extends Module {
+   val io = IO(new PS2CtrlIO)
++
++  val fifo = Module(new Queue(UInt(8.W), 32))
++
++  val bitCnt = RegInit(0.U(4.W))
++  val curByte = RegInit(0.U(8.W))
++
++  val ps2LastClk = RegNext(io.ps2.clk, false.B)
++  val ps2ClkFalling = (!io.ps2.clk) && ps2LastClk
++  dontTouch(ps2ClkFalling)
++
++  val fifoEnInput = WireDefault(false.B)
++  val fifoDataInput = WireDefault(0.U(8.W))
++  dontTouch(fifoEnInput)
++  dontTouch(fifoDataInput)
++  fifo.io.enq.valid := fifoEnInput
++  fifo.io.enq.bits := fifoDataInput
++
++  val isOdd = Reg(Bool())
++
++  when(ps2ClkFalling) {
++    when(bitCnt === 0.U) {
++      // Start bit
++      // assert(io.ps2.data === false.B, "PS2 start bit should be 0")
++      bitCnt := bitCnt + 1.U
++      isOdd := false.B
++    } .elsewhen(bitCnt < 9.U) {
++      curByte := Cat(io.ps2.data, curByte(7, 1))
++      bitCnt := bitCnt + 1.U
++      isOdd := isOdd ^ io.ps2.data
++    }.elsewhen(bitCnt === 9.U) {
++      isOdd := isOdd ^ io.ps2.data
++      bitCnt := bitCnt + 1.U
++    }.elsewhen(bitCnt === 10.U) {
++      // Stop bit
++      fifoEnInput := (isOdd === true.B) && (io.ps2.data === true.B)
++      fifoDataInput := curByte
++      curByte := 0.U
++      bitCnt := 0.U
++    }
++  }
++
++  // APB interface
++
++  object APBState extends ChiselEnum {
++    val idle, setup, access = Value
++  }
++  val apbState = RegInit(APBState.idle)
++  apbState := MuxLookup(apbState, APBState.idle)(
++    Seq(
++      APBState.idle -> Mux(
++        io.in.psel && !io.in.penable,
++        APBState.setup,
++        APBState.idle
++      ),
++      APBState.setup -> Mux(
++        io.in.psel && io.in.penable,
++        APBState.access,
++        APBState.setup
++      ),
++      APBState.access -> Mux(io.in.pready, APBState.idle, APBState.access)
++    )
++  )
++
++  val rData = WireDefault(0.U(32.W))
++  dontTouch(rData)
++  io.in.prdata := rData
++  // when no data available, return 0
++  io.in.pready := apbState === APBState.access
++  // TODO: handle parity error
++  io.in.pslverr := false.B
++
++  object RegAddr {
++    val DATA = 0x10011000.U(32.W)
++  }
++
++  when(apbState === APBState.access) {
++    assert(
++      io.in.paddr === RegAddr.DATA,
++      "Unsupported APB address for PS2 Keyboard"
++    )
++    assert(!io.in.pwrite, "PS2 Keyboard does not support write operations")
++  }
++
++  when(apbState === APBState.access) {
++    rData := Mux(fifo.io.deq.valid, Cat(0.U(24.W), fifo.io.deq.bits), 0.U)
++    fifo.io.deq.ready := fifo.io.deq.valid
++  }.otherwise {
++    fifo.io.deq.ready := false.B
++  }
++
+ }
+ 
+-class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(
++    Seq(
++      APBSlavePortParameters(
++        Seq(
++          APBSlaveParameters(
++            address = address,
++            executable = true,
++            supportsRead = true,
++            supportsWrite = true
++          )
++        ),
++        beatBytes = 4
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     val (in, _) = node.in(0)
+     val ps2_bundle = IO(new PS2IO)
+ 
+-    val mps2 = Module(new ps2_top_apb)
++    val mps2 = Module(new ps2Chisel)
+     mps2.io.clock := clock
+     mps2.io.reset := reset
+     mps2.io.in <> in
+-- 
+2.43.0
+

@@ -1,0 +1,110 @@
+From dc272c126c61a24b740cdaad3a55e3aafd028f45 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Sun, 1 Feb 2026 22:10:42 +0800
+Subject: [PATCH 19/28] impl ar channel delay
+
+---
+ src/amba/AXI4Delayer.scala | 78 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 76 insertions(+), 2 deletions(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index b60bb57d..8a1d40f2 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -20,9 +20,83 @@ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
++class DelayCounter(val ratio: Double = 4.0, val scale: Int = 32) extends Module {
++  val io = IO(new Bundle {
++    val devStart = Input(Bool())
++    val devDone = Input(Bool())
++    val hasDevDone = Output(Bool())
++    val delayDone = Output(Bool())
++  })
++
++  object State extends ChiselEnum {
++    val idle, waitDevice, waitDelay = Value
++  }
++  val state = RegInit(State.idle)
++
++  val needDelay = io.devStart && (!io.devDone)
++
++  val delayCounter = RegInit(0.U(16.W))
++  state := MuxLookup(state,State.idle)(Seq(
++    State.idle -> Mux(needDelay, State.waitDevice, State.idle),
++    State.waitDevice -> Mux(io.devDone, State.waitDelay, State.waitDevice),
++    State.waitDelay -> Mux(delayCounter === 0.U, State.idle, State.waitDelay)
++  ))
++  val delayStep = ((ratio - 1) * scale).toInt.U
++
++
++  delayCounter := MuxLookup(state, 0.U)(
++    Seq(
++      State.idle -> Mux(needDelay, delayStep, 0.U),
++      State.waitDevice -> Mux(
++        io.devDone,
++        (delayCounter / scale.U - 1.U),
++        delayCounter + delayStep
++      ),
++      State.waitDelay -> Mux(delayCounter === 0.U, 0.U, delayCounter - 1.U)
++    )
++  )
++
++  val needDelayDone = (state === State.waitDelay) && (delayCounter === 0.U)
++
++  io.hasDevDone := (state === State.idle) || (state === State.waitDelay)
++  io.delayDone := needDelayDone || (state === State.idle && io.devStart && io.devDone)
++}
++
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+-  io.out <> io.in
++
++  val arDevReqSent = RegInit(false.B)
++  val arDelayDone = RegInit(false.B)
++  dontTouch(arDelayDone)
++  val arDelay = Module(new DelayCounter())
++
++  io.out.ar.valid := io.in.ar.valid && (!arDevReqSent)
++  io.in.ar.ready := arDelay.io.delayDone
++  arDelay.io.devStart := io.out.ar.valid
++  arDelay.io.devDone := io.out.ar.ready
++  io.out.ar.bits := io.in.ar.bits
++
++  when(io.out.ar.fire) {
++    arDevReqSent := true.B
++  } .elsewhen(io.in.r.fire && io.in.r.bits.last) {
++    arDevReqSent := false.B
++  }
++
++  when(io.in.ar.fire) {
++    arDelayDone := true.B
++  } .elsewhen(io.in.r.fire && io.in.r.bits.last) {
++    arDelayDone := false.B
++  }
++
++  io.out.r.ready := io.in.r.ready && arDelayDone
++  io.in.r.valid := io.out.r.valid && arDelayDone
++  io.in.r.bits := io.out.r.bits
++  io.in.r.bits.last := io.out.r.bits.last
++  io.in.r.bits.resp := io.out.r.bits.resp
++
++  io.out.w <> io.in.w
++  io.out.b <> io.in.b
++  io.out.aw <> io.in.aw
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +105,7 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new axi4_delayer)
++      val delayer = Module(new AXI4DelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.43.0
+

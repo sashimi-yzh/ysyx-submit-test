@@ -1,0 +1,32 @@
+# *.*
+# *
+# !*/
+
+# like .vscode .ccache
+\.*/
+
+!.github
+!.github/*
+
+!*.sh
+!/nemu/*
+!/nexus-am/*
+!/nanos-lite/*
+!/navy-apps/*
+!/npc/*
+!/sdb/*
+!/cachesim/*
+!/patch/*
+!*.patch
+!*.mk
+
+!Makefile
+!README.md
+!.gitignore
+!init.sh
+/fceux-am
+/rt-thread-am
+/ysyxSoC
+/am-kernels
+/am-kernels-myraw
+/nvboard

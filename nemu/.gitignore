@@ -1,0 +1,17 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.hpp
+!*.cc
+!.gitignore
+!README.md
+!Kconfig
+!asan_suppress.txt
+
+!*.sh
+!*.py
+include/config
+include/generated

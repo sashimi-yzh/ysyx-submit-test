@@ -1,0 +1,70 @@
+From fdcac83a9d84f022aefecaa637e767c712d20ed3 Mon Sep 17 00:00:00 2001
+From: Wang Yi Jie <miwyj@mail.scut.edu.cn>
+Date: Fri, 27 Feb 2026 16:59:12 +0800
+Subject: [PATCH 4/7] restore Makefile and ld
+
+---
+ bsp/abstract-machine/Makefile | 9 ++++++++-
+ bsp/abstract-machine/extra.ld | 8 ++++++++
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f31..5511658 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,14 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++
++ifeq ($(ARCH), riscv32e-ysyxsoc)
++LINKSCRIPT = extra.soc.ld
++else
++LINKSCRIPT = extra.ld
++endif
++
++LDFLAGS += -T $(LINKSCRIPT)
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc656..6fb413f 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,5 +1,7 @@
+ SECTIONS {
+   .data.extra : {
++		_data_extra_start = .;
++
+     /* section information for finsh shell */
+     __fsymtab_start = .;
+     KEEP(*(FSymTab))
+@@ -27,12 +29,17 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
++
+   }
++	__data_extra_load_start__  = LOADADDR(.data.extra);
++	__data_extra_size__   = SIZEOF(.data.extra);
+ }
+ INSERT BEFORE .data;
+ 
+ SECTIONS {
+   .bss.extra : {
++		_bss_extra_start = .;
++
+     . = ALIGN(8);
+     __am_apps_bss_start = .;
+     *(__am_apps.bss*)
+@@ -41,5 +48,6 @@ SECTIONS {
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+   }
++	__bss_extra_size__   = SIZEOF(.bss.extra);
+ }
+ INSERT BEFORE .bss;
+-- 
+2.43.0
+
