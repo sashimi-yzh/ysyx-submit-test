@@ -1,0 +1,29 @@
+From 4ed06d69b28f875f31c2e9341a3d6e761778ed6f Mon Sep 17 00:00:00 2001
+From: 201101121-Lingxiao Yan <3599153691@qq.com>
+Date: Sun, 29 Mar 2026 23:17:17 +0800
+Subject: [PATCH 2/4] end0329
+
+---
+ perip/psram/psram.v | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index 0bb681d0..ae21f33a 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -169,9 +169,10 @@ module psram(
+             
+             STATE_DUMMY: begin
+               if (!ce_n) begin
+-                if(counter == 20) 
++                if(counter == 20) begin
+                   dio_out <= memory[{8'd0,addr_reg} + data_byte_counter][7:4];
+-                  current_byte <= memory[{8'd0,addr_reg} + data_byte_counter];
++                end
++                current_byte <= memory[{8'd0,addr_reg} + data_byte_counter];
+               end
+             end
+             
+-- 
+2.34.1
+

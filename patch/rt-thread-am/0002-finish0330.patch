@@ -1,0 +1,44 @@
+From 3dfa607d7bda47433cde65419c734c6132cb5797 Mon Sep 17 00:00:00 2001
+From: 201101121-Lingxiao Yan <3599153691@qq.com>
+Date: Mon, 30 Mar 2026 21:18:00 +0800
+Subject: [PATCH 2/8] finish0330
+
+---
+ bsp/abstract-machine/src/context.c | 1 +
+ bsp/abstract-machine/src/uart.c    | 7 +++++--
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 62e3e1f68..4f9c295b3 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -19,6 +19,7 @@ static Context* ev_handler(Event e, Context *c) {
+       break;
+     case EVENT_IRQ_TIMER: break;
+     case EVENT_IRQ_IODEV: break;
++    //case EVENT_ERROR: break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 502093bb7..bd5277d43 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -42,9 +42,12 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";
++  //return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+   //return (*p != '\0' ? *(p ++) : -1);
++  if (*p != '\0') return *(p++);
++  halt(0);  // 所有命令执行完，正常退出
++  return -1;
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

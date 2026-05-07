@@ -1,0 +1,29 @@
+From 671dfa93d7b744b4fce51f36137c3796c21ce0b6 Mon Sep 17 00:00:00 2001
+From: 201101121-Lingxiao Yan <3599153691@qq.com>
+Date: Wed, 1 Apr 2026 01:35:32 +0800
+Subject: [PATCH 5/8] new 0401
+
+---
+ bsp/abstract-machine/src/uart.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 5e432307c..4405cdbac 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -42,9 +42,10 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "";
++  //static const char *p = "";
+   //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";
+-  return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  //return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
++  return (io_read(AM_UART_RX).data);
+   //return (*p != '\0' ? *(p ++) : -1);
+   //if (*p != '\0') return *(p++);
+   //halt(0);  // 所有命令执行完，正常退出
+-- 
+2.34.1
+

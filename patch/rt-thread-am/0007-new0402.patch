@@ -1,0 +1,25 @@
+From b528b3be9f70fb1c5ba4e6de25c7441a0b0810d1 Mon Sep 17 00:00:00 2001
+From: 201101121-Lingxiao Yan <3599153691@qq.com>
+Date: Thu, 2 Apr 2026 03:59:14 +0800
+Subject: [PATCH 7/8] new0402
+
+---
+ bsp/abstract-machine/src/uart.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 277097334..46042960d 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -45,7 +45,7 @@ static int _uart_getc(struct rt_serial_device *serial) {
+   //static const char *p = "";
+   //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";
+   //return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+-  return (io_read(AM_UART_RX).data);
++  return (uint8_t)(io_read(AM_UART_RX).data);
+   //return (io_read(AM_INPUT_KEYBRD).keycode);
+   //return (*p != '\0' ? *(p ++) : -1);
+   //if (*p != '\0') return *(p++);
+-- 
+2.34.1
+

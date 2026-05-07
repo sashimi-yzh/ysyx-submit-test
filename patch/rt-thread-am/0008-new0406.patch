@@ -1,0 +1,33 @@
+From fcc1a70e9a3657cdb7b5f487bac61c954c5f58d7 Mon Sep 17 00:00:00 2001
+From: 201101121-Lingxiao Yan <3599153691@qq.com>
+Date: Mon, 6 Apr 2026 22:21:55 +0800
+Subject: [PATCH 8/8] new0406
+
+---
+ bsp/abstract-machine/src/uart.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 46042960d..1d60a7637 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -41,11 +41,13 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+   return 1;
+ }
+ 
++char get_data();
++
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  //static const char *p = "";
++  static const char *p = "";
+   //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";
+-  //return (*p != '\0' ? *(p ++) : io_read(AM_UART_RX).data);
+-  return (uint8_t)(io_read(AM_UART_RX).data);
++  return (*p != '\0' ? *(p ++) : get_data());
++  //return (uint8_t)(io_read(AM_UART_RX).data);
+   //return (io_read(AM_INPUT_KEYBRD).keycode);
+   //return (*p != '\0' ? *(p ++) : -1);
+   //if (*p != '\0') return *(p++);
+-- 
+2.34.1
+

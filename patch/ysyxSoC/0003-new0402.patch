@@ -1,0 +1,45 @@
+From 62412efa22aa70359c9d44e666a762fe4418232b Mon Sep 17 00:00:00 2001
+From: 201101121-Lingxiao Yan <3599153691@qq.com>
+Date: Thu, 2 Apr 2026 17:31:57 +0800
+Subject: [PATCH 3/4] new0402
+
+---
+ perip/amba/apb_delayer.v | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 4ec73040..cc8ebe0c 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -31,6 +31,19 @@ module apb_delayer #(
+     input         out_pslverr
+ );
+ 
++assign out_paddr   = in_paddr;
++assign out_psel    = in_psel;
++assign out_penable = in_penable;
++assign out_pprot   = in_pprot;
++assign out_pwrite  = in_pwrite;
++assign out_pwdata  = in_pwdata;
++assign out_pstrb   = in_pstrb;
++
++assign in_pready  = out_pready;
++assign in_prdata  = out_prdata;
++assign in_pslverr = out_pslverr;
++/*
++
+     // =========================================================================
+     // 延迟计算原理
+     // =========================================================================
+@@ -191,6 +204,8 @@ module apb_delayer #(
+             endcase
+         end
+     end
++*/
++
+ 
+ endmodule
+ 
+-- 
+2.34.1
+
