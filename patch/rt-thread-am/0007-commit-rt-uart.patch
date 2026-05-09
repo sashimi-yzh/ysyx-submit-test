@@ -1,0 +1,59 @@
+From bccfcaa25c036da4e00f19239aadf5079b17b06d Mon Sep 17 00:00:00 2001
+From: dengzibin <1447762756@qq.com>
+Date: Thu, 7 May 2026 11:55:17 +0800
+Subject: [PATCH 7/7] commit-rt-uart
+
+---
+ bsp/abstract-machine/extra_soc.ld |  2 +-
+ bsp/abstract-machine/src/uart.c   | 16 ++++++++++++++--
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra_soc.ld b/bsp/abstract-machine/extra_soc.ld
+index fd138d7..22149cd 100644
+--- a/bsp/abstract-machine/extra_soc.ld
++++ b/bsp/abstract-machine/extra_soc.ld
+@@ -1,6 +1,6 @@
+ MEMORY {
+     FLASH (rx) : ORIGIN = 0x30000000, LENGTH = 0x1000000
+-    SDRAM (rwx) : ORIGIN = 0xa0000000, LENGTH = 0x4000000
++    SDRAM (rwx) : ORIGIN = 0xa0000000, LENGTH = 0x8000000
+ }
+ 
+ SECTIONS {
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index ee5736c..8a19df0 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -37,8 +38,19 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\nam_microbench\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  // static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\nam_microbench\n";
++  // static const char *p = "";
++  // return (*p != '\0' ? *(p ++) : -1);
++
++  char ch = io_read(AM_UART_RX).data;
++  
++  if (ch == (char)-1 && (ch & 0xff) == 0) {
++    return -1;
++  }
++  else {
++    return ch;
++  }
++
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

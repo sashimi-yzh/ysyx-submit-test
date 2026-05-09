@@ -1,0 +1,85 @@
+From cf727eb671e8f10c6c4cbc64abecaf802bc3ccd3 Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Wed, 21 Jan 2026 20:07:35 +0800
+Subject: [PATCH 08/27] commit_0121
+
+---
+ csrc/src/difftest/dut.cpp |  4 +++-
+ csrc/src/init.cpp         |  3 +--
+ csrc/src/npc-exec.cpp     | 15 +++++++++------
+ 3 files changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/csrc/src/difftest/dut.cpp b/csrc/src/difftest/dut.cpp
+index 1603b6fd..460a9872 100644
+--- a/csrc/src/difftest/dut.cpp
++++ b/csrc/src/difftest/dut.cpp
+@@ -19,6 +19,7 @@
+ #include <cpu/cpu.h>
+ #include <paddr.h>
+ #include <utils.h>
++#include <flash.h>
+ // #include <difftest-def.h>
+ 
+ void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
+@@ -116,7 +117,8 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
+       "If it is not necessary, you can turn it off in menuconfig.", ref_so_file);
+ 
+   ref_difftest_init(port);
+-  ref_difftest_memcpy(RESET_VECTOR, guest_to_host(RESET_VECTOR), img_size, DIFFTEST_TO_REF);
++  printf("120 mark\n");
++  ref_difftest_memcpy(0x30000000, guest_to_host_flash(0x0), img_size, DIFFTEST_TO_REF);
+   ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
+ }
+ 
+diff --git a/csrc/src/init.cpp b/csrc/src/init.cpp
+index 1f6bb028..f51b5e01 100644
+--- a/csrc/src/init.cpp
++++ b/csrc/src/init.cpp
+@@ -134,7 +134,6 @@ void init_monitor(int argc, char *argv[]) {
+ 
+   /* Perform ISA dependent initialization. */
+   // init_mrom();
+-
+   /* Load the image to memory. This will overwrite the built-in image. */
+   long img_size = load_img();
+ 
+@@ -143,7 +142,7 @@ void init_monitor(int argc, char *argv[]) {
+   init_npc(argc, argv);
+ 
+   /* Initialize differential testing. */
+-  // init_difftest(diff_so_file, img_size, difftest_port);
++  init_difftest(diff_so_file, img_size, difftest_port);
+ 
+   /* Initialize the simple debugger. */
+   init_sdb();
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+index f2682a10..0b30352b 100644
+--- a/csrc/src/npc-exec.cpp
++++ b/csrc/src/npc-exec.cpp
+@@ -239,14 +239,17 @@ static void npc_once(){
+ 
+   IFDEF(CONFIG_DIFFTEST, state_copy());
+   // state_copy();
+-  if(top->reset == 0 && top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_EXU_ysyx__DOT__current_state == 0){
+-    // if(difftest_skip_first == true){// 跳过第一次difftest
++  if(top->reset == 0 && top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__current_state == 0){ // or EXU finish one inst
++    if(difftest_skip_first == true){// 跳过第一次difftest
+       // printf("pc = %08x, Next_pc = %08x\n", top->pc, top->Next_pc);
+-      g_nr_guest_inst ++;
+-      trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, inst_pre);
+-  }
+-  else{
++      trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, inst_now);
++    }
++    else{
++      difftest_skip_first = true;
++    }
++    g_nr_guest_inst ++;
+   }
++  
+ 
+   // if(top->reset == 0 && top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_EXU_ysyx__DOT__current_state == 0){
+   //   // if(difftest_skip_first == true){// 跳过第一次difftest
+-- 
+2.34.1
+

@@ -1,0 +1,39 @@
+From f96e014f7f7083c6283267abe5c0c0bda65d4992 Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Wed, 14 Jan 2026 10:42:32 +0800
+Subject: [PATCH 04/27] commit_0114
+
+---
+ csrc/include/config.h | 2 +-
+ csrc/src/npc-exec.cpp | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/csrc/include/config.h b/csrc/include/config.h
+index 37b316c6..0661dc2a 100644
+--- a/csrc/include/config.h
++++ b/csrc/include/config.h
+@@ -11,7 +11,7 @@
+ #define CONFIG_TIMER_CLOCK_GETTIME 1
+ #define CONFIG_TARGET_NATIVE_ELF 1
+ // #define CONFIG_VCD_TRACE 1
+-// #define CONFIG_FST_TRACE 1 // 注意还要改makefile
++#define CONFIG_FST_TRACE 1 // 注意还要改makefile
+ // #define CONFIG_DIFFTEST 1
+ #define CONFIG_SERIAL_MMIO 0xa00003f8
+ #define CONFIG_RTC_MMIO 0xa0000048
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+index 68f93581..bb789e37 100644
+--- a/csrc/src/npc-exec.cpp
++++ b/csrc/src/npc-exec.cpp
+@@ -212,7 +212,7 @@ static void statistic() {
+ #define NUMBERIC_FMT MUXDEF(CONFIG_TARGET_AM, "%", "%'") PRIu64
+   Log("host time spent = " NUMBERIC_FMT " us", g_timer);
+   Log("total guest instructions = " NUMBERIC_FMT, g_nr_guest_inst);
+-  Log("cycles per instructions = " NUMBERIC_FMT " cycles/inst", g_nr_cycle/g_nr_guest_inst);
++  // Log("cycles per instructions = " NUMBERIC_FMT " cycles/inst", g_nr_cycle/g_nr_guest_inst);
+   if (g_timer > 0) Log("simulation frequency = " NUMBERIC_FMT " inst/s", g_nr_guest_inst * 1000000 / g_timer);
+   else Log("Finish running in less than 1 us and can not calculate the simulation frequency");
+ }
+-- 
+2.34.1
+

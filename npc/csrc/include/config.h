@@ -1,0 +1,27 @@
+#ifndef __CONFIG_H__
+#define __CONFIG_H__
+
+
+// #define CONFIG_ITRACE_COND 1
+// #define CONFIG_TRACE 1
+// #define ITRACE_COND 1
+// #define CONFIG_WAVE_TRACE_RIGON 1
+#define CONFIG_TRACE_START 0x0
+#define CONFIG_TRACE_END 0x1000000
+// #define CONFIG_TIMER_GETTIMEOFDAY 1
+#define CONFIG_TIMER_CLOCK_GETTIME 1
+#define CONFIG_TARGET_NATIVE_ELF 1
+// #define CONFIG_VCD_TRACE 1
+// #define CONFIG_FST_TRACE 1 // 注意还要改makefile
+// #define CONFIG_DIFFTEST 1
+// #define CONFIG_SERIAL_MMIO 0xa00003f8
+// #define CONFIG_RTC_MMIO 0xa0000048
+// #define CONFIG_TIME 0xa0000070
+// #define CONFIG_WATCHPOINT 1
+// #define CONFIG_FTRACE 1
+// #define CONFIG_NVBOARD 1
+#define CONFIG_COUNTER 1
+#define CONFIG_AMAT 1
+// #define CONFIG_MTRACE_COND 1
+
+#endif

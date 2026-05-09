@@ -1,0 +1,25 @@
+From 67235cf5e64105e773bb3f1182fcbb39c1821963 Mon Sep 17 00:00:00 2001
+From: dengzibin <1447762756@qq.com>
+Date: Tue, 28 Apr 2026 15:27:49 +0800
+Subject: [PATCH 19/27] add_path
+
+---
+ Makefile | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index 84aceadd..dc1a3d4a 100644
+--- a/Makefile
++++ b/Makefile
+@@ -17,6 +17,8 @@ OBJ_DIR = $(BUILD_DIR)/obj_dir
+ BIN = $(BUILD_DIR)/$(TOPNAME)
+ YSYXC_PATH = ./csrc/include
+ 
++NPC_HOME = $(YSYX_HOME)/npc
++
+ STA_HOME = /home/dengzibin/yosys-sta
+ 
+ default: $(BIN)
+-- 
+2.34.1
+

@@ -1,0 +1,187 @@
+From 594cb839e930145a07245d731dcf707450010bda Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Mon, 19 Jan 2026 17:16:10 +0800
+Subject: [PATCH 05/27] commit_0119_amat
+
+---
+ .gitignore                 |  3 ++-
+ csrc/include/config.h      | 16 ++++++-----
+ csrc/include/npc_counter.h |  2 ++
+ csrc/src/npc-exec.cpp      |  7 ++++-
+ csrc/src/npc_counter.cpp   | 55 ++++++++++++++++++++++++++++----------
+ 5 files changed, 60 insertions(+), 23 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index f73c60ac..730e0df3 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -4,4 +4,5 @@ out/
+ *.fst
+ obj_dir/
+ sta_result/
+-sdc/
+\ No newline at end of file
++sdc/
++vsrc/npc_config.vh
+\ No newline at end of file
+diff --git a/csrc/include/config.h b/csrc/include/config.h
+index 0661dc2a..7bf5dd54 100644
+--- a/csrc/include/config.h
++++ b/csrc/include/config.h
+@@ -3,7 +3,7 @@
+ 
+ 
+ // #define CONFIG_ITRACE_COND 1
+-#define CONFIG_TRACE 1
++// #define CONFIG_TRACE 1
+ // #define ITRACE_COND 1
+ #define CONFIG_TRACE_START 0x0
+ #define CONFIG_TRACE_END 0x1000000
+@@ -11,13 +11,15 @@
+ #define CONFIG_TIMER_CLOCK_GETTIME 1
+ #define CONFIG_TARGET_NATIVE_ELF 1
+ // #define CONFIG_VCD_TRACE 1
+-#define CONFIG_FST_TRACE 1 // 注意还要改makefile
++// #define CONFIG_FST_TRACE 1 // 注意还要改makefile
+ // #define CONFIG_DIFFTEST 1
+-#define CONFIG_SERIAL_MMIO 0xa00003f8
+-#define CONFIG_RTC_MMIO 0xa0000048
+-#define CONFIG_TIME 0xa0000070
+-#define CONFIG_WATCHPOINT 1
+-#define CONFIG_FTRACE 1
++// #define CONFIG_SERIAL_MMIO 0xa00003f8
++// #define CONFIG_RTC_MMIO 0xa0000048
++// #define CONFIG_TIME 0xa0000070
++// #define CONFIG_WATCHPOINT 1
++// #define CONFIG_FTRACE 1
+ // #define CONFIG_NVBOARD 1
++#define CONFIG_COUNTER 1
++#define CONFIG_AMAT 1
+ 
+ #endif
+\ No newline at end of file
+diff --git a/csrc/include/npc_counter.h b/csrc/include/npc_counter.h
+index d939c30d..52506c34 100644
+--- a/csrc/include/npc_counter.h
++++ b/csrc/include/npc_counter.h
+@@ -9,4 +9,6 @@ int type_of_inst();
+ 
+ void display_counter();
+ 
++void display_amat();
++
+ #endif
+\ No newline at end of file
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+index bb789e37..f2682a10 100644
+--- a/csrc/src/npc-exec.cpp
++++ b/csrc/src/npc-exec.cpp
+@@ -212,7 +212,7 @@ static void statistic() {
+ #define NUMBERIC_FMT MUXDEF(CONFIG_TARGET_AM, "%", "%'") PRIu64
+   Log("host time spent = " NUMBERIC_FMT " us", g_timer);
+   Log("total guest instructions = " NUMBERIC_FMT, g_nr_guest_inst);
+-  // Log("cycles per instructions = " NUMBERIC_FMT " cycles/inst", g_nr_cycle/g_nr_guest_inst);
++  if (g_nr_guest_inst > 0) Log("cycles per instructions = " NUMBERIC_FMT " cycles/inst", g_nr_cycle/g_nr_guest_inst);
+   if (g_timer > 0) Log("simulation frequency = " NUMBERIC_FMT " inst/s", g_nr_guest_inst * 1000000 / g_timer);
+   else Log("Finish running in less than 1 us and can not calculate the simulation frequency");
+ }
+@@ -281,7 +281,12 @@ static void npc_once(){
+   }
+ 
+   if(ebreak == true){
++#ifdef CONFIG_COUNTER
+     display_counter();
++#endif
++#ifdef CONFIG_AMAT
++    display_amat();
++#endif
+     npc_state.state = NPC_END;
+     npc_state.halt_pc = cpu_state();
+     npc_state.halt_ret = get_reg(10);
+diff --git a/csrc/src/npc_counter.cpp b/csrc/src/npc_counter.cpp
+index 572d6598..2fd677ab 100644
+--- a/csrc/src/npc_counter.cpp
++++ b/csrc/src/npc_counter.cpp
+@@ -2,12 +2,16 @@
+ #include "svdpi.h"
+ #include "VysyxSoCFull__Dpi.h"
+ 
+-static uint64_t lui_count = 0;
+-static uint64_t auipc_count = 0;
+-static uint64_t alu_count = 0;
+-static uint64_t lsu_count = 0;
+-static uint32_t jal_count = 0;
+-static uint64_t branch_count = 0;
++// static _Float32 ATMT;
++// static float amat;
++
++static float p_hit;
++
++static uint64_t icache_total = 0;
++static uint64_t icache_hit = 0;
++
++// static int access_time = 3;
++// static int miss_penalty = 37;
+ 
+ enum {LUI, AUIPC, ALU, LSU, JAL, BRANCH, CSR, NO_TYPE};
+ 
+@@ -28,11 +32,26 @@ static struct counter {
+     {"notype", 0, 0},
+ };
+ 
++#ifdef CONFIG_COUNTER
+ extern "C" void inst_add(int no){
+     counters[no].inst_count ++;
+     inst_type = no;
+     return;
+ }
++void display_counter(){
++
++    printf("           type |   num    | cycles/inst\n");
++
++    for(int i = 0; i < 6; i++){
++        if(counters[i].inst_count != 0){
++            printf("%15s | %8ld | %ld\n", counters[i].regex, counters[i].inst_count, counters[i].cycle_count/counters[i].inst_count);
++        }
++    }
++}
++#else
++extern "C" void inst_add(int no){ }
++void display_counter(){ }
++#endif
+ 
+ void cycle_add(int type, uint32_t num){
+     counters[type].cycle_count += num;
+@@ -42,13 +61,21 @@ int type_of_inst(){
+     return inst_type;
+ }
+ 
+-void display_counter(){
+-
+-    printf("           type |   num    | cycles/inst\n");
+-
+-    for(int i = 0; i < 6; i++){
+-        if(counters[i].inst_count != 0){
+-            printf("%15s | %8ld | %ld\n", counters[i].regex, counters[i].inst_count, counters[i].cycle_count/counters[i].inst_count);
+-        }
++#ifdef CONFIG_AMAT
++extern "C" void icache_add(int no){
++    if(no == 0){
++        icache_total ++;
+     }
++    else if(no == 1) {
++        icache_hit ++;
++    }
++}
++void display_amat(){
++    if(icache_total !=0 ){ p_hit = (float)icache_hit / (float)icache_total; }
++    // amat = (float)access_time + (1 - p_hit) * (float)miss_penalty;
++    printf("AMAT: total = %ld, hit = %ld, p_hit = %.2f\n", icache_total, icache_hit, p_hit);
+ }
++#else 
++extern "C" void icache_add(int no){ }
++void display_amat(){ }
++#endif
+-- 
+2.34.1
+

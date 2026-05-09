@@ -1,0 +1,289 @@
+From f136232e86e8d1f4972ea34b8bcc0e709be33233 Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Fri, 27 Mar 2026 10:37:15 +0800
+Subject: [PATCH 13/27] commit260327
+
+---
+ Makefile                |   4 +-
+ csrc/src/npc-exec.cpp   |  36 +++++-----
+ perip/vga/vga_top_apb.v | 156 ++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 175 insertions(+), 21 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 4ddb5995..28091dc9 100644
+--- a/Makefile
++++ b/Makefile
+@@ -6,7 +6,7 @@ NXDC_FILES = constr/top.nxdc
+ INC_PATH ?=
+ 
+ VERILATOR = verilator
+-VERILATOR_CFLAGS += -MMD --build -cc  \
++VERILATOR_CFLAGS += -MMD --build -cc -I./vsrc/ \
+ 				-O3 --x-assign fast --x-initial fast --noassert
+ 
+ VERILATOR_CFLAGS += --trace-fst --timescale "1ns/1ns" --autoflush --no-timing  \
+@@ -66,7 +66,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
+-$(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
++$(BIN): $(VSRCS) $(CSRCSS) $(NVBOARD_ARCHIVE)
+ 	@rm -rf $(OBJ_DIR)
+ 	$(VERILATOR) $(VERILATOR_CFLAGS) \
+ 		--top-module $(TOPNAME) $^ \
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+index 53e44994..7758398f 100644
+--- a/csrc/src/npc-exec.cpp
++++ b/csrc/src/npc-exec.cpp
+@@ -5,10 +5,6 @@
+ #include "VysyxSoCFull___024root.h"
+ #include "VysyxSoCFull__Dpi.h"
+ 
+-#ifdef CONFIG_NVBOARD
+-#include <nvboard.h>
+-#endif
+-
+ #include <mrom.h>
+ #include <cpu/ftrace.h>
+ #include <npc_counter.h>
+@@ -19,6 +15,10 @@
+ #include <cpu/iringbuf.h>
+ #include "sdb/sdb.h"
+ 
++#ifdef CONFIG_NVBOARD
++#include <nvboard.h>
++#endif
++
+ #ifdef CONFIG_VCD_TRACE
+ #include "verilated_vcd_c.h"
+ #endif
+@@ -35,7 +35,7 @@ NPC_state cpu = {};
+ static bool ebreak = false;
+ static uint32_t abort_count = 0;
+ 
+-static bool fst_trace_start = false;
++// static bool fst_trace_start = false;
+ 
+ uint64_t g_nr_guest_inst = 0;
+ uint64_t g_nr_cycle = 0;
+@@ -64,7 +64,7 @@ VerilatedFstC* tfp = NULL;
+ static VysyxSoCFull* top;
+ 
+ #ifdef CONFIG_NVBOARD
+-void nvboard_bind_all_pins(VysyxSoCFull* top);
++  void nvboard_bind_all_pins(VysyxSoCFull* top);
+ #endif
+ 
+ const char *regs[] = {
+@@ -94,9 +94,9 @@ void step_and_dump_wave(){
+   // }
+ #endif
+ #ifdef CONFIG_FST_TRACE
+-  if(fst_trace_start == true){
++  // if(fst_trace_start == true){
+     tfp->dump(contextp->time()); // 记录波形
+-  }
++  // }
+     // tfp->dump(contextp->time()); // 记录波形
+ #endif
+ }
+@@ -281,22 +281,20 @@ static void npc_once(){
+   // }
+ 
+ 
+-  // if(inst_pre == inst_now){
+-  //   abort_count ++;
+-  // }
+-  // else{
+-  //   int type = type_of_inst();
+-  //   cycle_add(type, abort_count);
+-  //   abort_count = 0;
+-  // }
++  if(inst_pre == inst_now){
++    abort_count ++;
++  }
++  else {
++    abort_count = 0;
++  }
+   
+   step_and_dump_wave();  // 下降沿
+ 
+   g_nr_cycle ++ ;
+ 
+-  if(cpu_state() == 0xa0018bd4) {
+-    fst_trace_start = true;
+-  }
++  // if(cpu_state() == 0xa0018bd4) {
++  //   fst_trace_start = true;
++  // }
+ 
+   if(abort_count >= 20000){ // 保护
+     printf("overtime\n");
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 5c74cfbe..2724bfb0 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -20,4 +20,160 @@ module vga_top_apb(
+   output        vga_valid
+ );
+ 
++  assign  in_pslverr    = 0;
++  assign  in_prdata     = {31'h0, sync};
++
++  reg     sync;
++
++  reg [23:0] vga_mem [524287:0];
++  wire  draw_finish;
++
++  assign  in_pready   = (in_penable == 1'b1);
++
++  always @(posedge clock) begin
++    if(in_pwrite == 1'b1 && in_pready == 1'b1) begin
++      vga_mem[in_paddr[20:2]]     <= in_pwdata[23:0];
++      // $display("in_pwdata = %h, in_addr = %h", in_pwdata, in_paddr[20:2]);
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset == 1'b1) begin
++      sync    <= 1'b0;
++    end
++    else begin
++      if(in_pwrite == 1'b1 && in_pready == 1'b1 && in_paddr[19:16] == 4'b1000) begin
++        sync    <= 1'b1;
++      end
++      else begin
++        if(draw_finish) begin
++          sync  <= 1'b0;
++        end
++      end
++    end
++  end
++
++  // output declaration of module vga_ctrl
++  // wire  [9:0] h_addr;
++  // wire  [9:0] v_addr;
++  reg   [18:0]  mem_addr;
++
++  // assign  mem_addr  = {8'h00, h_addr} + {8'h00, v_addr};
++
++  always @(posedge clock) begin
++    if(reset == 1'b1) begin
++      mem_addr    <= 0;
++    end
++    else begin
++      if(vga_valid) begin
++        mem_addr  <= mem_addr + 1;
++        // $display("mem_addr = %8h", mem_addr);
++      end
++      else begin
++        if(draw_finish) begin
++          mem_addr  <= 0;
++        end
++      end
++    end
++  end
++
++  wire  [23:0]  vga_data;
++
++  assign vga_data = vga_mem[mem_addr];
++
++  vga_ctrl #(
++    .h_frontporch 	(96   ),
++    .h_active     	(144  ),
++    .h_backporch  	(784  ),
++    .h_total      	(800  ),
++    .v_frontporch 	(2    ),
++    .v_active     	(35   ),
++    .v_backporch  	(515  ),
++    .v_total      	(525  ))
++  u_vga_ctrl(
++    .pclk     	  (clock     ),
++    .reset    	  (reset     ),
++    .vga_data 	  (vga_data  ),
++    .draw_start   (sync       ),
++    .draw_finish  (draw_finish),
++    .h_addr   	  (    ),
++    .v_addr   	  (    ),
++    .hsync    	  (vga_hsync ),
++    .vsync    	  (vga_vsync ),
++    .valid    	  (vga_valid ),
++    .vga_r    	  (vga_r     ),
++    .vga_g    	  (vga_g     ),
++    .vga_b    	  (vga_b     )
++  );  
++
++endmodule
++
++module vga_ctrl (
++    input pclk,
++    input reset,
++    input [23:0] vga_data,
++    input   draw_start,
++    output  draw_finish,
++    output [9:0] h_addr,
++    output [9:0] v_addr,
++    output hsync,
++    output vsync,
++    output valid,
++    output [7:0] vga_r,
++    output [7:0] vga_g,
++    output [7:0] vga_b
++);
++
++parameter h_frontporch = 96;
++parameter h_active = 144;
++parameter h_backporch = 784;
++parameter h_total = 800;
++
++parameter v_frontporch = 2;
++parameter v_active = 35;
++parameter v_backporch = 515;
++parameter v_total = 525;
++
++reg [9:0] x_cnt;
++reg [9:0] y_cnt;
++wire h_valid;
++wire v_valid;
++
++always @(posedge pclk) begin
++    if(reset == 1'b1) begin
++        x_cnt <= 1;
++        y_cnt <= 1;
++    end
++    else begin
++      if(draw_start) begin
++        if(x_cnt == h_total)begin
++            x_cnt <= 1;
++            if(y_cnt == v_total) y_cnt <= 1;
++            else y_cnt <= y_cnt + 1;
++        end
++        else x_cnt <= x_cnt + 1;
++      end
++    end
++end
++
++assign  draw_finish = (y_cnt == v_total);
++
++  // always @(posedge pclk) begin
++  //   if(valid == 1'b1 && x_cnt != 0) begin
++  //     $display("vga_data = %8h, %8h", vga_data, {h_addr + v_addr});
++  //   end
++  // end
++
++//生成同步信号    
++assign hsync = (x_cnt > h_frontporch);
++assign vsync = (y_cnt > v_frontporch);
++//生成消隐信号
++assign h_valid = (x_cnt > h_active) & (x_cnt <= h_backporch);
++assign v_valid = (y_cnt > v_active) & (y_cnt <= v_backporch);
++assign valid = h_valid & v_valid;
++//计算当前有效像素坐标
++assign h_addr = h_valid ? (x_cnt - 10'd145) : 10'd0;
++assign v_addr = v_valid ? (y_cnt - 10'd36) : 10'd0;
++//设置输出的颜色值
++assign {vga_r, vga_g, vga_b} = vga_data;
+ endmodule
+-- 
+2.34.1
+

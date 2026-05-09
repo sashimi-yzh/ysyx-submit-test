@@ -1,0 +1,25 @@
+From b21c9ae304687bd9e4cc73e88c897b65d3973624 Mon Sep 17 00:00:00 2001
+From: dengzibin <1447762756@qq.com>
+Date: Wed, 29 Apr 2026 15:17:11 +0800
+Subject: [PATCH 5/7] ysyxsoc
+
+---
+ bsp/abstract-machine/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index e2def6d..32d8dc9 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,7 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T $(if $(findstring ysyxSoC,$(ARCH)),extra_soc.ld,extra.ld)
++LDFLAGS += -T $(if $(findstring ysyxsoc,$(ARCH)), extra_soc.ld, extra.ld)
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+-- 
+2.34.1
+

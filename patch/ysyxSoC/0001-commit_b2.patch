@@ -1,0 +1,5972 @@
+From f3793a4235e4386dc12f3489f2d902ca46744c4a Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Sat, 27 Dec 2025 19:23:13 +0800
+Subject: [PATCH 01/27] commit_b2
+
+---
+ .mill-version                                |   2 +-
+ Makefile                                     |  60 ++
+ build.sc                                     |   1 +
+ constr/top.nxdc                              |  26 +
+ csrc/include/common.h                        | 137 ++++
+ csrc/include/config.h                        |  23 +
+ csrc/include/cpu/cpu.h                       |  43 ++
+ csrc/include/cpu/decode.h                    |   0
+ csrc/include/cpu/difftest.h                  |  55 ++
+ csrc/include/cpu/ftrace.h                    |  10 +
+ csrc/include/cpu/iringbuf.h                  |  13 +
+ csrc/include/debug.h                         |  42 ++
+ csrc/include/flash.h                         |  24 +
+ csrc/include/mrom.h                          |  24 +
+ csrc/include/paddr.h                         |  44 ++
+ csrc/include/psram.h                         |  24 +
+ csrc/include/sdram.h                         |  27 +
+ csrc/include/utils.h                         |  77 ++
+ csrc/src/difftest/dut.cpp                    | 186 +++++
+ csrc/src/difftest/ref.cpp                    |  57 ++
+ csrc/src/flash.cpp                           |  43 ++
+ csrc/src/ftrace.cpp                          | 163 +++++
+ csrc/src/init.cpp                            | 173 +++++
+ csrc/src/iringbuf.cpp                        |  52 ++
+ csrc/src/log.cpp                             |  38 +
+ csrc/src/main.cpp                            |  43 ++
+ csrc/src/mrom.cpp                            |  60 ++
+ csrc/src/npc-exec.cpp                        | 312 ++++++++
+ csrc/src/paddr.cpp                           | 153 ++++
+ csrc/src/psram.cpp                           |  55 ++
+ csrc/src/sdb/expr.cpp                        | 705 +++++++++++++++++++
+ csrc/src/sdb/sdb.cpp                         | 301 ++++++++
+ csrc/src/sdb/sdb.h                           |  47 ++
+ csrc/src/sdb/watchpoint.cpp                  | 162 +++++
+ csrc/src/sdram.cpp                           | 150 ++++
+ csrc/src/utils/filelist.mk                   |  24 +
+ csrc/src/utils/state.cpp                     |  24 +
+ csrc/src/utils/timer.cpp                     |  50 ++
+ perip/bitrev/bitrev.v                        |   7 +
+ perip/clint/clint_top_apb.v                  | 119 ++++
+ perip/flash/flash.v                          |   3 +-
+ perip/gpio/gpio_top_apb.v                    | 186 ++++-
+ perip/ps2/ps2_top_apb.v                      | 198 ++++++
+ perip/psram/efabless/EF_PSRAM_CTRL.v         | 165 ++++-
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v      |   6 +-
+ perip/psram/psram.v                          | 180 ++++-
+ perip/psram/psram_top_apb.v                  |  40 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  74 +-
+ perip/sdram/sdram.v                          | 271 ++++++-
+ perip/sdram/sdram_top_apb.v                  |  13 +-
+ perip/sdram/sdram_top_axi.v                  |   2 +-
+ perip/spi/rtl/XIP.v                          | 187 +++++
+ perip/spi/rtl/spi_defines.v                  |   8 +-
+ perip/spi/rtl/spi_shift.v                    |   2 +-
+ perip/spi/rtl/spi_top_apb.v                  |  66 +-
+ perip/uart16550/rtl/uart_regs.v              |  12 +-
+ perip/uart16550/rtl/uart_top_apb.v           |  24 +-
+ src/SoC.scala                                |   9 +-
+ src/device/CLINT.scala                       |  52 ++
+ src/device/SDRAM.scala                       |  21 +-
+ 60 files changed, 4941 insertions(+), 134 deletions(-)
+ create mode 100644 constr/top.nxdc
+ create mode 100644 csrc/include/common.h
+ create mode 100644 csrc/include/config.h
+ create mode 100644 csrc/include/cpu/cpu.h
+ create mode 100644 csrc/include/cpu/decode.h
+ create mode 100644 csrc/include/cpu/difftest.h
+ create mode 100644 csrc/include/cpu/ftrace.h
+ create mode 100644 csrc/include/cpu/iringbuf.h
+ create mode 100644 csrc/include/debug.h
+ create mode 100644 csrc/include/flash.h
+ create mode 100644 csrc/include/mrom.h
+ create mode 100644 csrc/include/paddr.h
+ create mode 100644 csrc/include/psram.h
+ create mode 100644 csrc/include/sdram.h
+ create mode 100644 csrc/include/utils.h
+ create mode 100644 csrc/src/difftest/dut.cpp
+ create mode 100644 csrc/src/difftest/ref.cpp
+ create mode 100644 csrc/src/flash.cpp
+ create mode 100644 csrc/src/ftrace.cpp
+ create mode 100644 csrc/src/init.cpp
+ create mode 100644 csrc/src/iringbuf.cpp
+ create mode 100644 csrc/src/log.cpp
+ create mode 100644 csrc/src/main.cpp
+ create mode 100644 csrc/src/mrom.cpp
+ create mode 100644 csrc/src/npc-exec.cpp
+ create mode 100644 csrc/src/paddr.cpp
+ create mode 100644 csrc/src/psram.cpp
+ create mode 100644 csrc/src/sdb/expr.cpp
+ create mode 100644 csrc/src/sdb/sdb.cpp
+ create mode 100644 csrc/src/sdb/sdb.h
+ create mode 100644 csrc/src/sdb/watchpoint.cpp
+ create mode 100644 csrc/src/sdram.cpp
+ create mode 100644 csrc/src/utils/filelist.mk
+ create mode 100644 csrc/src/utils/state.cpp
+ create mode 100644 csrc/src/utils/timer.cpp
+ create mode 100644 perip/clint/clint_top_apb.v
+ create mode 100644 perip/spi/rtl/XIP.v
+ create mode 100644 src/device/CLINT.scala
+
+diff --git a/.mill-version b/.mill-version
+index 7fd0b1e8..67993434 100644
+--- a/.mill-version
++++ b/.mill-version
+@@ -1 +1 @@
+-0.12.4
+\ No newline at end of file
++0.12.5
+\ No newline at end of file
+diff --git a/Makefile b/Makefile
+index c30262ea..bfca5f74 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,11 +1,54 @@
++TOPNAME = ysyxSoCFull
+ V_FILE_GEN   = build/ysyxSoCTop.sv
+ V_FILE_FINAL = build/ysyxSoCFull.v
+ SCALA_FILES = $(shell find src/ -name "*.scala")
++NXDC_FILES = constr/top.nxdc
++INC_PATH ?=
++
++VERILATOR = verilator
++VERILATOR_CFLAGS += -MMD --build -cc  \
++				-O3 --x-assign fast --x-initial fast --noassert
++
++VERILATOR_CFLAGS += --trace-fst --timescale "1ns/1ns" --autoflush --no-timing  \
++					+incdir+./perip/uart16550/rtl +incdir+./perip/spi/rtl
++
++BUILD_DIR = ./build
++OBJ_DIR = $(BUILD_DIR)/obj_dir
++BIN = $(BUILD_DIR)/$(TOPNAME)
++YSYXC_PATH = /home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include
++
++default: $(BIN)
++ 
++$(shell mkdir -p $(BUILD_DIR))
++ 
++# constraint file
++SRC_AUTO_BIND = $(abspath $(BUILD_DIR)/auto_bind.cpp)
++$(SRC_AUTO_BIND): $(NXDC_FILES)
++	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
+ 
+ # Firtool version
+ FIRTOOL_VERSION = 1.105.0
+ FIRTOOL_PATCH_DIR = $(shell pwd)/patch/firtool
+ 
++VSRCS = $(shell find $(abspath ./vsrc) -name "*.v")
++VSRCS += $(shell find $(abspath ./perip) -name "*.v")
++VSRCS += $(shell find $(abspath ./build) -name "*.v")
++CSRCS = $(shell find $(abspath ./csrc/src) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
++CSRCSS = $(shell find $(abspath ./csrc/src) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
++CSRCSS += $(SRC_AUTO_BIND)
++
++# rules for NVBoard
++include $(NVBOARD_HOME)/scripts/nvboard.mk
++ 
++# rules for verilator
++INCFLAGS = $(addprefix -I, $(INC_PATH))
++YSYXCFLAGS = $(addprefix -I, $(YSYXC_PATH))
++CXXFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
++
++# HEADER := $(wildcard *.h) $(wildcard /home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include/*.h)
++
++LDFLAGS += -lreadline
++
+ $(V_FILE_FINAL): $(SCALA_FILES)
+ # Replace firtool with a newer version
+ # TODO: This can be removed after chisel publishes a new version
+@@ -16,6 +59,13 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
++$(BIN): $(VSRCS) $(CSRCSS) $(NVBOARD_ARCHIVE)
++	@rm -rf $(OBJ_DIR)
++	$(VERILATOR) $(VERILATOR_CFLAGS) \
++		--top-module $(TOPNAME) $^ \
++		$(addprefix -CFLAGS , $(CXXFLAGS)) $(addprefix -CFLAGS , $(YSYXCFLAGS)) $(addprefix -LDFLAGS , $(LDFLAGS)) \
++		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN))
++
+ verilog: $(V_FILE_FINAL)
+ 
+ clean:
+@@ -25,4 +75,14 @@ dev-init:
+ 	git submodule update --init --recursive
+ 	cd rocket-chip && git apply ../patch/rocket-chip.patch
+ 
++run:
++	verilator -Wno-fatal --cc $(VSRCS) --exe $(CSRCS) -LDFLAGS -lreadline -CFLAGS "-I/home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include" \
++		--top-module ysyxSoCFull --trace-fst --timescale "1ns/1ns" --autoflush --no-timing +incdir+./perip/uart16550/rtl +incdir+./perip/spi/rtl
++	make -C obj_dir -f VysyxSoCFull.mk VysyxSoCFull
++	./obj_dir/VysyxSoCFull $(ARGS) $(IMG)
++
++nvboard: $(BIN)
++	@$^ $(ARGS) $(IMG)
++
++
+ .PHONY: verilog clean dev-init
+diff --git a/build.sc b/build.sc
+index 8b097e42..c9fb2960 100644
+--- a/build.sc
++++ b/build.sc
+@@ -76,6 +76,7 @@ trait ysyxSoCModule extends ScalaModule {
+   def rocketModule: ScalaModule
+   override def moduleDeps = super.moduleDeps ++ Seq(
+     rocketModule,
++    // rocket-chip,
+   )
+ }
+ 
+diff --git a/constr/top.nxdc b/constr/top.nxdc
+new file mode 100644
+index 00000000..9c47e9ae
+--- /dev/null
++++ b/constr/top.nxdc
+@@ -0,0 +1,26 @@
++top = ysyxSoCFull
++
++externalPins_gpio_out (LD15, LD14, LD13, LD12, LD11, LD10, LD9, LD8, LD7, LD6, LD5, LD4, LD3, LD2, LD1, LD0)
++externalPins_gpio_in (SW15, SW14, SW13, SW12, SW11, SW10, SW9, SW8, SW7, SW6, SW5, SW4, SW3, SW2, SW1, SW0)
++
++externalPins_gpio_seg_0 (SEG0G,SEG0F,SEG0E,SEG0D,SEG0C,SEG0B,SEG0A,DEC0P)
++externalPins_gpio_seg_1 (SEG1G,SEG1F,SEG1E,SEG1D,SEG1C,SEG1B,SEG1A,DEC1P)
++externalPins_gpio_seg_2 (SEG2G,SEG2F,SEG2E,SEG2D,SEG2C,SEG2B,SEG2A,DEC2P)
++externalPins_gpio_seg_3 (SEG3G,SEG3F,SEG3E,SEG3D,SEG3C,SEG3B,SEG3A,DEC3P)
++externalPins_gpio_seg_4 (SEG4G,SEG4F,SEG4E,SEG4D,SEG4C,SEG4B,SEG4A,DEC4P)
++externalPins_gpio_seg_5 (SEG5G,SEG5F,SEG5E,SEG5D,SEG5C,SEG5B,SEG5A,DEC5P)
++externalPins_gpio_seg_6 (SEG6G,SEG6F,SEG6E,SEG6D,SEG6C,SEG6B,SEG6A,DEC6P)
++externalPins_gpio_seg_7 (SEG7G,SEG7F,SEG7E,SEG7D,SEG7C,SEG7B,SEG7A,DEC7P)
++
++externalPins_ps2_clk PS2_CLK
++externalPins_ps2_data PS2_DAT
++
++externalPins_vga_r (VGA_R7, VGA_R6, VGA_R5, VGA_R4, VGA_R3, VGA_R2, VGA_R1, VGA_R0)
++externalPins_vga_g (VGA_G7, VGA_G6, VGA_G5, VGA_G4, VGA_G3, VGA_G2, VGA_G1, VGA_G0)
++externalPins_vga_b (VGA_B7, VGA_B6, VGA_B5, VGA_B4, VGA_B3, VGA_B2, VGA_B1, VGA_B0)
++externalPins_vga_hsync VGA_HSYNC
++externalPins_vga_vsync VGA_VSYNC
++externalPins_vga_valid VGA_BLANK_N
++
++externalPins_uart_rx UART_RX
++externalPins_uart_tx UART_TX
+diff --git a/csrc/include/common.h b/csrc/include/common.h
+new file mode 100644
+index 00000000..d4869fde
+--- /dev/null
++++ b/csrc/include/common.h
+@@ -0,0 +1,137 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#ifndef __COMMON_H__
++#define __COMMON_H__
++
++#include <stdint.h>
++#include <inttypes.h>
++#include <stdbool.h>
++#include <string.h>
++
++// #include <macro.h>
++
++#include <config.h>
++
++#include <assert.h>
++#include <stdlib.h>
++
++
++typedef uint32_t  word_t;//32位
++typedef int32_t  sword_t;
++
++
++
++typedef word_t   vaddr_t;
++typedef uint32_t paddr_t;
++
++typedef uint16_t ioaddr_t;
++
++#define FMT_PADDR MUXDEF(PMEM64, "0x%016" PRIx64, "0x%08" PRIx32)
++
++// macro stringizing
++#define str_temp(x) #x
++#define str(x) str_temp(x)
++
++// strlen() for string constant
++#define STRLEN(CONST_STR) (sizeof(CONST_STR) - 1)
++
++// calculate the length of an array
++#define ARRLEN(arr) (int)(sizeof(arr) / sizeof(arr[0]))
++
++// macro concatenation
++#define concat_temp(x, y) x ## y
++#define concat(x, y) concat_temp(x, y)
++#define concat3(x, y, z) concat(concat(x, y), z)
++#define concat4(x, y, z, w) concat3(concat(x, y), z, w)
++#define concat5(x, y, z, v, w) concat4(concat(x, y), z, v, w)
++
++// macro testing
++// See https://stackoverflow.com/questions/26099745/test-if-preprocessor-symbol-is-defined-inside-macro
++#define CHOOSE2nd(a, b, ...) b
++#define MUX_WITH_COMMA(contain_comma, a, b) CHOOSE2nd(contain_comma a, b)
++#define MUX_MACRO_PROPERTY(p, macro, a, b) MUX_WITH_COMMA(concat(p, macro), a, b)
++// define placeholders for some property
++#define __P_DEF_0  X,
++#define __P_DEF_1  X,
++#define __P_ONE_1  X,
++#define __P_ZERO_0 X,
++// define some selection functions based on the properties of BOOLEAN macro
++#define MUXDEF(macro, X, Y)  MUX_MACRO_PROPERTY(__P_DEF_, macro, X, Y)
++#define MUXNDEF(macro, X, Y) MUX_MACRO_PROPERTY(__P_DEF_, macro, Y, X)
++#define MUXONE(macro, X, Y)  MUX_MACRO_PROPERTY(__P_ONE_, macro, X, Y)
++#define MUXZERO(macro, X, Y) MUX_MACRO_PROPERTY(__P_ZERO_,macro, X, Y)
++
++// test if a boolean macro is defined
++#define ISDEF(macro) MUXDEF(macro, 1, 0)
++// test if a boolean macro is undefined
++#define ISNDEF(macro) MUXNDEF(macro, 1, 0)
++// test if a boolean macro is defined to 1
++#define ISONE(macro) MUXONE(macro, 1, 0)
++// test if a boolean macro is defined to 0
++#define ISZERO(macro) MUXZERO(macro, 1, 0)
++// test if a macro of ANY type is defined
++// NOTE1: it ONLY works inside a function, since it calls `strcmp()`
++// NOTE2: macros defined to themselves (#define A A) will get wrong results
++#define isdef(macro) (strcmp("" #macro, "" str(macro)) != 0)
++
++#define FMT_WORD MUXDEF(CONFIG_ISA64, "0x%016" PRIx64, "0x%08" PRIx32)
++
++// simplification for conditional compilation
++#define __IGNORE(...)
++#define __KEEP(...) __VA_ARGS__
++// keep the code if a boolean macro is defined
++#define IFDEF(macro, ...) MUXDEF(macro, __KEEP, __IGNORE)(__VA_ARGS__)
++// keep the code if a boolean macro is undefined
++#define IFNDEF(macro, ...) MUXNDEF(macro, __KEEP, __IGNORE)(__VA_ARGS__)
++// keep the code if a boolean macro is defined to 1
++#define IFONE(macro, ...) MUXONE(macro, __KEEP, __IGNORE)(__VA_ARGS__)
++// keep the code if a boolean macro is defined to 0
++#define IFZERO(macro, ...) MUXZERO(macro, __KEEP, __IGNORE)(__VA_ARGS__)
++
++// functional-programming-like macro (X-macro)
++// apply the function `f` to each element in the container `c`
++// NOTE1: `c` should be defined as a list like:
++//   f(a0) f(a1) f(a2) ...
++// NOTE2: each element in the container can be a tuple
++#define MAP(c, f) c(f)
++
++#define BITMASK(bits) ((1ull << (bits)) - 1) // 生成一个宽度为 bits 的位掩码（全1二进制数）。
++#define BITS(x, hi, lo) (((x) >> (lo)) & BITMASK((hi) - (lo) + 1)) // similar to x[hi:lo] in verilog 提取数值 x 中从 lo 到 hi 的位
++#define SEXT(x, len) ({ struct { int64_t n : len; } __x = { .n = x }; (uint64_t)__x.n; }) // 将 x 符号扩展到 len 位宽度
++
++#define ROUNDUP(a, sz)   ((((uintptr_t)a) + (sz) - 1) & ~((sz) - 1))
++#define ROUNDDOWN(a, sz) ((((uintptr_t)a)) & ~((sz) - 1))
++
++#define PG_ALIGN __attribute((aligned(4096)))
++
++#if !defined(likely)
++#define likely(cond)   __builtin_expect(cond, 1)
++#define unlikely(cond) __builtin_expect(cond, 0)
++#endif
++
++// // for AM IOE
++// #define io_read(reg) \
++//   ({ reg##_T __io_param; \
++//     ioe_read(reg, &__io_param); \
++//     __io_param; })
++
++// #define io_write(reg, ...) \
++//   ({ reg##_T __io_param = (reg##_T) { __VA_ARGS__ }; \
++//     ioe_write(reg, &__io_param); })
++
++#include <debug.h>
++
++#endif
+diff --git a/csrc/include/config.h b/csrc/include/config.h
+new file mode 100644
+index 00000000..04acbebc
+--- /dev/null
++++ b/csrc/include/config.h
+@@ -0,0 +1,23 @@
++#ifndef __CONFIG_H__
++#define __CONFIG_H__
++
++
++// #define CONFIG_ITRACE_COND 1
++#define CONFIG_TRACE 1
++// #define ITRACE_COND 1
++#define CONFIG_TRACE_START 0x0
++#define CONFIG_TRACE_END 0x1000000
++// #define CONFIG_TIMER_GETTIMEOFDAY 1
++#define CONFIG_TIMER_CLOCK_GETTIME 1
++#define CONFIG_TARGET_NATIVE_ELF 1
++// #define CONFIG_VCD_TRACE 1
++// #define CONFIG_FST_TRACE 1 // 注意还要改makefile
++// #define CONFIG_DIFFTEST 1
++#define CONFIG_SERIAL_MMIO 0xa00003f8
++#define CONFIG_RTC_MMIO 0xa0000048
++#define CONFIG_TIME 0xa0000070
++#define CONFIG_WATCHPOINT 1
++#define CONFIG_FTRACE 1
++#define CONFIG_NVBOARD 1
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/include/cpu/cpu.h b/csrc/include/cpu/cpu.h
+new file mode 100644
+index 00000000..759f03b4
+--- /dev/null
++++ b/csrc/include/cpu/cpu.h
+@@ -0,0 +1,43 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#ifndef __CPU_CPU_H__
++#define __CPU_CPU_H__
++
++#include <common.h>
++
++// extern "C" void flash_read(int32_t addr, int32_t *data) { assert(0); }
++// extern "C" void mrom_read(int32_t addr, int32_t *data) { assert(0); }
++
++void npc_exec(uint64_t n);
++
++vaddr_t cpu_state();
++
++void reg_display();
++
++typedef struct {
++    word_t reg[16]; // 寄存器
++    vaddr_t pc;
++  } NPC_state;
++
++extern NPC_state cpu;
++
++// void set_nemu_state(int state, vaddr_t pc, int halt_ret);
++// void invalid_inst(vaddr_t thispc);
++
++// #define NEMUTRAP(thispc, code) set_nemu_state(NEMU_END, thispc, code)
++// #define INV(thispc) invalid_inst(thispc)
++
++#endif
+diff --git a/csrc/include/cpu/decode.h b/csrc/include/cpu/decode.h
+new file mode 100644
+index 00000000..e69de29b
+diff --git a/csrc/include/cpu/difftest.h b/csrc/include/cpu/difftest.h
+new file mode 100644
+index 00000000..11719255
+--- /dev/null
++++ b/csrc/include/cpu/difftest.h
+@@ -0,0 +1,55 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#ifndef __CPU_DIFFTEST_H__
++#define __CPU_DIFFTEST_H__
++
++#include <common.h>
++// #include <difftest-def.h>
++
++#ifdef CONFIG_DIFFTEST
++void difftest_skip_ref();
++// void difftest_skip_load();
++void difftest_skip_dut(int nr_ref, int nr_dut);
++void difftest_set_patch(void (*fn)(void *arg), void *arg);
++void difftest_step(vaddr_t pc, vaddr_t npc);
++void difftest_detach();
++void difftest_attach();
++#else
++static inline void difftest_skip_ref() {}
++static inline void difftest_skip_load() {}
++static inline void difftest_skip_dut(int nr_ref, int nr_dut) {}
++static inline void difftest_set_patch(void (*fn)(void *arg), void *arg) {}
++static inline void difftest_step(vaddr_t pc, vaddr_t npc) {}
++static inline void difftest_detach() {}
++static inline void difftest_attach() {}
++#endif
++
++extern void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction);
++extern void (*ref_difftest_regcpy)(void *dut, bool direction);
++extern void (*ref_difftest_exec)(uint64_t n);
++extern void (*ref_difftest_raise_intr)(uint64_t NO);
++
++static inline bool difftest_check_reg(const char *name, vaddr_t pc, word_t ref, word_t dut) {
++  if (ref != dut) {
++    Log("%s is different after executing instruction at pc = " FMT_WORD
++        ", right = " FMT_WORD ", wrong = " FMT_WORD ", diff = " FMT_WORD,
++        name, pc, ref, dut, ref ^ dut);
++    return false;
++  }
++  return true;
++}
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/include/cpu/ftrace.h b/csrc/include/cpu/ftrace.h
+new file mode 100644
+index 00000000..61bda39c
+--- /dev/null
++++ b/csrc/include/cpu/ftrace.h
+@@ -0,0 +1,10 @@
++#ifndef __CPU_FTRACE_H__
++#define __CPU_FTRECE_H__
++
++
++int init_ftrace(const char *path);
++void ftrace_call(vaddr_t pc, vaddr_t dnpc, uint32_t inst);
++void ftrace_ret(uint32_t inst, vaddr_t pc);
++
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/include/cpu/iringbuf.h b/csrc/include/cpu/iringbuf.h
+new file mode 100644
+index 00000000..2336f8f4
+--- /dev/null
++++ b/csrc/include/cpu/iringbuf.h
+@@ -0,0 +1,13 @@
++#ifndef __CPU_IRINGBUF_H__
++#define __CPU_IRINGBUF_H__
++
++
++void init_iringbuf();
++
++void ring_write(char *s);
++
++void ring_print();
++
++void ring_show();
++
++#endif
+diff --git a/csrc/include/debug.h b/csrc/include/debug.h
+new file mode 100644
+index 00000000..019b64ee
+--- /dev/null
++++ b/csrc/include/debug.h
+@@ -0,0 +1,42 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#ifndef __DEBUG_H__
++#define __DEBUG_H__
++
++#include <common.h>
++#include <stdio.h>
++#include <utils.h>
++
++#define Log(format, ...) \
++    _Log(ANSI_FMT("[%s:%d %s] " format, ANSI_FG_BLUE) "\n", \
++        __FILE__, __LINE__, __func__, ## __VA_ARGS__)
++
++#define Assert(cond, format, ...) \
++  do { \
++    if (!(cond)) { \
++      MUXDEF(CONFIG_TARGET_AM, printf(ANSI_FMT(format, ANSI_FG_RED) "\n", ## __VA_ARGS__), \
++        (fflush(stdout), fprintf(stderr, ANSI_FMT(format, ANSI_FG_RED) "\n", ##  __VA_ARGS__))); \
++      IFNDEF(CONFIG_TARGET_AM, extern FILE* log_fp; fflush(log_fp)); \
++      extern void assert_fail_msg(); \
++      assert_fail_msg(); \
++      assert(cond); \
++    } \
++  } while (0)
++#define panic(format, ...) Assert(0, format, ## __VA_ARGS__)
++
++#define TODO() panic("please implement me")
++
++#endif
+diff --git a/csrc/include/flash.h b/csrc/include/flash.h
+new file mode 100644
+index 00000000..f25a5ff2
+--- /dev/null
++++ b/csrc/include/flash.h
+@@ -0,0 +1,24 @@
++#ifndef _FLASH_H__
++#define _FLASH_H__
++
++#include <common.h>
++
++#define CONFIG_FLASH  0x00000000
++#define CONFIG_FLASH_SIZE 0x1000000
++#define PG_ALIGN __attribute((aligned(4096)))
++
++
++#define FLASH_LEFT  ((paddr_t)CONFIG_FLASH)
++#define FLASH_RIGHT ((paddr_t)CONFIG_FLASH + CONFIG_FLASH_SIZE - 1)
++
++/* convert the guest physical address in the guest program to host virtual address in NEMU */
++uint8_t* guest_to_host_flash(paddr_t paddr);
++/* convert the host virtual address in NEMU to guest physical address in the guest program */
++// paddr_t host_to_guest_mrom(uint8_t *haddr);
++
++
++// void init_mrom(); 
++
++
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/include/mrom.h b/csrc/include/mrom.h
+new file mode 100644
+index 00000000..e31cfba8
+--- /dev/null
++++ b/csrc/include/mrom.h
+@@ -0,0 +1,24 @@
++#ifndef _MROM_H__
++#define _MROM_H__
++
++#include <common.h>
++
++#define CONFIG_MROM  0x20000000
++#define CONFIG_MROM_SIZE 0x1000
++#define PG_ALIGN __attribute((aligned(4096)))
++
++
++#define MROM_LEFT  ((paddr_t)CONFIG_MROM)
++#define MROM_RIGHT ((paddr_t)CONFIG_MROM + CONFIG_MROM_SIZE - 1)
++
++/* convert the guest physical address in the guest program to host virtual address in NEMU */
++uint8_t* guest_to_host_mrom(paddr_t paddr);
++/* convert the host virtual address in NEMU to guest physical address in the guest program */
++paddr_t host_to_guest_mrom(uint8_t *haddr);
++
++
++// void init_mrom(); 
++
++
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/include/paddr.h b/csrc/include/paddr.h
+new file mode 100644
+index 00000000..94eaa1cb
+--- /dev/null
++++ b/csrc/include/paddr.h
+@@ -0,0 +1,44 @@
++// /***************************************************************************************
++// * Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++// *
++// * NEMU is licensed under Mulan PSL v2.
++// * You can use this software according to the terms and conditions of the Mulan PSL v2.
++// * You may obtain a copy of Mulan PSL v2 at:
++// *          http://license.coscl.org.cn/MulanPSL2
++// *
++// * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++// * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++// * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++// *
++// * See the Mulan PSL v2 for more details.
++// ***************************************************************************************/
++
++// #ifndef _PADDR_H__
++// #define _PADDR_H__
++
++// #include <common.h>
++
++// #define CONFIG_MSIZE 0x8000000
++// #define PG_ALIGN __attribute((aligned(4096)))
++// #define CONFIG_MBASE 0x80000000
++// #define CONFIG_PC_RESET_OFFSET 0x0
++
++// #define SEXT(x, len) ({ struct { int64_t n : len; } __x = { .n = x }; (uint64_t)__x.n; })
++
++// #define PMEM_LEFT  ((paddr_t)CONFIG_MBASE)
++// #define PMEM_RIGHT ((paddr_t)CONFIG_MBASE + CONFIG_MSIZE - 1)
++// #define RESET_VECTOR (PMEM_LEFT + CONFIG_PC_RESET_OFFSET)
++
++// /* convert the guest physical address in the guest program to host virtual address in NEMU */
++// uint8_t* guest_to_host(paddr_t paddr);
++// /* convert the host virtual address in NEMU to guest physical address in the guest program */
++// paddr_t host_to_guest(uint8_t *haddr);
++
++// static inline bool in_pmem(paddr_t addr) {
++//   return addr - CONFIG_MBASE < CONFIG_MSIZE;
++// }
++
++// word_t pmem_read(paddr_t addr, int len);
++// void pmem_write(paddr_t addr, int len, word_t data);
++
++// #endif
+diff --git a/csrc/include/psram.h b/csrc/include/psram.h
+new file mode 100644
+index 00000000..d2070732
+--- /dev/null
++++ b/csrc/include/psram.h
+@@ -0,0 +1,24 @@
++#ifndef _PSRAM_H__
++#define _PSRAM_H__
++
++#include <common.h>
++
++#define CONFIG_PSRAM  0x00000000
++#define CONFIG_PSRAM_SIZE 0x400000
++#define PG_ALIGN __attribute((aligned(4096)))
++
++
++#define PSRAM_LEFT  ((paddr_t)CONFIG_PSRAM)
++#define PSRAM_RIGHT ((paddr_t)CONFIG_PSRAM + CONFIG_PSRAM_SIZE - 1)
++
++/* convert the guest physical address in the guest program to host virtual address in NEMU */
++uint8_t* guest_to_host_psram(paddr_t paddr);
++/* convert the host virtual address in NEMU to guest physical address in the guest program */
++paddr_t host_to_guest_psram(uint8_t *haddr);
++
++
++// void init_mrom(); 
++
++
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/include/sdram.h b/csrc/include/sdram.h
+new file mode 100644
+index 00000000..d1e2b121
+--- /dev/null
++++ b/csrc/include/sdram.h
+@@ -0,0 +1,27 @@
++#ifndef _SDRAM_H__
++#define _SDRAM_H__
++
++#include <common.h>
++
++#define CONFIG_SDRAM  0xa0000000
++#define CONFIG_SDRAM_COL 0x200
++#define CONFIG_SDRAM_ROW 0x2000
++#define CONFIG_BANK 0x4
++#define CONFIG_SDRAM_SIZE 0x4000000
++#define PG_ALIGN_S __attribute((aligned(1024)))
++
++#define SDRAM_LEFT  ((paddr_t)CONFIG_SDRAM)
++#define SDRAM_RIGHT ((paddr_t)CONFIG_SDRAM + CONFIG_SDRAM_SIZE - 1)
++
++// /* convert the guest physical address in the guest program to host virtual address in NEMU */
++// uint8_t* guest_to_host_sdram(paddr_t paddr);
++// /* convert the host virtual address in NEMU to guest physical address in the guest program */
++// paddr_t host_to_guest_sdram(uint8_t *haddr);
++
++uint32_t sdram_read(uint32_t addr);
++
++// void init_mrom(); 
++
++
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/include/utils.h b/csrc/include/utils.h
+new file mode 100644
+index 00000000..54c0898e
+--- /dev/null
++++ b/csrc/include/utils.h
+@@ -0,0 +1,77 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NPC is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#ifndef __UTILS_H__
++#define __UTILS_H__
++
++#include <common.h>
++
++// ----------- state -----------
++
++enum { NPC_RUNNING, NPC_STOP, NPC_END, NPC_ABORT, NPC_QUIT };
++
++typedef struct {
++  int state;
++  vaddr_t halt_pc;
++  uint32_t halt_ret;
++} NPCState;
++
++extern NPCState npc_state;
++
++// ----------- timer -----------
++
++uint64_t get_time();
++
++// ----------- log -----------
++
++#define ANSI_FG_BLACK   "\33[1;30m"
++#define ANSI_FG_RED     "\33[1;31m"
++#define ANSI_FG_GREEN   "\33[1;32m"
++#define ANSI_FG_YELLOW  "\33[1;33m"
++#define ANSI_FG_BLUE    "\33[1;34m"
++#define ANSI_FG_MAGENTA "\33[1;35m"
++#define ANSI_FG_CYAN    "\33[1;36m"
++#define ANSI_FG_WHITE   "\33[1;37m"
++#define ANSI_BG_BLACK   "\33[1;40m"
++#define ANSI_BG_RED     "\33[1;41m"
++#define ANSI_BG_GREEN   "\33[1;42m"
++#define ANSI_BG_YELLOW  "\33[1;43m"
++#define ANSI_BG_BLUE    "\33[1;44m"
++#define ANSI_BG_MAGENTA "\33[1;45m"
++#define ANSI_BG_CYAN    "\33[1;46m"
++#define ANSI_BG_WHITE   "\33[1;47m"
++#define ANSI_NONE       "\33[0m"
++
++#define ANSI_FMT(str, fmt) fmt str ANSI_NONE
++
++#define log_write(...) IFDEF(CONFIG_TARGET_NATIVE_ELF, \
++  do { \
++    extern FILE* log_fp; \
++    extern bool log_enable(); \
++    if (log_enable() && log_fp != NULL) { \
++      fprintf(log_fp, __VA_ARGS__); \
++      fflush(log_fp); \
++    } \
++  } while (0) \
++)
++
++#define _Log(...) \
++  do { \
++    printf(__VA_ARGS__); \
++    log_write(__VA_ARGS__); \
++  } while (0)
++
++
++#endif
+diff --git a/csrc/src/difftest/dut.cpp b/csrc/src/difftest/dut.cpp
+new file mode 100644
+index 00000000..1603b6fd
+--- /dev/null
++++ b/csrc/src/difftest/dut.cpp
+@@ -0,0 +1,186 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#include <dlfcn.h>
++
++// #include <isa.h>
++#include <cpu/cpu.h>
++#include <paddr.h>
++#include <utils.h>
++// #include <difftest-def.h>
++
++void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
++void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
++void (*ref_difftest_exec)(uint64_t n) = NULL;
++// void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
++
++enum { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
++
++#ifdef CONFIG_DIFFTEST
++
++static bool is_skip_ref = false;
++// static bool load_skip = false; // load需要延迟一个skip
++static int skip_dut_nr_inst = 0;
++
++
++bool isa_difftest_checkregs(NPC_state *ref_r, vaddr_t pc) {
++
++  // printf("%08x %08x %08x\n", pc, ref_r->pc, cpu.pc);
++  if(cpu.pc != ref_r->pc){
++    printf("41 %08x, %08x\n", cpu.pc, ref_r->pc);
++    return false;
++  }
++  for (int i = 0; i < 16; i++) {
++    if (cpu.reg[i] != ref_r->reg[i]){
++      printf("46 %d %08x, %08x\n", i, cpu.reg[i], ref_r->reg[i]);
++      return false;
++    }
++    else{
++      continue;
++    }
++  }
++  return true;
++}
++
++// this is used to let ref skip instructions which
++// can not produce consistent behavior with NEMU
++void difftest_skip_ref() {
++  is_skip_ref = true;
++  // If such an instruction is one of the instruction packing in QEMU
++  // (see below), we end the process of catching up with QEMU's pc to
++  // keep the consistent behavior in our best.
++  // Note that this is still not perfect: if the packed instructions
++  // already write some memory, and the incoming instruction in NEMU
++  // will load that memory, we will encounter false negative. But such
++  // situation is infrequent.
++  skip_dut_nr_inst = 0;
++}
++
++// void difftest_skip_load() {
++//   load_skip = true;
++
++//   skip_dut_nr_inst = 0;
++// }
++
++// this is used to deal with instruction packing in QEMU.
++// Sometimes letting QEMU step once will execute multiple instructions.
++// We should skip checking until NEMU's pc catches up with QEMU's pc.
++// The semantic is
++//   Let REF run `nr_ref` instructions first.
++//   We expect that DUT will catch up with REF within `nr_dut` instructions.
++void difftest_skip_dut(int nr_ref, int nr_dut) {
++  skip_dut_nr_inst += nr_dut;
++
++  while (nr_ref -- > 0) {
++    ref_difftest_exec(1);
++  }
++}
++
++void init_difftest(char *ref_so_file, long img_size, int port) {
++  assert(ref_so_file != NULL);
++
++  void *handle;
++  handle = dlopen(ref_so_file, RTLD_LAZY);
++  assert(handle);
++
++  ref_difftest_memcpy = (void (*)(paddr_t, void*, size_t, bool))dlsym(handle, "difftest_memcpy");
++  assert(ref_difftest_memcpy);
++
++  ref_difftest_regcpy = (void (*)(void*, bool))dlsym(handle, "difftest_regcpy");
++  assert(ref_difftest_regcpy);
++
++  ref_difftest_exec = (void (*)(uint64_t))dlsym(handle, "difftest_exec");
++  assert(ref_difftest_exec);
++
++  // ref_difftest_raise_intr = (void (*)(word_t))dlsym(handle, "difftest_raise_intr");
++  // assert(ref_difftest_raise_intr);
++
++  void (*ref_difftest_init)(int) = (void (*)(int))dlsym(handle, "difftest_init");
++  assert(ref_difftest_init);
++
++  Log("Differential testing: %s", ANSI_FMT("ON", ANSI_FG_GREEN));
++  Log("The result of every instruction will be compared with %s. "
++      "This will help you a lot for debugging, but also significantly reduce the performance. "
++      "If it is not necessary, you can turn it off in menuconfig.", ref_so_file);
++
++  ref_difftest_init(port);
++  ref_difftest_memcpy(RESET_VECTOR, guest_to_host(RESET_VECTOR), img_size, DIFFTEST_TO_REF);
++  ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
++}
++
++static void checkregs(NPC_state *ref, vaddr_t pc) {
++  if (!isa_difftest_checkregs(ref, pc)) {
++    npc_state.state = NPC_ABORT;
++    npc_state.halt_pc = pc;
++    reg_display();
++  }
++}
++
++void difftest_step(vaddr_t pc, vaddr_t npc) { // pc dnpc
++  NPC_state ref_r;
++
++  if (skip_dut_nr_inst > 0) {
++    ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT); // riscv32 0
++    if (ref_r.pc == npc) {
++      skip_dut_nr_inst = 0;
++      checkregs(&ref_r, npc);
++      return;
++    }
++    skip_dut_nr_inst --;
++    if (skip_dut_nr_inst == 0)
++      panic("can not catch up with ref.pc = " FMT_WORD " at pc = " FMT_WORD, ref_r.pc, pc);
++    return;
++  }
++
++  if (is_skip_ref) {
++    // to skip the checking of an instruction, just copy the reg state to reference design
++    ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
++    // printf("skip\n");
++    is_skip_ref = false;
++    return;
++  }
++
++  // printf("155 ref_r.pc = %08x\n", ref_r.pc);
++  ref_difftest_exec(1);
++  ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
++
++  checkregs(&ref_r, pc);
++}
++#else
++void init_difftest(char *ref_so_file, long img_size, int port) { }
++#endif
++
++
++  // ref_difftest_regcpy(&ref_r, DIFFTEST_TO_DUT);
++  // printf("pc = %08x, ref_pc = %08x\n", pc, ref_r.pc);
++
++  // if (is_skip_ref) {
++  //   ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
++  //   if(load_skip){
++  //     is_skip_ref = true;
++  //     load_skip = false;
++  //   }
++  //   else{
++  //     is_skip_ref = false;
++  //   }
++  //   return;
++  // }
++  
++
++
++  // if(load_skip) {
++  //   is_skip_ref = true;
++  //   load_skip = false;
++  // }
+\ No newline at end of file
+diff --git a/csrc/src/difftest/ref.cpp b/csrc/src/difftest/ref.cpp
+new file mode 100644
+index 00000000..7a4f1b1a
+--- /dev/null
++++ b/csrc/src/difftest/ref.cpp
+@@ -0,0 +1,57 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++// #include <isa.h>
++#include <cpu/cpu.h>
++// #include <difftest-def.h>
++#include <paddr.h>
++
++
++
++// __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
++
++
++
++//   assert(0);
++// }
++
++// __EXPORT void difftest_regcpy(void *dut, bool direction) {
++  
++
++
++//   assert(0);
++// }
++
++// __EXPORT void difftest_exec(uint64_t n) {
++
++  
++
++
++//   assert(0);
++// }
++
++// __EXPORT void difftest_raise_intr(word_t NO) {
++
++
++
++//   assert(0);
++// }
++
++// __EXPORT void difftest_init(int port) {
++//   void init_mem();
++//   init_mem();
++//   /* Perform ISA dependent initialization. */
++//   init_isa();
++// }
+diff --git a/csrc/src/flash.cpp b/csrc/src/flash.cpp
+new file mode 100644
+index 00000000..f3c386e1
+--- /dev/null
++++ b/csrc/src/flash.cpp
+@@ -0,0 +1,43 @@
++#include <flash.h>
++#include "svdpi.h"
++// #include "TOP_NAME__Dpi.h"
++// #include "VysyxSoCTop.h"  // Verilator 生成的模型头文件
++#include "verilated.h"
++
++// #ifdef CONFIG_NVBOARD
++#include "VysyxSoCFull.h"
++// #include "VysyxSoCFull___024root.h"
++#include "VysyxSoCFull__Dpi.h"
++// #else
++// #include "VysyxSoCTop.h"
++// // #include "VysyxSoCTop___024root.h"
++// #include "VysyxSoCTop__Dpi.h"
++// #endif
++
++static uint8_t flash[CONFIG_FLASH_SIZE] PG_ALIGN = {};
++
++uint8_t* guest_to_host_flash(paddr_t paddr) { return flash + paddr; }
++// paddr_t host_to_guest_mrom(uint8_t *haddr) { return haddr - mrom + CONFIG_MROM; }
++
++
++static inline word_t host_read_f(void *addr) {
++
++    return *(uint32_t *)addr;
++}
++
++extern "C" void flash_read(int32_t addr, int32_t *data) {
++
++    uint32_t temp;
++
++    if((uint32_t)addr >= CONFIG_FLASH && (uint32_t)addr <= FLASH_RIGHT) {
++
++        temp = host_read_f(guest_to_host_flash(addr));
++        // printf("%08x, %08x\n", addr, temp);
++        *data = (int32_t)temp;
++    }
++    else{
++        printf("flash out of bound\n");
++        assert(0);
++    }
++    return;
++}
+\ No newline at end of file
+diff --git a/csrc/src/ftrace.cpp b/csrc/src/ftrace.cpp
+new file mode 100644
+index 00000000..1c41ad69
+--- /dev/null
++++ b/csrc/src/ftrace.cpp
+@@ -0,0 +1,163 @@
++#include <stdio.h>
++#include <stdlib.h>
++#include <fcntl.h>
++#include <unistd.h>
++#include <sys/mman.h>
++#include <elf.h>
++#include <string.h>
++#include <common.h>
++
++#define NR_FL  2048
++#define RET "00008067"
++
++typedef struct func_list
++{
++    char func_name[512];
++    uint32_t start_addr;
++    uint32_t end_addr;
++}FL;
++
++static Elf32_Sym *syms = NULL;
++static char *strs = NULL;
++static int sym_count = 0;
++
++static FL fl_pool[NR_FL] = {};
++static int fl_lenth = 0;
++
++static char space_str[4] = {};
++static int space_len = 0;
++
++const char* get_symbol_type(unsigned char type) {
++    switch(type) {
++        case STT_NOTYPE: return "NOTYPE";
++        case STT_OBJECT: return "OBJECT";
++        case STT_FUNC: return "FUNC";
++        case STT_SECTION: return "SECTION";
++        case STT_FILE: return "FILE";
++        case STT_COMMON: return "COMMON";
++        case STT_TLS: return "TLS";
++        default: return "UNKNOWN";
++    }
++}
++
++int init_ftrace(const char *path) { // 只运行一次
++
++    if (!path) {
++        fprintf(stderr, "Path is NULL\n");
++        return 1;
++    }
++
++    int fd = open(path, O_RDONLY);
++    if (fd < 0) {
++        perror("open");
++        return 1;
++    }
++
++    off_t size = lseek(fd, 0, SEEK_END);
++    lseek(fd, 0, SEEK_SET);
++
++    void *map = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
++    if (map == MAP_FAILED) {
++        perror("mmap");
++        close(fd);
++        return 1;
++    }
++
++    unsigned char *e_ident = (unsigned char *)map;
++    if (e_ident[EI_MAG0] != ELFMAG0 || 
++        e_ident[EI_MAG1] != ELFMAG1 || 
++        e_ident[EI_MAG2] != ELFMAG2 || 
++        e_ident[EI_MAG3] != ELFMAG3) {
++        fprintf(stderr, "Not an ELF file\n");
++        munmap(map, size);
++        close(fd);
++        return 1;
++    }
++
++    Elf32_Ehdr *ehdr = (Elf32_Ehdr *)map;
++    
++    Elf32_Shdr *shdr = (Elf32_Shdr *)((char *)map + ehdr->e_shoff);
++    
++    Elf32_Shdr *symtab = NULL, *strtab = NULL;
++    for (int i = 0; i < ehdr->e_shnum; i++) {
++        if (shdr[i].sh_type == SHT_SYMTAB) {
++            symtab = &shdr[i];
++            strtab = &shdr[symtab->sh_link];
++            break;
++        }
++    }
++    
++    if (!symtab || !strtab) {
++        printf("No symbol table found in the file\n");
++        munmap(map, size);
++        close(fd);
++        return 0;
++    }
++
++    syms = (Elf32_Sym *)malloc(symtab->sh_size);
++    strs = (char *)malloc(strtab->sh_size);
++
++    memcpy(syms, (char *)map + symtab->sh_offset, symtab->sh_size);
++    sym_count = symtab->sh_size / sizeof(Elf32_Sym);
++    
++    memcpy(strs, (char *)map + strtab->sh_offset, strtab->sh_size);
++
++    int j = 0;
++
++    for (int i = 0; i < sym_count; i++) {
++        Elf32_Sym *sym = &syms[i];
++        const char *name = strs + sym->st_name;
++        
++        if (*name == '\0' || sym->st_shndx == SHN_UNDEF) {
++            continue;
++        }
++        
++        unsigned char type = ELF32_ST_TYPE(sym->st_info);
++        
++        if(type == STT_FUNC && j < NR_FL){
++            strcpy(fl_pool[j].func_name, name);
++            fl_pool[j].start_addr = sym->st_value;
++            fl_pool[j].end_addr = sym->st_value + sym->st_size;
++            j++;
++        }
++
++    }
++
++    fl_lenth = j;
++    munmap(map, size);
++    close(fd);
++    return 0;
++}
++
++
++void ftrace_call(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
++
++    uint32_t jarl_func = inst & 0x0000707F;
++    uint32_t jal_func = inst & 0x0000007F;
++
++    if(jarl_func == 0x00000067 || jal_func == 0x0000006F){
++        for(int i = 0; i < fl_lenth; i++){
++            if(fl_pool[i].start_addr == dnpc){
++                log_write("%08x: %scall [%s@%08x]\n", pc, space_str, fl_pool[i].func_name, dnpc);
++                space_str[space_len] = ' ';
++                space_len = 1;
++                break;
++            }
++        }
++    }
++}
++
++
++void ftrace_ret(uint32_t inst, vaddr_t pc){
++
++    if(inst == 0x00008067){
++        for(int i = 0; i < fl_lenth; i++){
++            if(pc < fl_pool[i].end_addr && pc > fl_pool[i].start_addr){
++                space_str[space_len] = '\0';
++                space_len = 0;
++                log_write("%08x: %sret %s\n", pc, space_str, fl_pool[i].func_name);
++            }
++        }
++    }
++}
++
+diff --git a/csrc/src/init.cpp b/csrc/src/init.cpp
+new file mode 100644
+index 00000000..1f6bb028
+--- /dev/null
++++ b/csrc/src/init.cpp
+@@ -0,0 +1,173 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++// #include <isa.h>
++#include <sdram.h>
++#include <flash.h>
++#include <mrom.h>
++#include <stdio.h>
++#include <cpu/iringbuf.h>
++// #include <cpu/ifetch.h>
++#include <cpu/ftrace.h>
++
++void init_rand();
++void init_log(const char *log_file);
++void init_mem();
++void init_difftest(char *ref_so_file, long img_size, int port);
++// void init_device();
++void init_npc(int argc, char *argv[]);
++void init_sdb();
++// void init_disasm();
++
++static void welcome() {
++  Log("Trace: %s", MUXDEF(CONFIG_TRACE, ANSI_FMT("ON", ANSI_FG_GREEN), ANSI_FMT("OFF", ANSI_FG_RED)));
++  IFDEF(CONFIG_TRACE, Log("If trace is enabled, a log file will be generated "
++        "to record the trace. This may lead to a large log file. "
++        "If it is not necessary, you can disable it in menuconfig"));
++  Log("Build time: %s, %s", __TIME__, __DATE__);
++  printf("Welcome to riscv32e-NPC\n" );
++  printf("For help, type \"help\"\n");
++  // Log("Exercise: Please remove me in the source code and compile NEMU again.");
++  //assert(0);
++}
++
++#ifndef CONFIG_TARGET_AM
++#include <getopt.h>
++
++void sdb_set_batch_mode();
++
++static char *log_file = NULL;
++static char *ftrace_file = NULL;
++static char *diff_so_file = NULL;
++static char *img_file = NULL;
++static int difftest_port = 1234;
++
++static long load_img() {
++  if (img_file == NULL) {
++    Log("No image is given. Use the default build-in image.");
++    return 4096; // built-in image size
++  }
++
++  FILE *fp = fopen(img_file, "rb");
++  Assert(fp, "Can not open '%s'", img_file);
++
++  fseek(fp, 0, SEEK_END);
++  long size = ftell(fp);
++
++  Log("The image is %s, size = %ld", img_file, size);
++
++  fseek(fp, 0, SEEK_SET);
++  // int ret = fread(guest_to_host(RESET_VECTOR), size, 1, fp); //
++  int ret = fread(guest_to_host_flash(0x00000000), size, 1, fp); //
++  assert(ret == 1);
++
++  fclose(fp);
++  return size;
++}
++
++static int parse_args(int argc, char *argv[]) {
++  const struct option table[] = {
++    {"batch"    , no_argument      , NULL, 'b'},
++    {"log"      , required_argument, NULL, 'l'},
++    {"ftrace"   , required_argument, NULL, 'f'}, 
++    {"diff"     , required_argument, NULL, 'd'},
++    {"port"     , required_argument, NULL, 'p'},
++    {"help"     , no_argument      , NULL, 'h'},
++    {0          , 0                , NULL,  0 },
++  };
++  int o;
++  while ( (o = getopt_long(argc, argv, "-bhl:f:d:p:", table, NULL)) != -1) {
++    switch (o) {
++      case 'b': sdb_set_batch_mode(); break; // 跳过sdb
++      case 'p': sscanf(optarg, "%d", &difftest_port); break;
++      case 'l': log_file = optarg; break;
++      case 'f': ftrace_file = optarg; break;
++      case 'd': diff_so_file = optarg; break;
++      case 1: img_file = optarg; return 0;
++      default:
++        printf("Usage: %s [OPTION...] IMAGE [args]\n\n", argv[0]);
++        printf("\t-b,--batch              run with batch mode\n");
++        printf("\t-l,--log=FILE           output log to FILE\n");
++        printf("\t-f,--ftrace=FILE        input .elf file\n");
++        printf("\t-d,--diff=REF_SO        run DiffTest with reference REF_SO\n");
++        printf("\t-p,--port=PORT          run DiffTest with port PORT\n");
++        printf("\n");
++        exit(0);
++    }
++  }
++  return 0;
++}
++
++void init_monitor(int argc, char *argv[]) {
++  /* Perform some global initialization. */
++
++  /* Parse arguments. */
++  parse_args(argc, argv);
++
++  /* Set random seed. */
++  init_rand();
++
++  /* Open the log file. */
++  init_log(log_file);
++
++  IFDEF(CONFIG_TRACE_A, init_iringbuf());
++
++  IFDEF(CONFIG_FTRACE, init_ftrace(ftrace_file));
++
++  /* Initialize memory. */
++  init_mem(); // 
++
++  /* Initialize devices. */
++  IFDEF(CONFIG_DEVICE, init_device());
++
++  /* Perform ISA dependent initialization. */
++  // init_mrom();
++
++  /* Load the image to memory. This will overwrite the built-in image. */
++  long img_size = load_img();
++
++  init_iringbuf();
++
++  init_npc(argc, argv);
++
++  /* Initialize differential testing. */
++  // init_difftest(diff_so_file, img_size, difftest_port);
++
++  /* Initialize the simple debugger. */
++  init_sdb();
++
++  // IFDEF(CONFIG_ITRACE, init_disasm());
++
++  /* Display welcome message. */
++  welcome();
++}
++#else // CONFIG_TARGET_AM
++static long load_img() {
++  extern char bin_start, bin_end;
++  size_t size = &bin_end - &bin_start;
++  Log("img size = %ld", size);
++  memcpy(guest_to_host(RESET_VECTOR), &bin_start, size);
++  return size;
++}
++
++void am_init_monitor() {
++  init_rand();
++  init_mem();
++  init_isa();
++  load_img();
++  IFDEF(CONFIG_DEVICE, init_device());
++  welcome();
++}
++#endif
+diff --git a/csrc/src/iringbuf.cpp b/csrc/src/iringbuf.cpp
+new file mode 100644
+index 00000000..85346af9
+--- /dev/null
++++ b/csrc/src/iringbuf.cpp
+@@ -0,0 +1,52 @@
++
++#include <cpu/cpu.h>
++// #include <cpu/decode.h>
++#include <cpu/difftest.h>
++#include <locale.h>
++
++#define BUF_DEPTH 20
++
++static char iring_buf[BUF_DEPTH][50] = {};
++
++static int i = 0;
++
++void init_iringbuf(){
++    memset(iring_buf, '\0', sizeof(iring_buf));
++}
++
++void ring_write(char *s){
++    if(i >= BUF_DEPTH){
++        i = 0;
++    }
++    strcpy(iring_buf[i], s);
++    i ++;
++}
++
++void ring_print(){
++    // log_write("iringbuf_trace\n");
++    for(int a = 0; a < BUF_DEPTH; a++){
++        if(iring_buf[a][0] != '\0'){
++            if(i-1 != a){
++                log_write("    %s\n", iring_buf[a]);
++            }
++            else{
++                log_write("--->%s\n", iring_buf[a]);
++            }
++        }
++    }
++}
++
++void ring_show(){
++    // printf("iringbuf_trace\n");
++    for(int a = 0; a < BUF_DEPTH; a++){
++        if(iring_buf[a][0] != '\0'){
++            if(i - 1 != a){
++                printf("    %s\n", iring_buf[a]);
++            }
++            else{
++                printf("--->%s\n", iring_buf[a]);
++            }
++        }
++    }
++}
++
+diff --git a/csrc/src/log.cpp b/csrc/src/log.cpp
+new file mode 100644
+index 00000000..09b245e3
+--- /dev/null
++++ b/csrc/src/log.cpp
+@@ -0,0 +1,38 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#include <common.h>
++#include <debug.h>
++
++extern uint64_t g_nr_guest_inst;
++
++#ifndef CONFIG_TARGET_AM
++FILE *log_fp = NULL;
++
++void init_log(const char *log_file) {
++  log_fp = stdout;
++  if (log_file != NULL) {
++    FILE *fp = fopen(log_file, "w");
++    Assert(fp, "Can not open '%s'", log_file);
++    log_fp = fp;
++  }
++  Log("Log is written to %s", log_file ? log_file : "stdout");
++}
++
++bool log_enable() {
++  return MUXDEF(CONFIG_TRACE, (g_nr_guest_inst >= CONFIG_TRACE_START) &&
++         (g_nr_guest_inst <= CONFIG_TRACE_END), true);
++}
++#endif
+diff --git a/csrc/src/main.cpp b/csrc/src/main.cpp
+new file mode 100644
+index 00000000..bc9aacad
+--- /dev/null
++++ b/csrc/src/main.cpp
+@@ -0,0 +1,43 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#include <common.h>
++
++void init_monitor(int, char *[]);
++void sdb_mainloop();
++void exit_npc();
++// void am_init_monitor();
++// void engine_start();
++int is_exit_status_bad();
++
++
++int main(int argc, char *argv[]) {
++  /* Initialize the monitor. */
++#ifdef CONFIG_TARGET_AM
++  am_init_monitor();
++#else
++  init_monitor(argc, argv);
++#endif
++
++  /* Start engine. */
++#ifdef CONFIG_TARGET_AM
++  npc_exec(-1);
++#else
++  /* Receive commands from user. */
++  sdb_mainloop();
++  exit_npc(); // 结束仿真
++#endif
++  return is_exit_status_bad();
++}
+\ No newline at end of file
+diff --git a/csrc/src/mrom.cpp b/csrc/src/mrom.cpp
+new file mode 100644
+index 00000000..56cd1fcc
+--- /dev/null
++++ b/csrc/src/mrom.cpp
+@@ -0,0 +1,60 @@
++#include <mrom.h>
++#include "svdpi.h"
++#include "verilated.h"
++
++// #ifdef CONFIG_NVBOARD
++#include "VysyxSoCFull.h"
++// #include "VysyxSoCFull___024root.h"
++#include "VysyxSoCFull__Dpi.h"
++// #else
++// #include "VysyxSoCTop.h"
++// // #include "VysyxSoCTop___024root.h"
++// #include "VysyxSoCTop__Dpi.h"
++// #endif
++
++// static const uint32_t img [] = {
++//     0x100007b7,
++//     0x04100713,
++//     0x00e78023,
++//     0x100007b7,
++//     0x00a00713,
++//     0x00e78023,
++//     0x00100073,
++// };
++  
++
++// void init_mrom() {
++//     /* Load built-in image. */
++//     memcpy(guest_to_host_mrom(CONFIG_MROM), img, sizeof(img));
++// }
++
++static uint8_t mrom[CONFIG_MROM_SIZE] PG_ALIGN = {};
++
++uint8_t* guest_to_host_mrom(paddr_t paddr) { return mrom + paddr - CONFIG_MROM; }//0x80000000
++paddr_t host_to_guest_mrom(uint8_t *haddr) { return haddr - mrom + CONFIG_MROM; }
++
++
++static inline word_t host_read_m(void *addr) {
++
++    return *(uint32_t *)addr;
++}
++
++extern "C" void mrom_read(int32_t addr, int32_t *data) {
++
++    uint32_t temp;
++
++    if((uint32_t)addr >= CONFIG_MROM && (uint32_t)addr <= MROM_RIGHT) {
++
++        temp = host_read_m(guest_to_host_mrom(addr));
++        // printf("%08x, %08x\n", addr, temp);
++        *data = (int32_t)temp;
++    }
++    else{
++        printf("mrom out of bound\n");
++        assert(0);
++    }
++    return;
++}
++
++
++
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+new file mode 100644
+index 00000000..5db1f8d8
+--- /dev/null
++++ b/csrc/src/npc-exec.cpp
+@@ -0,0 +1,312 @@
++#include "verilated.h"
++#include "svdpi.h"
++
++#include "VysyxSoCFull.h"
++#include "VysyxSoCFull___024root.h"
++#include "VysyxSoCFull__Dpi.h"
++
++// #ifdef CONFIG_NVBOARD
++#include <nvboard.h>
++// #endif
++
++#include <mrom.h>
++#include <cpu/ftrace.h>
++#include <common.h>
++#include <locale.h>
++#include <cpu/cpu.h>
++#include <cpu/difftest.h>
++#include <cpu/iringbuf.h>
++#include "sdb/sdb.h"
++
++#ifdef CONFIG_VCD_TRACE
++#include "verilated_vcd_c.h"
++#endif
++
++#ifdef CONFIG_FST_TRACE
++#include "verilated_fst_c.h"
++#endif
++
++#define MAX_INST_TO_PRINT 10
++// void init_monitor(int, char *[]);
++
++NPC_state cpu = {};
++
++static bool ebreak = false;
++static uint32_t abort_count = 0;
++
++static bool fst_trace_start = true;
++
++uint64_t g_nr_guest_inst = 0;
++static uint64_t g_timer = 0; // unit: us
++// static uint64_t timer_start = 0;
++// static uint64_t timer_end = 0;
++
++static bool g_print_step = false;
++#ifdef CONFIG_DIFFTEST
++static bool difftest_skip_first = false;
++#endif
++
++VerilatedContext* contextp = NULL;
++#ifdef CONFIG_VCD_TRACE
++// VerilatedFstC* tfp = NULL;
++VerilatedVcdC* tfp = NULL;
++#endif
++
++#ifdef CONFIG_FST_TRACE
++VerilatedFstC* tfp = NULL;
++// VerilatedVcdC* tfp = NULL;
++#endif
++
++// static vluint64_t time = 0;
++
++static VysyxSoCFull* top;
++
++#ifdef CONFIG_NVBOARD
++void nvboard_bind_all_pins(VysyxSoCFull* top);
++#endif
++
++const char *regs[] = {
++  "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
++  "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
++  "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
++  "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
++};
++
++void step_and_dump_wave(){
++    top->clock = !top->clock; // 翻转时钟
++    top->eval();
++    contextp->timeInc(5);
++#ifdef CONFIG_VCD_TRACE
++  // if(fst_trace_start == true){
++    tfp->dump(contextp->time()); // 记录波形
++  // }
++#endif
++#ifdef CONFIG_FST_TRACE
++  if(fst_trace_start == true){
++    tfp->dump(contextp->time()); // 记录波形
++  }
++    // tfp->dump(contextp->time()); // 记录波形
++#endif
++}
++
++void init_npc(int argc, char *argv[]){
++    contextp = new VerilatedContext;
++
++    Verilated::commandArgs(argc, argv);
++
++    top = new VysyxSoCFull;
++    contextp->traceEverOn(true);
++    
++#ifdef CONFIG_VCD_TRACE
++    tfp = new VerilatedVcdC;
++    top->trace(tfp, 20);
++    tfp->open("soc_test.vcd");
++#endif
++
++#ifdef CONFIG_FST_TRACE
++    tfp = new VerilatedFstC;
++    top->trace(tfp, 20);
++    tfp->open("soc_test.fst");
++#endif
++    // timer_start = get_time();
++    // init
++#ifdef CONFIG_NVBOARD
++    nvboard_bind_all_pins(top);
++    nvboard_init();
++#endif
++
++    top->clock = 1;
++    top->reset = 1;
++
++    cpu.pc = 0x30000000;
++    cpu.reg[0] = 0;
++
++
++
++    for (int i = 0; i < 20; i++){
++        step_and_dump_wave();
++    }
++
++    top->reset = 0;
++    step_and_dump_wave(); // 下降沿
++    // top->eval();
++}
++
++void exit_npc(){
++    step_and_dump_wave();
++#ifdef CONFIG_VCD_TRACE
++    tfp->close();
++#endif
++#ifdef CONFIG_FST_TRACE
++    tfp->close();
++#endif
++    printf("Simulation completed!\n");
++}
++
++/*reg function*/
++static inline int check_reg_idx(int idx) {
++  IFDEF(CONFIG_RT_CHECK, assert(idx >= 0 && idx < 32));
++  return idx;
++}
++
++word_t get_reg(int idx){
++  // return top->rootp->cpu_top__DOT__u_register__DOT__rf[check_reg_idx(idx)];
++  return top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_register__DOT__rf[check_reg_idx(idx)];
++}
++
++void reg_display() {
++  for(int i = 0; i < 16 ; i ++){
++    printf("reg$%s ---> %08x\n",regs[i], top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_register__DOT__rf[i]);
++  }
++}
++/*end*/
++
++void call_ebreak() {
++  ebreak = true;
++}
++
++// #ifdef CONFIG_DIFFTEST
++static void trace_and_difftest(vaddr_t pc, vaddr_t dnpc, uint32_t inst) {
++
++#ifdef CONFIG_FTRACE
++  ftrace_call(pc, dnpc, inst);
++  ftrace_ret(inst, pc);
++#endif
++ 
++#ifdef CONFIG_ITRACE_COND
++
++  log_write("    %08x %08x\n", pc, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IDU_ysyx__DOT__instr);
++  // if (ITRACE_COND) {
++  //   char s[100];
++  //   snprintf(s, sizeof(s), "    %08x    %08x", pc, top->rootp->ysyxSoCFull__DOT__dut__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IDU_ysyx__DOT__instr);
++  //   ring_write(s); }
++#endif
++  if (g_print_step) { IFDEF(CONFIG_ITRACE, puts("abc\n")); }
++  IFDEF(CONFIG_DIFFTEST, difftest_step(pc, dnpc));
++
++#ifdef CONFIG_WATCHPOINT
++  for(int i = 0; i < 32;i++){
++    
++    if(watchpoint_diff(i) == true)
++    {
++      npc_state.state = NPC_STOP;
++      print_watchpoint(i);
++    }
++    wp_init(i);
++  }
++#endif
++}
++// #endif
++
++static void state_copy(){
++  for(int i = 0; i < 16; i++){
++    cpu.reg[i] = get_reg(i);
++  }
++  cpu.pc = cpu_state();
++}
++
++static void statistic() {
++  IFNDEF(CONFIG_TARGET_AM, setlocale(LC_NUMERIC, ""));
++#define NUMBERIC_FMT MUXDEF(CONFIG_TARGET_AM, "%", "%'") PRIu64
++  Log("host time spent = " NUMBERIC_FMT " us", g_timer);
++  Log("total guest instructions = " NUMBERIC_FMT, g_nr_guest_inst);
++  if (g_timer > 0) Log("simulation frequency = " NUMBERIC_FMT " inst/s", g_nr_guest_inst * 1000000 / g_timer);
++  else Log("Finish running in less than 1 us and can not calculate the simulation frequency");
++}
++
++void assert_fail_msg() {
++  reg_display();
++  statistic();
++}
++
++vaddr_t cpu_state(){
++  return top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IFU_ysyx__DOT__pc_r;
++}
++
++static void npc_once(){
++
++#ifdef CONFIG_NVBOARD
++  nvboard_update();
++#endif
++  uint32_t inst_pre = top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IFU_ysyx__DOT__inst_r;
++
++  step_and_dump_wave();  // 上升沿
++
++  uint32_t inst_now = top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IFU_ysyx__DOT__inst_r;
++
++  IFDEF(CONFIG_DIFFTEST, state_copy());
++  // state_copy();
++  if(top->reset == 0 && top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_EXU_ysyx__DOT__current_state == 0){
++    // if(difftest_skip_first == true){// 跳过第一次difftest
++      // printf("pc = %08x, Next_pc = %08x\n", top->pc, top->Next_pc);
++      g_nr_guest_inst ++;
++      trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_LSU_ysyx__DOT__Next_pc_r, inst_pre);
++    }
++    else{
++    }
++
++
++  if(inst_pre == inst_now){
++    abort_count ++;
++  }
++  else{
++    abort_count = 0;
++  }
++  
++  step_and_dump_wave();  // 下降沿
++
++  // if(cpu_state() == 0xa0000370) {
++  //   fst_trace_start = true;
++  // }
++
++  if(abort_count >= 20000){ // 保护
++    npc_state.state = NPC_ABORT;
++    npc_state.halt_pc = cpu_state();
++    npc_state.halt_ret = get_reg(10);
++  }
++
++  if(ebreak == true){
++    npc_state.state = NPC_END;
++    npc_state.halt_pc = cpu_state();
++    npc_state.halt_ret = get_reg(10);
++  }
++  
++}
++
++void npc_exec(uint64_t n){
++  g_print_step = (n < MAX_INST_TO_PRINT); // MAX_INST_TO_PRINT = 10;
++  switch (npc_state.state) {
++    case NPC_END: case NPC_ABORT: case NPC_QUIT:
++      printf("Program execution has ended. To restart the program, exit NEMU and run again.\n");
++      return;
++    default: npc_state.state = NPC_RUNNING;
++  }
++
++  uint64_t timer_start = get_time();
++
++  // 仿真
++  for(;n > 0; n --){
++    npc_once();
++    if (npc_state.state != NPC_RUNNING) break;
++    IFDEF(CONFIG_DEVICE, device_update());
++  }
++
++  ring_print();
++
++  uint64_t timer_end = get_time();
++  g_timer = timer_end - timer_start;
++
++  switch (npc_state.state) {
++    case NPC_RUNNING: npc_state.state = NPC_STOP; break;
++
++    case NPC_END: case NPC_ABORT:
++      Log("npc: %s at pc = " FMT_WORD,
++          (npc_state.state == NPC_ABORT ? ANSI_FMT("ABORT", ANSI_FG_RED) :
++           (npc_state.halt_ret == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN) :
++            ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))),
++          npc_state.halt_pc); // NEMU_END, halt_ret != 0;
++      // printf("148 %d\n", nemu_state.halt_ret);
++      // fall through
++    case NPC_QUIT: statistic();
++  }
++}
+diff --git a/csrc/src/paddr.cpp b/csrc/src/paddr.cpp
+new file mode 100644
+index 00000000..d5c5b583
+--- /dev/null
++++ b/csrc/src/paddr.cpp
+@@ -0,0 +1,153 @@
++// #include <paddr.h>
++// #include "svdpi.h"
++// #include "VysyxSoCTop__Dpi.h"
++// #include <cpu/difftest.h>
++// #include <time.h>
++
++// static time_t raw_time;          // time_t 是时间戳类型（通常是 long）
++// static struct tm *time_info;     // tm 结构体存储年月日等时间信息
++
++// // 内存数组
++// static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {}; // 0x8000000
++
++// uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; } // 0x80000000
++// paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
++
++
++// static inline word_t host_read(void *addr, int len) {
++//     switch (len) {
++//       case 1: return *(uint8_t  *)addr;
++//       case 2: return *(uint16_t *)addr;
++//       case 4: return *(uint32_t *)addr;
++//       default: assert(0);
++//     }
++// }
++
++// static inline void host_write(void *addr, int mask, word_t data) {
++//     switch (mask) {
++//       case 1:  *(uint8_t  *)addr = data; return;
++//       case 3:  *(uint16_t *)addr = data; return;
++//       case 15: *(uint32_t *)addr = data; return;
++//       default: assert(0);
++//     }
++// }
++
++// void init_mem() {
++// #if   defined(CONFIG_PMEM_MALLOC)
++//   pmem = malloc(CONFIG_MSIZE);
++//   assert(pmem);
++// #endif
++//   IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
++//   Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
++// }
++
++// // void init_mem() {
++//   // memset(pmem, 0, CONFIG_MSIZE);
++//   // printf("physical memory area [ %08x ,  %08x ]", PMEM_LEFT, PMEM_RIGHT);
++// // }
++    
++// word_t pmem_read(paddr_t addr, int len) {
++//   // paddr_t addr_r = (paddr_t)addr;
++//   if(addr <= 0x87FFFFFF && addr >= 0x80000000){
++//     word_t ret = host_read(guest_to_host(addr), len);
++//     return ret;
++//   }
++//   else{
++//     printf("addr = %08x  is out of bound\n", addr);
++//     // assert(0);
++//   }
++//   return 0;
++// }
++
++// void pmem_write(paddr_t addr, int mask, word_t data) {
++//   if(addr <= 0x87FFFFFF && addr >= 0x80000000){
++//     host_write(guest_to_host(addr), mask, data);
++//   }
++//   else{
++//     printf("addr = %08x  is out of bound\n", addr);
++//     // assert(0);
++//   }
++// }
++
++// int pmem_read_v(int addr, int len){
++//   paddr_t addr_r = (paddr_t)addr;
++//   word_t ret = 0x00000000;
++//   uint64_t us = get_time();
++
++//   if(addr_r == CONFIG_RTC_MMIO){
++//     ret = (uint32_t)us;
++//     // printf("80 mark\n");
++//     // difftest_skip_load();
++//   }
++//   else if(addr_r == CONFIG_RTC_MMIO + 4){
++//     ret = us >> 32;
++//     // difftest_skip_load();
++//   }
++//   else if(addr_r == CONFIG_TIME){
++//     time(&raw_time);
++//     time_info = localtime(&raw_time);
++//     ret = (uint32_t)time_info->tm_sec;
++//     // difftest_skip_load();
++//   }
++//   else if(addr_r == CONFIG_TIME + 4){
++//     time(&raw_time);
++//     time_info = localtime(&raw_time);
++//     ret = (uint32_t)time_info->tm_min;
++//     // difftest_skip_load();
++//   }
++//   else if(addr_r == CONFIG_TIME + 8){
++//     time(&raw_time);
++//     time_info = localtime(&raw_time);
++//     ret = (uint32_t)time_info->tm_hour;
++//     // difftest_skip_load();
++//   }
++//   else if(addr_r == CONFIG_TIME + 12){
++//     time(&raw_time);
++//     time_info = localtime(&raw_time);
++//     ret = (uint32_t)time_info->tm_mday;
++//     // difftest_skip_load();
++//   }
++//   else if(addr_r == CONFIG_TIME + 16){
++//     time(&raw_time);
++//     time_info = localtime(&raw_time);
++//     ret = (uint32_t)time_info->tm_mon;
++//     // difftest_skip_load();
++//   }
++//   else if(addr_r == CONFIG_TIME + 20){
++//     time(&raw_time);
++//     time_info = localtime(&raw_time);
++//     ret = (uint32_t)time_info->tm_year;
++//     // difftest_skip_load();
++//   }
++//   else{
++//     ret = pmem_read(addr_r, len);
++//   }
++//   return (int)ret;
++// }
++
++// void pmem_write_v(int addr, int mask, int data){
++//   paddr_t addr_r = (paddr_t)addr;
++//   word_t data_r = (word_t) data;
++//   if (addr_r == CONFIG_SERIAL_MMIO){ // uart
++//     char ch = (char)(data & 0x000000ff);
++//     putc(ch, stderr);
++//     difftest_skip_ref();
++//   }
++//   else if(addr_r == CONFIG_RTC_MMIO || addr_r == CONFIG_RTC_MMIO + 4){
++//     // printf("138 mark\n");
++//     difftest_skip_ref();
++//   }
++//   else{
++//     pmem_write(addr_r, mask, data_r);
++//   } 
++// }
++
++// int rand_v(){
++//   return rand() % 8 + 1;
++// }
++
++
++
++
++
++
+diff --git a/csrc/src/psram.cpp b/csrc/src/psram.cpp
+new file mode 100644
+index 00000000..a8b70515
+--- /dev/null
++++ b/csrc/src/psram.cpp
+@@ -0,0 +1,55 @@
++#include <psram.h>
++#include "svdpi.h"
++// #include "VysyxSoCTop__Dpi.h"
++// #include <cpu/difftest.h>
++// #include <time.h>
++
++#include "VysyxSoCFull.h"
++#include "VysyxSoCFull__Dpi.h"
++
++// 内存数组
++static uint8_t psram[CONFIG_PSRAM_SIZE] PG_ALIGN = { }; 
++
++uint8_t* guest_to_host_psram(paddr_t paddr) { return psram + paddr; }
++paddr_t host_to_guest_psram(uint8_t *haddr) { return haddr - psram; }
++
++static inline word_t host_read(void *addr) {
++    return *(uint32_t *)addr;
++}
++
++static inline void host_write(void *addr, uint8_t data) {
++
++    *(uint8_t *)addr = data; 
++    return;
++  
++}
++    
++extern "C" void psram_read(int32_t addr, int32_t *data) {
++  // paddr_t addr_r = (paddr_t)addr;
++  uint32_t temp;
++
++    if((uint32_t)addr <= PSRAM_RIGHT) {
++
++        temp = host_read(guest_to_host_psram(addr));
++        // printf("read %08x, %08x\n", addr, temp);
++        *data = (int32_t)temp;
++    }
++    else{
++        printf("psram out of bound\n");
++        assert(0);
++    }
++    return;
++}
++
++extern "C" void psram_write(int32_t addr, char data) {
++  uint32_t temp;
++  temp = (uint32_t)addr;
++  if(temp <= PSRAM_RIGHT){
++    host_write(guest_to_host_psram(temp), (uint8_t)data);
++    // printf("write %08x, %08x\n", temp, (uint8_t)data);
++  }
++  else{
++    printf("psram is out of bound\n");
++    // assert(0);
++  }
++}
+\ No newline at end of file
+diff --git a/csrc/src/sdb/expr.cpp b/csrc/src/sdb/expr.cpp
+new file mode 100644
+index 00000000..910cd8f4
+--- /dev/null
++++ b/csrc/src/sdb/expr.cpp
+@@ -0,0 +1,705 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++// #include <isa.h>
++
++/* We use the POSIX regex functions to process regular expressions.
++ * Type 'man regex' for more information about POSIX regex functions.
++ */
++#include <regex.h>
++#include <sdram.h>
++#include <cpu/cpu.h>
++
++#define MAX_TOKENS 64 
++
++enum {
++  TK_NOTYPE = 256, 
++  PLUS      = 0,
++  TK_EQ     = 1,
++  MINUS     = 2,
++  MULTI     = 3,
++  DIV       = 4,
++  LEFT      = 5,
++  RIGHT     = 6,
++  NUM       = 7,
++  LEQ       = 8,
++  NOTEQ     = 9,
++  REQ       = 10,
++  REG       = 11,
++  OR        = 12,
++  AND       = 13,
++  PC        = 14,
++  HEX       = 15,
++
++  /* TODO: Add more token types */
++
++};
++
++static struct rule {
++  const char *regex;
++  int token_type;
++} rules[] = {
++
++  /* TODO: Add more rules.
++   * Pay attention to the precedence level of different rules.
++   */
++
++  {" +", TK_NOTYPE},    // spaces
++  {"\\+", PLUS},         // plus，匹配后返回ASCII码值
++  {"==", TK_EQ},        // equal
++  {"\\-", MINUS},         // minus
++  {"\\*", MULTI},         // multi
++  {"\\/", DIV},         // div
++  {"\\(", LEFT},
++  {"\\)", RIGHT},
++  {"[A-FXa-fx0-9]+", NUM},
++  {"\\<\\=", LEQ},
++  {"\\!\\=", NOTEQ},
++  {"\\>\\=", REQ},
++  {"\\$\\$0|\\$ra|\\$sp|\\$gp|\\$tp|\\$t[0-6]|\\$s[0-9]|\\$s1[0-1]|\\$a[0-7]", REG},
++  {"\\|\\|", OR},
++  {"\\&\\&", AND},
++  {"\\p\\c",PC},
++};
++
++#define NR_REGEX ARRLEN(rules)
++
++static regex_t re[NR_REGEX] = {};
++
++/* Rules are used for many times.
++ * Therefore we compile them only once before any usage.
++ */
++void init_regex() { // 编译正则表达式
++  int i;
++  char error_msg[128];
++  int ret;
++
++  for (i = 0; i < NR_REGEX; i ++) {
++    ret = regcomp(&re[i], rules[i].regex, REG_EXTENDED);
++    if (ret != 0) {
++      regerror(ret, &re[i], error_msg, 128);
++      panic("regex compilation failed: %s\n%s", error_msg, rules[i].regex);
++    }
++  }
++}
++
++typedef struct token {
++  int type;
++  char str[32];
++} Token;
++
++static Token tokens[64] __attribute__((used)) = {};//即使某个变量或函数没有被显式使用，也不要优化掉它。
++static int nr_token __attribute__((used))  = 0;
++
++int char2int(char s[]){
++    int s_size = strlen(s);
++    int res = 0 ;
++    for(int i = 0 ; i < s_size ; i ++)
++    {
++	    res += s[i] - '0';
++      res *= 10;
++    }
++    res /= 10;
++    return res;
++}
++
++void int2char(int x, char str[]) {
++    int tmp_index = 0;
++    int tmp_x = x;
++    int x_size = 0, flag = 1;
++
++    if (x < 0) {
++        str[tmp_index++] = '-';
++        x = -x;
++    }
++
++    tmp_x = x;
++    while (tmp_x) {
++        tmp_x /= 10;
++        x_size++;
++        flag *= 10;
++    }
++    flag /= 10;
++
++
++    if (x == 0) {
++        str[tmp_index++] = '0';
++    }
++
++    while (x) {
++        int a = x / flag;
++        x %= flag;
++        flag /= 10;
++        str[tmp_index++] = a + '0';
++    }
++
++    str[tmp_index] = '\0';
++}
++
++static void remove_first_char(char *str) {
++  if (str == NULL || *str == '\0') {
++      return;
++  }
++
++  size_t len = strlen(str);
++  
++  if (len == 0) {
++      return; 
++  }
++
++  memmove(str, str + 1, len); 
++}
++
++static bool make_token(char *e) {
++  int position = 0;
++  int i;
++  regmatch_t pmatch;
++
++  nr_token = 0;
++
++  while (e[position] != '\0') {
++    /* Try all rules one by one. */
++    for (i = 0; i < NR_REGEX; i ++) {
++      if (regexec(&re[i], e + position, 1, &pmatch, 0) == 0 && pmatch.rm_so == 0) {
++        // char *substr_start = e + position;
++        int substr_len = pmatch.rm_eo;
++
++        // Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
++        //     i, rules[i].regex, position, substr_len, substr_len, substr_start);
++
++        position += substr_len;
++
++        /* TODO: Now a new token is recognized with rules[i]. Add codes
++         * to record the token in the array `tokens'. For certain types
++         * of tokens, some extra actions should be performed.
++         */
++
++        // printf("%d %d\n", i, rules[i].token_type);
++
++        switch (rules[i].token_type) {
++
++          case(TK_NOTYPE): 
++              break;
++
++          case(PLUS): 
++              tokens[nr_token].type = PLUS;
++              strcpy(tokens[nr_token].str, "+");
++              nr_token ++;
++              break;
++
++          case(TK_EQ):
++              tokens[nr_token].type = TK_EQ;
++              strcpy(tokens[nr_token].str, "==");
++              nr_token ++;
++              break;
++
++          case(MINUS):
++              tokens[nr_token].type = MINUS;
++              strcpy(tokens[nr_token].str, "-");
++              nr_token ++;
++              break;
++
++          case(MULTI):
++              tokens[nr_token].type = MULTI;
++              strcpy(tokens[nr_token].str, "*");
++              nr_token ++;
++              break;
++
++          case(DIV): 
++              tokens[nr_token].type = DIV;
++              strcpy(tokens[nr_token].str, "/");
++              nr_token ++;
++              break;
++
++          case(LEFT): 
++              tokens[nr_token].type = LEFT;
++              strcpy(tokens[nr_token].str, "(");
++              nr_token ++;
++              break;
++
++          case(RIGHT): 
++              tokens[nr_token].type = RIGHT;
++              strcpy(tokens[nr_token].str, ")");
++              nr_token ++;
++              break;
++
++          case(NUM): 
++              tokens[nr_token].type = NUM;
++              strncpy(tokens[nr_token].str, &e[position - substr_len], substr_len);
++              nr_token++;
++              break;
++
++          case(REG): 
++              tokens[nr_token].type = REG;
++              strncpy(tokens[nr_token].str, &e[position - substr_len], substr_len);
++              nr_token ++;
++              break;
++
++          case(LEQ):
++              tokens[nr_token].type = LEQ;
++              strcpy(tokens[nr_token].str, "<=");
++              nr_token ++;
++              break;
++
++          case(REQ):
++              tokens[nr_token].type = REQ;
++              strcpy(tokens[nr_token].str, ">=");
++              nr_token ++;
++              break;
++
++          case(NOTEQ):
++              tokens[nr_token].type = NOTEQ;
++              strcpy(tokens[nr_token].str, "!=");
++              nr_token ++;
++              break;
++
++          case(OR):
++              tokens[nr_token].type = OR;
++              strcpy(tokens[nr_token].str, "||");
++              nr_token ++;
++              break;
++
++          case(AND):
++              tokens[nr_token].type = AND;
++              strcpy(tokens[nr_token].str, "&&");
++              nr_token ++;
++              break;
++          
++          case(PC):
++              tokens[nr_token].type = PC;
++              strcpy(tokens[nr_token].str, "PC");
++              nr_token ++;
++              break;
++
++          default: 
++              printf("no match\n");
++              break;
++        }
++        break;
++      }
++    }
++
++    if (i == NR_REGEX) {
++      printf("no match at position %d\n%s\n%*.s^\n", position, e, position, "");
++      return false;
++    }
++  }
++  return true; 
++}
++
++static void token_special(){
++
++  // /*reg*/
++  // for(int i = 0; i < nr_token; i ++)
++  // {
++	//   if(tokens[i].type == REG)
++	//   {
++	//     bool flag = true;
++
++  //     remove_first_char(tokens[i].str);
++	//     int tmp = isa_reg_str2val(tokens[i].str, &flag);
++      
++  //     // printf("316 %d\n", flag);
++	//     if(flag){
++	// 	    int2char(tmp, tokens[i].str);
++  //       tokens[i].type = NUM;
++  //     }
++  //     else{
++	// 	    printf("Transfrom error. \n");
++	// 	    assert(0);
++	//     }
++  //   }
++  // }
++
++  /*
++  * TODO
++  * PC
++  * */
++  for(int i = 0; i < nr_token; i ++)
++  {
++	  if(tokens[i].type == PC)
++	  {
++
++      vaddr_t pc = cpu_state();
++      snprintf(tokens[i].str, 11, "0x%08X", pc);
++      tokens[i].type = HEX;
++    }
++  }
++  
++  //内存
++ 
++  for(int i = 0 ; i < nr_token ; i ++)
++  {
++    if((tokens[i].type == MULTI && i > 0 && tokens[i-1].type != NUM && tokens[i-1].type != RIGHT && tokens[i-1].type != REG && tokens[i+1].type == NUM)
++	    ||(tokens[i].type == MULTI && i == 0))
++	  {
++      tokens[i].type = TK_NOTYPE;
++
++      paddr_t addr = 0;
++      sscanf(tokens[i+1].str,"%x", &addr);
++      // printf("%d\n",addr);
++      word_t value = sdram_read(addr);
++      snprintf(tokens[i+1].str, 11, "0x%08X", value);
++      // printf("mark\n");
++      // printf("%s\n",tokens[i+1].str);
++      // for(int j = 0 ; j < nr_token ; j ++){
++      //   if(tokens[j].type == TK_NOTYPE){
++      for(int k = i + 1 ; k < nr_token ; k ++){
++        tokens[k - 1] = tokens[k];
++      }
++      nr_token -- ;
++      tokens[i].type = HEX;
++    }    	    
++  }
++
++  /*
++   * NUM
++  */
++  for(int i = 0 ; i < nr_token ; i ++)
++  {
++    if(tokens[i].type == NUM)
++    {
++      if(tokens[i].str[0] == '0' && (tokens[i].str[1] == 'x'|| tokens[i].str[1] == 'X'))// Hex num
++      {
++        tokens[i].type = HEX;
++      }
++      // else
++    }
++  }
++
++  /*
++   * 负数
++   */
++
++  for(int i = 0 ; i < nr_token ; i ++)
++  {
++	  if((tokens[i].type == MINUS && i > 0 && tokens[i-1].type != NUM && tokens[i-1].type != RIGHT && tokens[i+1].type == NUM)
++      ||(tokens[i].type == MINUS && i == 0))
++	  {
++	    //printf("%s\n", tokens[i+1].str);
++	    tokens[i].type = TK_NOTYPE;
++	    //tokens[i].str = tmp;
++	    for(int j = 31 ; j > 0 ; j --)
++      {
++		    tokens[i+1].str[j] = tokens[i+1].str[j-1];
++	    }
++	    tokens[i+1].str[0] = '-';
++	    // printf("%s\n", tokens[i+1].str);
++	    for(int j = 0 ; j < nr_token ; j ++){
++		    if(tokens[j].type == TK_NOTYPE)
++		    {
++		      for(int k = j + 1; k < nr_token; k ++){
++			      tokens[k - 1] = tokens[k];
++		      }
++		      nr_token -- ;
++		    }
++	    }
++	  }
++  }
++}
++
++static bool check_parentheses(int p, int q)// 0,12
++{
++  if(tokens[p].type != LEFT  || tokens[q].type != RIGHT){
++    return false;
++  }
++  int match = 0;
++  for (int i = p + 1; i < q; i++){
++    if(tokens[i].type == LEFT){
++      match++;
++    }
++    else if(tokens[i].type == RIGHT){
++      match = match - 1;
++    }
++    if(match < 0){
++      return false;
++    }
++  }
++  if(match == 0){
++    return true;
++  } 
++  else{
++    return false;
++  }
++}
++
++
++static bool is_division0 = false;
++
++uint32_t eval(int p, int q) {
++  if (p > q) {
++    /* Bad expression */
++    // printf("%d %d %d\n", nr_token, p, q);
++    printf("Bad expression\n");
++    assert(0);
++    return -1;
++  }
++  else if (p == q) {
++    /* Single token.
++     * For now this token should be a number.
++     * Return the value of the number.
++     */
++    if(tokens[p].type == HEX){
++      int tmp = strtol(tokens[p].str, NULL, 16);
++      return (uint32_t)tmp;
++    }
++    else {
++      return atoi(tokens[p].str);
++    }
++  }
++  else if (check_parentheses(p, q) == true) {
++    /* The expression is surrounded by a matched pair of parentheses.
++     * If that is the case, just throw away the parentheses.
++     */
++    // printf("%d %d\n", p, q);
++    return eval(p + 1, q - 1);
++  }
++  else {
++    int op = -1;//the position of 主运算符 in the token expression;
++    bool flag = false;//判断是否是加减号
++    // int index;//特殊情况
++
++    //搜索主运算符的位置
++    for(int i = p; i < q; i++){
++      if(tokens[i].type == LEFT)//括号内最后算
++        {
++          int a = i;
++
++          while(check_parentheses(a,i) != true){
++            i++;
++          }
++        }
++      if(!flag && tokens[i].type == LEQ)
++        {
++          flag = true;
++          op = (op > i) ? op : i;
++        }
++      if(!flag && tokens[i].type == REQ)
++        {
++          flag = true;
++          op = (op > i) ? op : i;
++        }
++      if(!flag && tokens[i].type == TK_EQ)
++        {
++          flag = true;
++          op = (op > i) ? op : i;
++        }
++      if(!flag && tokens[i].type == NOTEQ)
++        {
++          flag = true;
++          op = (op > i) ? op : i;
++        }
++      if(!flag && tokens[i].type == OR)
++        {
++          flag = true;
++          op = (op > i) ? op : i;
++        }
++      if(!flag && tokens[i].type == AND)
++        {
++          flag = true;
++          op = (op > i) ? op : i;
++        }
++      if(!flag && tokens[i].type == NOTEQ)
++        {
++          flag = true;
++          op = (op > i) ? op : i;
++        }
++
++      if(((tokens[i].type == PLUS) || (tokens[i].type == MINUS))){
++        flag = true;
++        // op = i;
++        op = (op > i) ? op : i;
++      }
++      if(!flag && ((tokens[i].type == MULTI) || (tokens[i].type == DIV))){
++        // op = i;
++        op = (op > i) ? op : i;
++      }
++    }
++    // printf("511 %d\n",q);
++    int op_type =  tokens[op].type;
++    // printf("513 %d %d\n",p, op - 1);
++    uint32_t val1 = eval(p, op - 1);
++    // printf("515 %d %d\n",op + 1, q);
++    uint32_t val2 = eval(op + 1, q);
++
++    switch (op_type) {
++      case PLUS: 
++        return val1 + val2;
++      case MINUS: 
++        return val1 - val2;
++      case MULTI: 
++        return val1 * val2;
++      case DIV: 
++        if (val2 == 0){
++          printf("division can't be 0\n");
++          is_division0 = true;
++          return -1;
++        }
++        else{
++          // printf("%d\n",(0 - val1));
++          return (int32_t)val1 / (int32_t)val2;
++        }
++      case TK_EQ:
++        return val1 == val2;
++      case LEQ:
++        return val1 <= val2;
++      case REQ:
++        return val1 >= val2;
++      case AND:
++        return val1 && val2;
++      case OR:
++        return val1 || val2;
++      case NOTEQ:
++        return val1 != val2;
++      default: assert(0);
++    }
++  }
++}
++
++word_t expr(char *e, bool *success) {
++  if (!make_token(e)) {
++    *success = false;
++    return 0;
++  }
++  is_division0 = false;
++
++  token_special();//特殊情况
++  word_t result = 0;
++  // printf("%d\n", nr_token);
++  // for (int i = 0; i < nr_token; i++){
++  //   printf("%d %s\n",tokens[i].type, tokens[i].str);
++  // }
++
++  if(check_parentheses(0, nr_token - 1) == false){
++    printf("wrong parentheses used\n");
++    return -1;
++  }
++
++  // /* TODO: Insert codes to evaluate the expression. */
++  result = eval(0, nr_token - 1);
++  *success = true;
++  for (int i = 0; i < nr_token; i++){
++    tokens[i].type = 0;
++    memset(tokens[i].str, '\0', sizeof(tokens[i].str));
++  }
++  return result;
++  
++}
++
++bool division(){
++  return is_division0;
++}
++
++
++static int index_buf = 0;
++static char buf[100] __attribute__((used)) = {};
++static int token_count = 0;
++static int depth = 0; 
++
++static int choose(int n)
++{
++	return rand() % n;
++}
++
++static void gen(char c)
++{
++  // if(token_count >= MAX_TOKENS - 1){
++  //   return;
++  // }
++	buf[index_buf] = c;
++  index_buf++;
++  token_count ++;
++}
++
++static void gen_num()
++{
++  // if(token_count >= MAX_TOKENS - 1){
++  //   return;
++  // }
++	int num = rand() % 100;
++  if(num < 10){
++    char c = num + '0';
++    buf[index_buf] = c;
++    index_buf ++;
++  }
++  else {
++    int tmp1 = num % 10;
++    int a = num / 10;
++    int tmp2 = a % 10;
++    char c1 = tmp1 + '0';//gewei
++    char c2 = tmp2 + '0';//shiwei
++    buf[index_buf] = c2;
++    index_buf ++;
++    buf[index_buf] = c1;
++    index_buf ++;
++  }
++  token_count ++;
++}
++
++static void gen_rand_op()
++{
++	char op[3] = {'+', '-', '*'};
++	int pos = rand() % 3;
++	buf[index_buf++] = op[pos];
++  token_count ++;
++}
++
++void gen_rand_expr() {
++  int a = 0;
++  if(token_count < 20 && depth < 5){
++    a = choose(5);
++  }
++  else{
++    a = 0;
++  }
++  if(a == 0 || a == 1){
++    gen_num();
++    return; 
++  }
++  else if(a == 2){
++    depth ++;
++    gen('(');
++    gen_rand_expr(); 
++    gen(')');
++    return;
++  }
++  else{
++    gen_rand_expr(); 
++    gen_rand_op();
++    gen_rand_expr();
++    return; 
++  }
++}
++
++char* get_expr()
++{ 
++  buf[index_buf] = '(';
++  index_buf ++;
++  token_count ++;
++  gen_rand_expr();
++  buf[index_buf ++] = ')';
++  buf[index_buf ++] = '\0';
++  return buf;
++}
++
++void clean(){
++  for(int i = 0; i < index_buf; i++){
++    buf[i] = '\0'; 
++  }
++  index_buf = 0;
++  token_count = 0;
++  depth = 0;
++}
++
+diff --git a/csrc/src/sdb/sdb.cpp b/csrc/src/sdb/sdb.cpp
+new file mode 100644
+index 00000000..0e0998bc
+--- /dev/null
++++ b/csrc/src/sdb/sdb.cpp
+@@ -0,0 +1,301 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++// #include <isa.h>
++#include <cpu/cpu.h>
++#include <readline/readline.h>
++#include <readline/history.h>
++#include "sdb.h"
++#include <sdram.h>
++// #include <reg.h>
++
++static int is_batch_mode = false;
++
++void init_regex();
++void init_wp_pool();
++void reg_display();
++
++/* We use the `readline' library to provide more flexibility to read from stdin. */
++static char* rl_gets() {
++  static char *line_read = NULL;
++
++  if (line_read) {
++    free(line_read);
++    line_read = NULL;
++  }
++
++  line_read = readline("(npc) ");
++
++  if (line_read && *line_read) {
++    add_history(line_read);
++  }
++
++  return line_read;
++}
++
++static int cmd_c(char *args) {
++  // printf("%d\n",npc_state.state);//STOP
++  npc_exec(-1);
++  // printf("%d\n",npc_state.state);//NEMU_END
++  return 0;
++}
++
++
++static int cmd_q(char *args) {
++  npc_state.state = NPC_QUIT;
++  // printf("%d\n",npc_state.state);
++  return -1;
++}
++
++static int cmd_help(char *args);
++
++static int cmd_si(char *args);
++
++static int cmd_info(char *args);
++
++static int cmd_x(char *args);
++
++static int cmd_p(char *args);
++
++static int cmd_w(char *args);
++
++static int cmd_d(char *args);
++
++static int cmd_test(char *args);
++
++static struct {
++  const char *name;
++  const char *description;
++  int (*handler) (char *);  //函数指针
++} cmd_table [] = {
++  { "help", "Display information about all supported commands", cmd_help },
++  { "c", "Continue the execution of the program", cmd_c },
++  { "q", "Exit NEMU", cmd_q },
++  { "si", "Execute N steps of the program", cmd_si },
++  { "info", "Print the situation of the program, r/w", cmd_info },
++  { "x", "Scan ddr", cmd_x },
++  { "p", "Mathematical expression evaluation", cmd_p },
++  { "w", "Set your watchponits", cmd_w },
++  { "d", "Delete watchponits", cmd_d },
++  { "test", "Test expression", cmd_test }
++
++};
++
++#define NR_CMD ARRLEN(cmd_table)
++
++
++static int cmd_test(char *args){
++#if CONFIG_SINGLETEST
++  char* e = get_expr();
++  printf("%s\n",e);
++  bool a = false;
++  bool is_division0 = false;
++  word_t result = expr(e,&a);
++  is_division0 = division();
++  clean();
++    if (is_division0 == true){
++      printf("-1\n");
++    }
++    else{
++      printf("%d\n", result);
++    }
++  // return 0;
++#else
++  FILE *fp = fopen("test_expr3.txt", "a");
++  if (fp == NULL) {
++    printf("can't open file\n");
++    return -1;
++  }
++
++  for (int i = 0; i < 10000; i++) {
++    char* e = get_expr();
++    if (e == NULL) {
++        printf("get_expr() 返回 NULL\n");
++        continue;
++    }
++
++    // bool is_division0 = false;
++    bool a = false;
++    word_t result = expr(e, &a);
++    // is_division0 = division();1
++    
++
++    // if (is_division0) {
++        // fprintf(fp, "%s -1\n", e);
++    // }
++    // else{
++        fprintf(fp, "%s %d\n", e, result);
++    // }
++    clean();
++  }
++
++  fclose(fp);
++#endif
++  return 0;
++}
++
++static int cmd_si(char *args){
++  int step = 0;
++  if(args == NULL)
++    step = 1;
++  else
++    sscanf(args,"%d",&step);// 读入 Step
++  // printf("%08x\n",cpu_state());
++  npc_exec(step);
++  return 0;
++}
++
++static int cmd_p(char *args){
++
++    if(args == NULL){
++        printf("No args\n");
++        return 0;
++    }
++
++    char* arr = strtok(args," ");
++    char* mode = strtok(NULL," ");
++    const char* h = "h";
++
++    bool is_division0 = false;
++    bool a = false;
++    word_t result = expr(arr,&a);
++    is_division0 = division();
++    if (is_division0 == true){
++      printf("-1\n");
++    }
++    else{
++      if(mode == NULL){
++        printf("%d\n", result);
++      }
++      else if(strcmp(mode,h) == 0){
++        printf("%x\n", result);
++      }
++    }
++    return 0;
++}
++
++static int cmd_x(char *args){
++    char* n = strtok(args," ");
++    char* baseaddr = strtok(NULL," "); //后续的调用需传入NULL，提示从上一次分割结束开始
++    int len = 0;
++    uint32_t addr = 0;
++    sscanf(n, "%d", &len);
++    sscanf(baseaddr,"%x", &addr);
++    for(int i = 0 ; i < len ; i ++)
++    {
++      printf("%08x\n", sdram_read(addr));//addr len  
++      addr = addr + 4;
++    }
++    return 0;
++}
++
++static int cmd_d(char* args){
++  if(args == NULL){
++    printf("No args.\n");
++  }   
++  else{
++    delete_watchpoint(atoi(args));
++  }
++  return 0;
++}
++
++static int cmd_w(char* args){
++  create_watchpoint(args);
++  return 0;
++}
++
++static int cmd_info(char *args){
++    if(args == NULL)
++        printf("No args.\n");
++    else if(strcmp(args, "r") == 0)
++        reg_display();//寄存器
++    else if(strcmp(args, "w") == 0)
++        sdb_watchpoint_display();//监视点
++    return 0;
++}
++
++static int cmd_help(char *args) {
++  /* extract the first argument */
++  char *arg = strtok(NULL, " ");
++  int i;
++
++  if (arg == NULL) {
++    /* no argument given */
++    for (i = 0; i < NR_CMD; i ++) {
++      printf("%s - %s\n", cmd_table[i].name, cmd_table[i].description);
++    }
++  }
++  else {
++    for (i = 0; i < NR_CMD; i ++) {
++      if (strcmp(arg, cmd_table[i].name) == 0) {
++        printf("%s - %s\n", cmd_table[i].name, cmd_table[i].description);
++        return 0;
++      }
++    }
++    printf("Unknown command '%s'\n", arg);
++  }
++  return 0;
++}
++
++void sdb_set_batch_mode() {
++  is_batch_mode = true;
++}
++
++void sdb_mainloop() {
++  
++  if (is_batch_mode) {
++    cmd_c(NULL);
++    return;
++  }
++
++  for (char *str; (str = rl_gets()) != NULL; ) {
++    char *str_end = str + strlen(str);
++
++    /* extract the first token as the command */
++    char *cmd = strtok(str, " ");
++    if (cmd == NULL) { continue; }
++
++    /* treat the remaining string as the arguments,
++     * which may need further parsing
++     */
++    char *args = cmd + strlen(cmd) + 1;
++    if (args >= str_end) {
++      args = NULL;
++    }
++
++#ifdef CONFIG_DEVICE
++    extern void sdl_clear_event_queue();
++    sdl_clear_event_queue();
++#endif
++
++    int i;
++    for (i = 0; i < NR_CMD; i ++) {
++      if (strcmp(cmd, cmd_table[i].name) == 0) {
++        if (cmd_table[i].handler(args) < 0) { return; }
++        break;
++      }
++    }
++
++    if (i == NR_CMD) { printf("Unknown command '%s'\n", cmd); }
++  }
++}
++
++void init_sdb() {
++  /* Compile the regular expressions. */
++  init_regex();
++
++  /* Initialize the watchpoint pool. */
++  init_wp_pool();
++}
+diff --git a/csrc/src/sdb/sdb.h b/csrc/src/sdb/sdb.h
+new file mode 100644
+index 00000000..ac0e0a12
+--- /dev/null
++++ b/csrc/src/sdb/sdb.h
+@@ -0,0 +1,47 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#ifndef __SDB_H__
++#define __SDB_H__
++
++#include <common.h>
++
++word_t expr(char *e, bool *success);
++
++bool division();
++
++char* get_expr();
++
++void clean();
++
++typedef struct token {
++  int type;
++  char str[32];
++} Token;
++
++
++void sdb_watchpoint_display();
++
++void create_watchpoint(char* args);
++
++void delete_watchpoint(int no);
++
++bool watchpoint_diff(int i);
++
++void print_watchpoint(int i);
++
++void wp_init(int i);
++
++#endif
+diff --git a/csrc/src/sdb/watchpoint.cpp b/csrc/src/sdb/watchpoint.cpp
+new file mode 100644
+index 00000000..527b764e
+--- /dev/null
++++ b/csrc/src/sdb/watchpoint.cpp
+@@ -0,0 +1,162 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#include "sdb.h"
++
++#define NR_WP 32
++
++typedef struct watchpoint {
++  int NO;
++  struct watchpoint *next;
++
++  /* TODO: Add more members if necessary */
++  bool flag;//是否被使用
++  char expr[100];
++  int new_val;
++  int old_val;
++} WP;
++
++static WP wp_pool[NR_WP] = {};
++static WP *head = NULL, *free_ = NULL;//head用于组织使用中的监视点结构, free_用于组织空闲的监视点结构
++
++void init_wp_pool() {
++  int i;
++  for (i = 0; i < NR_WP; i ++) {
++    wp_pool[i].NO = i;
++    wp_pool[i].next = (i == NR_WP - 1 ? NULL : &wp_pool[i + 1]);
++  }
++
++  head = NULL;
++  free_ = wp_pool;
++}
++
++/* TODO: Implement the functionality of watchpoint */
++
++WP* new_wp(){
++  for(WP* p = free_ ; p -> next != NULL ; p = p -> next){
++    if( p -> flag == false){
++      p -> flag = true;
++      if(head == NULL){
++        head = p;
++      }
++      return p;
++    }
++  }
++  printf("No unuse point.\n");
++  assert(0);
++  return NULL;
++}
++
++void free_wp(WP *wp){
++  if(head -> NO == wp -> NO){
++    head -> flag = false;
++    head = NULL;
++    printf("Delete watchpoint  success.\n");
++    return ;
++  }
++  for(WP* p = head ; p -> next != NULL ; p = p -> next){
++    if(p -> next -> NO  == wp -> NO)
++    {
++      p -> next = p -> next -> next;
++      p -> next -> flag = false; // 没有被使用
++      printf("free succes.\n");
++      return ;
++    }
++  }
++}
++
++void delete_watchpoint(int no){
++  for(int i = 0 ; i < NR_WP ; i ++){
++    if(wp_pool[i].NO == no){
++      free_wp(&wp_pool[i]);
++      break;
++    }  
++  }
++}
++
++void create_watchpoint(char* args){
++  WP* p =  new_wp();
++  strcpy(p -> expr, args);
++  bool success = false;
++  int tmp = expr(p -> expr,&success);
++  if(success){
++    p -> old_val = tmp;
++    p -> new_val = tmp;
++  } 
++  else{
++    printf("expr wrong\n");
++  } 
++  printf("Create watchpoint No.%d success.\n", p -> NO);
++}
++
++void sdb_watchpoint_display(){
++  bool flag = true;
++  for(int i = 0 ; i < NR_WP ; i ++){
++    if(wp_pool[i].flag){
++      printf("Watchpoint.No: %d, expr = \"%s\", old_value = %d, new_value = %d\n",
++             wp_pool[i].NO, wp_pool[i].expr,wp_pool[i].old_val, wp_pool[i].new_val);
++      flag = false;
++    }
++  }
++  if(flag){
++    printf("No watchpoint now.\n");
++  } 
++}
++
++bool watchpoint_diff(int i){
++
++  if(wp_pool[i].flag)
++  {
++    bool success = false;
++    int tmp = expr(wp_pool[i].expr,&success);
++    // printf("%x\n",tmp);
++    if(success){
++      if(tmp != wp_pool[i].old_val)
++      {
++        wp_pool[i].new_val = tmp;
++        return true;
++      }
++      else
++      {
++        return false;
++      }
++    }
++    else{
++      printf("watchpoint %d expr error.\n", i);
++      assert(0);
++      return false;
++    }
++  }
++  else{
++    return false;
++  }
++}
++  
++void print_watchpoint(int i){
++
++  if(wp_pool[i].flag){
++    printf("Watchpoint.No: %d, expr = \"%s\", old_value = %x, new_value = %x\n",
++          wp_pool[i].NO, wp_pool[i].expr,wp_pool[i].old_val, wp_pool[i].new_val);
++  }
++  else{
++    printf("The watchpoint is not used\n");
++  }
++}
++
++void wp_init(int i){
++  if(wp_pool[i].flag){
++    wp_pool[i].old_val = wp_pool[i].new_val;
++  }
++}
+diff --git a/csrc/src/sdram.cpp b/csrc/src/sdram.cpp
+new file mode 100644
+index 00000000..aa8cf9c9
+--- /dev/null
++++ b/csrc/src/sdram.cpp
+@@ -0,0 +1,150 @@
++#include <sdram.h>
++#include "svdpi.h"
++// #include "VysyxSoCTop__Dpi.h"
++// #include <cpu/difftest.h>
++// #include <time.h>
++
++#include "VysyxSoCFull.h"
++// #include "VysyxSoCFull___024root.h"
++#include "VysyxSoCFull__Dpi.h"
++
++// 内存数组
++static uint32_t sdram[CONFIG_BANK][CONFIG_SDRAM_COL][CONFIG_SDRAM_ROW] PG_ALIGN_S = {};
++// static uint32_t sdram_1[CONFIG_BANK][CONFIG_SDRAM_COL][CONFIG_SDRAM_ROW] PG_ALIGN_S = {};
++// static uint16_t sdram_2[CONFIG_BANK][CONFIG_SDRAM_COL][CONFIG_SDRAM_ROW] PG_ALIGN_S = {};
++// static uint16_t sdram_3[CONFIG_BANK][CONFIG_SDRAM_COL][CONFIG_SDRAM_ROW] PG_ALIGN_S = {};
++
++uint32_t sdram_read(uint32_t addr){
++  uint16_t row = (addr & 0x000007FB) >> 2;
++  uint16_t bank = (addr & 0x00001800) >> 11;
++  uint16_t col = (addr & 0x03FFE) >> 13;
++
++  return sdram[bank][col][row];
++}
++
++void init_mem() {
++#if   defined(CONFIG_PMEM_MALLOC)
++  pmem = malloc(CONFIG_MSIZE);
++  assert(pmem);
++#endif
++  IFDEF(CONFIG_MEM_RANDOM, memset(sdram, rand(), CONFIG_SDRAM_SIZE));
++  Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", SDRAM_LEFT, SDRAM_RIGHT);
++}
++
++
++extern "C" void sdram0_read(char bank, short row, short col, int *data){
++  // paddr_t addr_r = (paddr_t)addr;
++  uint8_t temp_bank = (uint8_t) bank;
++  uint16_t temp_col = (uint16_t) col;
++  uint16_t temp_row = (uint16_t) row;
++  uint32_t temp;
++
++    if(temp_bank < CONFIG_BANK && temp_col < CONFIG_SDRAM_COL && temp_row < CONFIG_SDRAM_ROW){
++        // printf("read %08x, %08x\n", addr, temp);
++        temp = sdram[temp_bank][temp_col][temp_row];
++        *data = (int)temp;
++        // printf("read %04x, %04x, %04x\n", temp_col, temp_row, temp);
++    }
++    else{
++      printf("%04x, %04x, %04x\n", temp_bank, temp_col, temp_row);
++      printf("sdram out of bound\n");
++      assert(0);
++    }
++    return;
++}
++
++extern "C" void sdram0_write(char bank, short row, short col, char mask, int data) {
++  
++  uint8_t temp_bank = (uint8_t) bank;
++  uint8_t temp_mask = (uint8_t) mask;
++  uint16_t temp_col = (uint16_t) col;
++  uint16_t temp_row = (uint16_t) row;
++  uint32_t temp_data = (uint32_t) data;
++
++  if(temp_bank < CONFIG_BANK && temp_col < CONFIG_SDRAM_COL && temp_row < CONFIG_SDRAM_ROW){
++    if(mask == 0x00){
++
++      sdram[temp_bank][temp_col][temp_row] = temp_data;
++      // printf("write %04x, %04x, %04x, %08x\n", temp_col, temp_row, (uint32_t)temp_data);
++    }
++    else if(mask == 0x0E){ // 1110
++      sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0xFFFFFF00) | (temp_data & 0x000000FF);
++    }
++    else if(mask == 0x0D){ // 1101
++      sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0xFFFF00FF) | (temp_data & 0x0000FF00);
++    }
++    else if(mask == 0x0B){ // 1011
++      sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0xFF00FFFF) | (temp_data & 0x00FF0000);
++    }
++    else if(mask == 0x07){ // 0111
++      sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0x00FFFFFF) | (temp_data & 0xFF000000);
++    }
++    else if(mask == 0x03){ // 0011
++      sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0x0000FFFF) | (temp_data & 0xFFFF0000);
++    }
++    else if(mask == 0x0C){ // 1100
++      sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0xFFFF0000) | (temp_data & 0x0000FFFF);
++    }
++    else {
++    }
++    // printf("write %08x, %08x\n", temp, (uint8_t)data);
++  }
++  else{
++    printf("%04x, %04x, %04x\n", temp_bank, temp_col, temp_row);
++    printf("sdram is out of bound\n");
++    assert(0);
++  }
++}
++
++// extern "C" void sdram1_read(char bank, short row, short col, short *data){
++//   // paddr_t addr_r = (paddr_t)addr;
++//   uint8_t temp_bank = (uint8_t) bank;
++//   uint16_t temp_col = (uint16_t) col;
++//   uint16_t temp_row = (uint16_t) row;
++//   uint16_t temp;
++
++//     if(temp_bank < CONFIG_BANK && temp_col < CONFIG_SDRAM_COL && temp_row < CONFIG_SDRAM_ROW){
++//         // printf("read %08x, %08x\n", addr, temp);
++//         temp = sdram[temp_bank][temp_col][temp_row];
++//         *data = (short)temp;
++//         // printf("read %04x, %04x, %04x\n", temp_col, temp_row, temp);
++//     }
++//     else{
++//         printf("sdram out of bound\n");
++//         assert(0);
++//     }
++//     return;
++// }
++
++// extern "C" void sdram1_write(char bank, short row, short col, char mask, short data) {
++  
++//   uint8_t temp_bank = (uint8_t) bank;
++//   uint8_t temp_mask = (uint8_t) mask;
++//   uint16_t temp_col = (uint16_t) col;
++//   uint16_t temp_row = (uint16_t) row;
++//   uint16_t temp_data = (uint16_t) data;
++
++//   if(temp_bank < CONFIG_BANK && temp_col < CONFIG_SDRAM_COL && temp_row < CONFIG_SDRAM_ROW){
++//     if(mask == 0x00){
++//       sdram[temp_bank][temp_col][temp_row] = temp_data;
++//       // printf("write %08x, %08x\n", temp, (uint8_t)data);
++//     }
++//     else if(mask == 0x01){
++//       // printf("%04x\n", sdram[temp_bank][temp_col][temp_row]);
++//       sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0x00FF) | (temp_data & 0xFF00);
++//       // printf("%04x, %04x\n", sdram[temp_bank][temp_col][temp_row], temp_data);
++//     }
++//     else if(mask == 0x02){
++//       // printf("%04x\n", sdram[temp_bank][temp_col][temp_row]);
++//       sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0xFF00) | (temp_data & 0x00FF);
++//       // printf("%04x, %04x\n", sdram[temp_bank][temp_col][temp_row], temp_data);
++//     }
++//     else {
++//     }
++//     // printf("write %08x, %08x\n", temp, (uint8_t)data);
++//   }
++//   else{
++//     printf("sdram is out of bound\n");
++//     // assert(0);
++//   }
++// }
+\ No newline at end of file
+diff --git a/csrc/src/utils/filelist.mk b/csrc/src/utils/filelist.mk
+new file mode 100644
+index 00000000..d905ba31
+--- /dev/null
++++ b/csrc/src/utils/filelist.mk
+@@ -0,0 +1,24 @@
++#***************************************************************************************
++# Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++#
++# NEMU is licensed under Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#          http://license.coscl.org.cn/MulanPSL2
++#
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++#
++# See the Mulan PSL v2 for more details.
++#**************************************************************************************/
++
++ifeq ($(CONFIG_ITRACE)$(CONFIG_IQUEUE),)
++SRCS-BLACKLIST-y += src/utils/disasm.cpp
++else
++LIBCAPSTONE = tools/capstone/repo/libcapstone.so.5
++CFLAGS += -I tools/capstone/repo/include
++src/utils/disasm.cpp: $(LIBCAPSTONE)
++$(LIBCAPSTONE):
++	$(MAKE) -C tools/capstone
++endif
+diff --git a/csrc/src/utils/state.cpp b/csrc/src/utils/state.cpp
+new file mode 100644
+index 00000000..2e2642b4
+--- /dev/null
++++ b/csrc/src/utils/state.cpp
+@@ -0,0 +1,24 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#include <utils.h>
++
++NPCState npc_state = { .state = NPC_STOP };
++
++int is_exit_status_bad() {
++  int good = (npc_state.state == NPC_END && npc_state.halt_ret == 0) ||
++    (npc_state.state == NPC_QUIT);
++  return !good;
++}
+diff --git a/csrc/src/utils/timer.cpp b/csrc/src/utils/timer.cpp
+new file mode 100644
+index 00000000..53277a02
+--- /dev/null
++++ b/csrc/src/utils/timer.cpp
+@@ -0,0 +1,50 @@
++/***************************************************************************************
++* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
++*
++* NEMU is licensed under Mulan PSL v2.
++* You can use this software according to the terms and conditions of the Mulan PSL v2.
++* You may obtain a copy of Mulan PSL v2 at:
++*          http://license.coscl.org.cn/MulanPSL2
++*
++* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
++* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
++* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
++*
++* See the Mulan PSL v2 for more details.
++***************************************************************************************/
++
++#include <common.h>
++// #include MUXDEF(CONFIG_TIMER_GETTIMEOFDAY, <sys/time.h>, <time.h>)
++#include <time.h>
++
++IFDEF(CONFIG_TIMER_CLOCK_GETTIME,
++    static_assert(CLOCKS_PER_SEC == 1000000, "CLOCKS_PER_SEC != 1000000"));
++IFDEF(CONFIG_TIMER_CLOCK_GETTIME,
++    static_assert(sizeof(clock_t) == 8, "sizeof(clock_t) != 8"));
++
++static uint64_t boot_time = 0;
++
++static uint64_t get_time_internal() {
++#if defined(CONFIG_TARGET_AM)
++  uint64_t us = io_read(AM_TIMER_UPTIME).us;
++#elif defined(CONFIG_TIMER_GETTIMEOFDAY)
++  struct timeval now;
++  gettimeofday(&now, NULL);
++  uint64_t us = now.tv_sec * 1000000 + now.tv_usec;
++#else
++  struct timespec now;
++  clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
++  uint64_t us = now.tv_sec * 1000000 + now.tv_nsec / 1000;
++#endif
++  return us;
++}
++
++uint64_t get_time() {
++  if (boot_time == 0) boot_time = get_time_internal();
++  uint64_t now = get_time_internal();
++  return now - boot_time;
++}
++
++void init_rand() {
++  srand(get_time_internal());
++}
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+index f1c3b363..604ee751 100644
+--- a/perip/bitrev/bitrev.v
++++ b/perip/bitrev/bitrev.v
+@@ -4,5 +4,12 @@ module bitrev (
+   input  mosi,
+   output miso
+ );
++
++  reg [7:0]   spi_reg;
++
++  always @(negedge sck or ss) begin
++
++  end
++
+   assign miso = 1'b1;
+ endmodule
+diff --git a/perip/clint/clint_top_apb.v b/perip/clint/clint_top_apb.v
+new file mode 100644
+index 00000000..7a91fa6a
+--- /dev/null
++++ b/perip/clint/clint_top_apb.v
+@@ -0,0 +1,119 @@
++
++module clint_top_apb(
++    input           clock,	        
++    input           reset,	            
++    input           in_psel   ,	    
++    input           in_penable,	
++    input           in_pwrite ,	    
++    input  [31:0]   in_paddr  ,	
++    input  [2:0]    in_pprot  ,	
++    input  [31:0]   in_pwdata ,	
++    input  [3:0]    in_pstrb  ,	
++    output          in_pready ,	
++    output          in_pslverr,	
++    output [31:0]   in_prdata 
++);
++
++    localparam IDLE     = 0;
++    localparam WRITE    = 1;
++    localparam READ     = 2;
++
++    // reg     [31:0]      m_time_low;
++    // reg     [31:0]      m_time_high;
++    reg     [63:0]      m_time;
++
++    reg     [3:0]       current_state;
++    reg     [3:0]       next_state;
++
++    reg     [31:0]      r_data;
++
++    wire    [3:0]       addr = in_paddr[3:0];
++
++    always @(posedge clock or posedge reset) begin
++        if(reset) begin
++            current_state   <= IDLE;
++        end
++        else begin
++            current_state   <= next_state;
++        end
++    end
++
++    always @(*) begin
++
++        case(current_state)
++            
++            IDLE: begin
++                if(in_psel == 1'b1 && in_pwrite == 1'b1) begin
++                   next_state   = WRITE; 
++                end
++                else if(in_psel == 1'b1 && in_pwrite == 1'b0) begin
++                    next_state   = READ;
++                end
++                else begin
++                    next_state   = IDLE;
++                end
++            end
++
++            WRITE: begin
++                if(in_penable) begin
++                    next_state = IDLE;
++                end
++                else begin
++                    next_state = WRITE;
++                end 
++            end
++
++            READ: begin
++                if(in_penable) begin
++                    next_state = IDLE;
++                end
++                else begin
++                    next_state = READ;
++                end
++            end
++
++            default: next_state = IDLE;
++        endcase
++    end
++
++    always @(posedge clock or posedge reset) begin
++        if(reset) begin
++            m_time  <= 64'h00000000;
++        end
++        else  begin
++            if(current_state == WRITE) begin
++                if(addr == 4'h0) begin
++                    m_time  <= {m_time[63:32], in_pwdata};
++                end
++                else if(addr == 4'h4) begin
++                    m_time  <= {in_pwdata, m_time[31:0]};
++                end
++            end
++            else begin
++                m_time  <= m_time + 1;
++            end
++        end
++    end
++
++    always @(*) begin
++        if(current_state == READ) begin
++            if(addr == 4'h0) begin
++                r_data = m_time[31:0];
++            end
++            else if(addr == 4'h4) begin
++                r_data = m_time[63:32];
++            end
++            else begin
++                r_data = 32'h0000;
++            end
++        end
++        else begin
++            r_data = 32'h0000;
++        end
++    end
++
++    assign in_pready = (current_state == WRITE || current_state == READ);
++    assign in_pslverr = 1'b0;
++    assign in_prdata = r_data;
++
++endmodule 
+diff --git a/perip/flash/flash.v b/perip/flash/flash.v
+index 480d7092..1619cbb5 100644
+--- a/perip/flash/flash.v
++++ b/perip/flash/flash.v
+@@ -69,7 +69,8 @@ module flash (
+       addr <= { addr[22:0], mosi };
+   end
+ 
+-  wire [31:0] data_bswap = {rdata[7:0], rdata[15:8], rdata[23:16], rdata[31:24]};
++  wire [31:0] data_bswap = rdata;
++  // wire [31:0] data_bswap = {rdata[7:0], rdata[15:8], rdata[23:16], rdata[31:24]};
+   always@(posedge sck or posedge reset) begin
+     if (reset) data <= 32'd0;
+     else if (state == data_t) begin
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index ec51ffe5..15852777 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -12,9 +12,9 @@ module gpio_top_apb(
+   output [31:0] in_prdata,
+   output        in_pslverr,
+ 
+-  output [15:0] gpio_out,
+-  input  [15:0] gpio_in,
+-  output [7:0]  gpio_seg_0,
++  output [15:0] gpio_out, // 16位数据, 分别驱动16个LED灯
++  input  [15:0] gpio_in,  // 16位数据, 分别获得16个拨码开关的状态
++  output [7:0]  gpio_seg_0, // 32位数据, 其中每4位驱动1个7段数码管
+   output [7:0]  gpio_seg_1,
+   output [7:0]  gpio_seg_2,
+   output [7:0]  gpio_seg_3,
+@@ -24,4 +24,184 @@ module gpio_top_apb(
+   output [7:0]  gpio_seg_7
+ );
+ 
++  localparam IDLE     = 0;
++  localparam WRITE    = 1;
++  localparam READ     = 2;
++
++    // reg     [31:0]      m_time_low;
++    // reg     [31:0]      m_time_high;
++    reg     [15:0]      led_r; // 0
++    // reg     [15:0]      sw_r; // 4
++    reg     [31:0]      seg_r;
++
++
++    reg     [3:0]       current_state;
++    reg     [3:0]       next_state;
++
++    reg     [31:0]      r_data;
++
++    wire    [3:0]       addr = in_paddr[3:0];
++
++    always @(posedge clock or posedge reset) begin
++        if(reset) begin
++            current_state   <= IDLE;
++        end
++        else begin
++            current_state   <= next_state;
++        end
++    end
++
++    always @(*) begin
++
++        case(current_state)
++            
++            IDLE: begin
++                if(in_psel == 1'b1 && in_pwrite == 1'b1) begin
++                   next_state   = WRITE; 
++                end
++                else if(in_psel == 1'b1 && in_pwrite == 1'b0) begin
++                    next_state   = READ;
++                end
++                else begin
++                    next_state   = IDLE;
++                end
++            end
++
++            WRITE: begin
++                if(in_penable) begin
++                    next_state = IDLE;
++                end
++                else begin
++                    next_state = WRITE;
++                end 
++            end
++
++            READ: begin
++                if(in_penable) begin
++                    next_state = IDLE;
++                end
++                else begin
++                    next_state = READ;
++                end
++            end
++
++            default: next_state = IDLE;
++        endcase
++    end
++
++    always @(posedge clock or posedge reset) begin
++        if(reset) begin
++            led_r  <= 16'h0000;
++        end
++        else  begin
++            if(current_state == WRITE) begin
++                if(addr == 4'h0) begin // led
++                    led_r  <= in_pwdata[15:0];
++                end
++                else if(addr == 4'h8) begin // seg
++                    seg_r  <= in_pwdata;
++                end
++            end
++            else begin
++
++            end
++        end
++    end
++
++    assign  gpio_out  = led_r;
++
++    always @(*) begin
++        if(current_state == READ) begin
++            if(addr == 4'h4) begin
++                r_data = {16'h0000, gpio_in};
++            end
++                r_data = 32'h0000;
++            end
++        else begin
++            r_data = 32'h0000;
++        end
++    end
++
++    bcd7seg u_seg0(
++      .b        (seg_r[3:0]),
++      .seg1     (gpio_seg_0[7:1])
++    );
++
++    bcd7seg u_seg1(
++      .b        (seg_r[7:4]),
++      .seg1     (gpio_seg_1[7:1])
++    );
++
++    bcd7seg u_seg2(
++      .b        (seg_r[11:8]),
++      .seg1     (gpio_seg_2[7:1])
++    );
++
++    bcd7seg u_seg3(
++      .b        (seg_r[15:12]),
++      .seg1     (gpio_seg_3[7:1])
++    );
++
++    bcd7seg u_seg4(
++      .b        (seg_r[19:16]),
++      .seg1     (gpio_seg_4[7:1])
++    );
++
++    bcd7seg u_seg5(
++      .b        (seg_r[23:20]),
++      .seg1     (gpio_seg_5[7:1])
++    );
++
++    bcd7seg u_seg6(
++      .b        (seg_r[27:24]),
++      .seg1     (gpio_seg_6[7:1])
++    );
++
++    bcd7seg u_seg7(
++      .b        (seg_r[31:28]),
++      .seg1     (gpio_seg_7[7:1])
++    );
++
++    assign in_pready = (current_state == WRITE || current_state == READ);
++    assign in_pslverr = 1'b0;
++    assign in_prdata = r_data;
++
++    assign gpio_seg_0[0]  = 1'b1;
++    assign gpio_seg_1[0]  = 1'b1;
++    assign gpio_seg_2[0]  = 1'b1;
++    assign gpio_seg_3[0]  = 1'b1;
++    assign gpio_seg_4[0]  = 1'b1;
++    assign gpio_seg_5[0]  = 1'b1;
++    assign gpio_seg_6[0]  = 1'b1;
++    assign gpio_seg_7[0]  = 1'b1;
++
++endmodule
++
++
++module bcd7seg(
++  input  [3:0] b,
++  output reg [6:0] seg1
++);
++// detailed implementation ...
++  always @(*) begin
++    case (b)
++      4'b0000 : seg1 = 7'b0000001;
++      4'b0001 : seg1 = 7'b1001111;
++      4'b0010 : seg1 = 7'b0010010;
++      4'b0011 : seg1 = 7'b0000110;
++      4'b0100 : seg1 = 7'b1001100;
++      4'b0101 : seg1 = 7'b0100100;
++      4'b0110 : seg1 = 7'b0100000;
++      4'b0111 : seg1 = 7'b0001111;
++      4'b1000 : seg1 = 7'b0000000;
++      4'b1001 : seg1 = 7'b0000100;
++      4'b1010 : seg1 = 7'b0001000;
++      4'b1011 : seg1 = 7'b1100000;
++      4'b1100 : seg1 = 7'b0110001;
++      4'b1101 : seg1 = 7'b1000010;
++      4'b1110 : seg1 = 7'b1100000;
++      4'b1111 : seg1 = 7'b0111000;
++      default : seg1 = 7'b1111111;
++    endcase
++  end
+ endmodule
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 080d38fa..13db451d 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -16,4 +16,202 @@ module ps2_top_apb(
+   input         ps2_data
+ );
+ 
++  localparam IDLE     = 0;
++  localparam READ     = 1;
++
++  reg     [31:0] fifo  [7:0];
++
++  reg     [3:0]       current_state;
++  reg     [3:0]       next_state;
++
++  reg     [2:0]       rpt, wpt;
++
++  wire    [7:0]       data;
++  wire                ready_sampling;
++  wire                overflow;
++
++  reg                 key_up;
++
++  always @(posedge clock or posedge reset) begin
++    if(reset == 1'b1) begin
++        current_state   <= IDLE;
++    end
++    else begin
++        current_state   <= next_state;
++    end
++  end
++
++  always @(*) begin   
++      case(current_state)
++          IDLE: begin
++              if(in_psel == 1'b1) begin
++                 next_state   = READ; 
++              end
++              else begin
++                  next_state   = IDLE;
++              end
++          end
++          READ: begin
++              if(in_penable) begin
++                  next_state = IDLE;
++              end
++              else begin
++                  next_state = READ;
++              end
++          end
++          default: next_state = IDLE;
++      endcase
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset == 1'b1) begin
++      key_up    <= 1'b1;
++    end
++    else begin
++      if(ready_sampling == 1'b1) begin
++        if(data == 8'hf0) begin
++          key_up    <= 1'b0;
++        end
++        else begin
++          key_up    <= 1'b1;
++        end
++      end
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset == 1'b1) begin
++      wpt   <= 3'h0;
++    end
++    else begin
++      if(ready_sampling == 1'b1) begin
++        if(data != 8'hf0) begin
++          fifo[wpt]   <= {16'h0000, key_up, 7'h00, data};
++          wpt         <= wpt + 1'b1;
++          // $display("data = %h", data);
++        end
++      end
++    end 
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset == 1'b1) begin
++      rpt   <= 3'h0;
++    end
++    else begin
++      if(in_pready == 1'b1) begin
++        if(wpt == rpt) begin
++          rpt <= rpt;
++        end
++        else begin
++          rpt <= rpt + 1'b1;
++          // $display("rpt = %d", rpt);
++        end
++      end
++    end
++  end
++
++  ps2_keyboard u_ps2_keyboard(
++    .clk      	      (clock     ),
++    .clrn   	        (~reset    ),
++    .ps2_clk  	      (ps2_clk   ),
++    .ps2_data 	      (ps2_data  ),
++    .data             (data),
++    .ready_sampling   (ready_sampling),
++    .overflow         (overflow)
++  );
++
++  assign in_pready = (current_state == READ);
++  assign in_pslverr = 1'b0;
++  assign in_prdata = (wpt == rpt) ? 32'h00000000 : fifo[rpt];
++  
++endmodule
++
++
++module ps2_keyboard(clk,ps2_clk,ps2_data,data,clrn,ready_sampling,
++                    // ready,nextdata_n,
++                    overflow);
++    input clk,ps2_clk,ps2_data;
++    // input nextdata_n;
++    input clrn;
++    output [7:0] data;
++    reg [3:0] count;
++    output ready_sampling;
++    // output start;
++    // output reg ready;
++    output reg overflow;     // fifo overflow
++    // internal signal, for test
++    reg [9:0] buffer;        // ps2_data bits
++    reg [7:0] fifo[7:0];     // data fifo
++    reg [2:0] w_ptr,r_ptr;   // fifo write and read pointers
++    reg [2:0] ps2_clk_sync;
++
++    reg ready;
++
++    // detect pose edge of ps2_clk
++    reg [2:0] ready_sync;
++    wire nextdata_n;
++
++    reg [7:0] cnt;
++
++    always @(posedge clk) begin
++        ps2_clk_sync <=  {ps2_clk_sync[1:0],ps2_clk};
++    end
++
++    wire sampling = ps2_clk_sync[2] & ~ps2_clk_sync[1];
++
++    always @(posedge clk) begin
++        if (clrn == 0) begin // reset
++            count <= 0; w_ptr <= 0; r_ptr <= 3'b0; overflow <= 0; ready<= 0;
++            cnt <= 0; ready_sync <= 0;
++        end
++        else begin
++            if ( ready ) begin // read to output next data
++                if(nextdata_n == 1'b0) //read next data
++                begin
++                    r_ptr <= r_ptr + 3'b1;
++                    if(w_ptr==(r_ptr+3'b001)) //empty
++                        ready <= 1'b0;
++                end
++            end
++            if (sampling) begin
++              if (count == 4'd10) begin
++                if ((buffer[0] == 0) &&  // start bit
++                    (ps2_data)       &&  // stop bit
++                    (^buffer[9:1])) begin      // odd  parity
++                    fifo[w_ptr] <= buffer[8:1];  // kbd scan code
++                    w_ptr <= w_ptr+3'b1;
++                    ready <= 1'b1;
++                    overflow <= overflow | (r_ptr == (w_ptr + 3'b1));
++                end
++                count <= 0;     // for next
++              end else begin
++                buffer[count] <= ps2_data;  // store ps2_data
++                count <= count + 3'b1;
++              end
++            end
++        end
++    end
++    // assign data = (count == 0'h00) ? 0'h00 : fifo[r_ptr]; //always set output data
++    assign data = fifo[r_ptr];
++    //自动复位
++    always @(posedge clk) begin
++        ready_sync <=  {ready_sync[1:0], ready};
++    end
++
++    assign ready_sampling = ready_sync[0] & ~ready_sync[1];
++
++    always @(posedge clk) begin
++        if(ready_sampling) begin
++            cnt <= 0;
++        end
++        else begin
++            if(cnt < 8'h1e) begin
++                cnt <= cnt + 1'b1;
++            end
++        end
++    end
++
++    assign nextdata_n = (cnt > 8'h14)&&(cnt < 8'h1e) ? 0 : 1; 
++
+ endmodule
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e9..b8bece16 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -60,15 +60,16 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    wire [7:0]  FINAL_COUNT = 13 + size*2; // was 27: Always read 1 word
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+     reg [23:0]  saddr;
+-    reg [7:0]   data [3:0];
++    reg [3:0]   data [7:0];
+ 
+     wire[7:0]   CMD_EBH = 8'heb;
+ 
++
+     always @*
+         case (state)
+             IDLE: if(rd) nstate = READ; else nstate = IDLE;
+@@ -113,29 +114,30 @@ module PSRAM_READER (
+             saddr <= {addr[23:0]};
+ 
+     // Sample with the negedge of sck
+-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++    wire[2:0] byte_index = {counter - 8'd13}[2:0];
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
++        if(counter >= 13 && counter <= FINAL_COUNT)
+             if(sck)
+-                data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+-
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
++                data[byte_index] <= din; // Optimize!
++
++    assign dout     =   (counter == 0)   ?   {CMD_EBH[7:4]}:
++                        (counter == 1)   ?   {CMD_EBH[3:0]}:
++                        (counter == 2)  ?   saddr[23:20]        : // 先传高位
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4) ?   saddr[15:12]        :
++                        (counter == 5) ?   saddr[11:8]         :
++                        (counter == 6) ?   saddr[7:4]          :
++                        (counter == 7) ?   saddr[3:0]          :
+                         4'h0;
+ 
+-    assign douten   = (counter < 14);
++    assign douten   = (counter < 8);
+ 
+-    assign done     = (counter == FINAL_COUNT+1);
++    assign done     = (counter == FINAL_COUNT);
+ 
+     generate
+         genvar i;
+-        for(i=0; i<4; i=i+1)
+-            assign line[i*8+7: i*8] = data[i];
++        for(i=0; i<8; i=i+1)
++            assign line[i*4+3: i*4] = data[i];
+     endgenerate
+ 
+ 
+@@ -161,7 +163,7 @@ module PSRAM_WRITER (
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    wire[7:0]        FINAL_COUNT = 7 + size*2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,21 +214,31 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
+-                        (counter == 14) ?   line[7:4]           :
+-                        (counter == 15) ?   line[3:0]           :
+-                        (counter == 16) ?   line[15:12]         :
+-                        (counter == 17) ?   line[11:8]          :
+-                        (counter == 18) ?   line[23:20]         :
+-                        (counter == 19) ?   line[19:16]         :
+-                        (counter == 20) ?   line[31:28]         :
+-                        line[27:24];
++    assign dout     =   (counter == 0)   ?   { CMD_38H[7:4]}:
++                        (counter == 1)   ?   { CMD_38H[3:0]}:
++                        (counter == 2)  ?   saddr[23:20]        :
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4) ?   saddr[15:12]        :
++                        (counter == 5) ?   saddr[11:8]         :
++                        (counter == 6) ?   saddr[7:4]          :
++                        (counter == 7) ?   saddr[3:0]          :
++                        // (counter == 14) ?   line[7:4]           :
++                        // (counter == 15) ?   line[3:0]           :
++                        // (counter == 16) ?   line[15:12]         :
++                        // (counter == 17) ?   line[11:8]          :
++                        // (counter == 18) ?   line[23:20]         :
++                        // (counter == 19) ?   line[19:16]         :
++                        // (counter == 20) ?   line[31:28]         :
++                        // line[27:24];
++                        (counter == 8) ?   line[3:0]           : // 先传低位
++                        (counter == 9) ?   line[7:4]           :
++                        (counter == 10) ?   line[11:8]           :
++                        (counter == 11) ?   line[15:12]         :
++                        (counter == 12) ?   line[19:16]         :
++                        (counter == 13) ?   line[23:20]         :
++                        (counter == 14) ?   line[27:24]         :
++                        line[31:28];
++
+ 
+     assign douten   = (~ce_n);
+ 
+@@ -234,3 +246,90 @@ module PSRAM_WRITER (
+ 
+ 
+ endmodule
++
++
++// Using aaH Command
++module PSRAM_SWITCH (
++    input   wire            clk,
++    input   wire            rst_n,
++    // input   wire [23:0]     addr,
++    // input   wire [31: 0]    line,
++    // input   wire [2:0]      size,
++    // input   wire            wr,
++    // output  wire            done,
++
++    output  reg             sck,
++    output  reg             ce_n,
++    // input   wire [3:0]      din,
++    output  wire [3:0]      dout,
++    output  wire            douten
++);
++
++    localparam  IDLE = 2'b00,
++                SWITCH = 2'b01,
++                SW_END = 2'b11;
++
++    wire[7:0]   FINAL_COUNT = 15;
++
++    wire    done;
++
++    reg [1:0]   state, nstate;
++    reg [7:0]   counter;
++    // reg [23:0]  saddr;
++    //reg [7:0]   data [3:0];
++
++    wire[7:0]   CMD_AAH = 8'haa;
++
++    always @*
++        case (state)
++            IDLE: if(rst_n) nstate = SWITCH; else nstate = IDLE;
++            SWITCH: if(done) nstate = SW_END; else nstate = SWITCH;
++            SW_END: nstate = SW_END;
++            default : nstate = SW_END;
++        endcase
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n) state <= IDLE;
++        else state <= nstate;
++
++    // Drive the Serial Clock (sck) @ clk/2
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            sck <= 1'b0;
++        else if(~ce_n)
++            sck <= ~ sck;
++        else if(state != SWITCH)
++            sck <= 1'b0;
++
++    // ce_n logic
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            ce_n <= 1'b1;
++        else if(state == SWITCH)
++            ce_n <= 1'b0;
++        else
++            ce_n <= 1'b1;
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            counter <= 8'b0;
++        else if(sck & ~done)
++            counter <= counter + 1'b1;
++        else if(state != SWITCH)
++            counter <= 8'b0;
++
++    // always @ (posedge clk or negedge rst_n)
++    //     if(!rst_n)
++    //         saddr <= 24'b0;
++    //     else if((state == IDLE) && wr)
++    //         saddr <= addr;
++
++    assign dout     =   (counter < 8)   ?   {3'b0, CMD_AAH[7 - counter]}:
++                        4'b0000;
++
++
++    assign douten   = (~ce_n);
++
++    assign done     = (counter == FINAL_COUNT + 1);
++
++endmodule
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+index 7b5296db..0e14f974 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -118,14 +118,14 @@ module EF_PSRAM_CTRL_wb (
+ 
+     wire [31:0] wdata = {byte3, byte2, byte1, byte0};
+ 
+-    /*
++    
+     wire [1:0]  waddr = (size==1 && sel_i[0]==1) ? 2'b00 :
+                         (size==1 && sel_i[1]==1) ? 2'b01 :
+                         (size==1 && sel_i[2]==1) ? 2'b10 :
+                         (size==1 && sel_i[3]==1) ? 2'b11 :
+                         (size==2 && sel_i[2]==1) ? 2'b10 :
+                         2'b00;
+-                      */
++                      
+ 
+     assign mr_rd    = ( (state==ST_IDLE ) & wb_re );
+     assign mw_wr    = ( (state==ST_IDLE ) & wb_we );
+@@ -149,7 +149,7 @@ module EF_PSRAM_CTRL_wb (
+     PSRAM_WRITER MW (
+         .clk(clk_i),
+         .rst_n(~rst_i),
+-        .addr({adr_i[23:0]}),
++        .addr({adr_i[23:2], waddr}),
+         .wr(mw_wr),
+         .size(size),
+         .done(mw_done),
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index d9bdd882..a9b890e3 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -1,9 +1,187 @@
++`timescale 1ns / 10ps
++
+ module psram(
+   input sck,
+   input ce_n,
+   inout [3:0] dio
+ );
+ 
+-  assign dio = 4'bz;
++  // assign dio = 4'bz;
++  wire reset = ce_n;
++
++  typedef enum [2:0] { cmd_t, addr_t, delay_t, rdata_t, wdata_t, switch_t, err_t } state_t;
++  reg [2:0]  state;
++  reg [7:0]  counter;
++  reg [7:0]  cmd;
++  reg [23:0] addr;
++  reg [31:0] data;
++  reg [7:0]  data_wr;
++  reg [23:0] waddr;
++
++  wire [31:0] addr_w = {8'h00, waddr};
++
++  wire ren = (state == addr_t) && (counter == 8'd5) && (cmd == 8'hEB);
++  wire wen = (state == wdata_t) && ((counter == 8'd7) || (counter == 8'd1) || (counter == 8'd3) || (counter == 8'd5));
++  wire [31:0] rdata;
++  wire [31:0] raddr = (state == addr_t) ? {8'b0, addr[19:0], dio[3:0]} : {8'b0, addr};
++  wire [7:0] wdata = {dio[3:0], data_wr[7:4] };
++
++  reg [2:0] op_state;
++  reg mode = 1'b0;
++
++  always @(posedge sck) begin
++    if(state == switch_t) begin
++      mode <= 1'b1;
++    end
++  end
++
++  always @(*) begin
++    if(cmd == 8'heb) begin
++      op_state = delay_t;
++    end
++    else if(cmd == 8'h38) begin
++      op_state = wdata_t;
++    end
++    else if(cmd == 8'haa) begin
++      op_state = switch_t;
++    end
++    else begin
++      op_state = err_t;
++    end
++  end
++
++  reg [7:0] cmd_cnt;
++  always @(*) begin
++    if(mode == 1'b1) begin
++      cmd_cnt = 8'd1;
++    end
++    else begin
++      cmd_cnt = 8'd7;
++    end
++  end
++
++  always@(posedge sck or posedge reset) begin
++    if (reset) state <= cmd_t;
++    else begin
++      case (state)
++        cmd_t:  state <= (counter == cmd_cnt) ? addr_t : state;
++        addr_t: state <= (counter == 8'd5) ? op_state : state;
++        delay_t: state <= (counter == 8'd5) ? rdata_t : state;
++        rdata_t: state <= state;
++        wdata_t: state <= state;
++        switch_t: state <= state;
++
++        default: begin
++          state <= state;
++          $fwrite(32'h80000002, "Assertion failed: Unsupported command `%xh`, only support `EBh` read command\n", cmd);
++          $fatal;
++        end
++      endcase
++    end
++  end
++
++
++  always@(posedge sck or posedge reset) begin
++    if (reset) counter <= 8'd0;
++    else begin
++      case (state)
++        cmd_t:   counter <= (counter < cmd_cnt) ? counter + 8'd1 : 8'd0;
++        addr_t:  counter <= (counter < 8'd5) ? counter + 8'd1 : 8'd0;
++        delay_t:  counter <= (counter < 8'd5) ? counter + 8'd1 : 8'd0;
++        default: counter <= counter + 8'd1;
++      endcase
++    end
++  end
++
++  always@(posedge sck or posedge reset) begin
++    if (reset)               cmd <= 8'd0;
++    else if (state == cmd_t && mode == 1'b0) cmd <= { cmd[6:0], dio[0] };
++    else if (state == cmd_t && mode == 1'b1) cmd <= { cmd[3:0], dio[3:0] };
++  end
++
++  always@(posedge sck or posedge reset) begin
++    if (reset) begin
++      addr <= 24'd0;
++      waddr <= 24'd0;
++    end
++    else if (state == addr_t && counter <= 8'd5) begin
++      addr <= { addr[19:0], dio[3:0] };
++      waddr <= { waddr[19:0], dio[3:0] };
++    end
++    else if (state == wdata_t && (counter == 8'd2)) begin
++      waddr <= waddr + 1'b1;
++    end
++    else if (state == wdata_t && (counter == 8'd4)) begin
++      waddr <= waddr + 1'b1;
++    end
++    else if (state == wdata_t && (counter == 8'd6)) begin
++      waddr <= waddr + 1'b1;
++    end
++  end
++
++  always@(posedge sck or posedge reset) begin
++    if (reset) data_wr <= 8'd0;
++    else if (state == wdata_t && counter <= 8'd7)
++      data_wr <= { dio[3:0], data_wr[7:4] };
++  end
++
++  wire [31:0] data_bswap = rdata;
++  // wire [31:0] data_bswap = {rdata[7:0], rdata[15:8], rdata[23:16], rdata[31:24]};
++  always@(posedge sck or posedge reset) begin
++    if (reset) data <= 32'd0;
++    else if (state == rdata_t) begin
++      data <= { 4'b0, {counter == 8'd0 ? data_bswap : data}[31:4] };
++    end
++  end
++
++
++  assign dio = (state == rdata_t) ? ({(counter == 8'd0) ? data_bswap : data}[3:0]) : 4'bzzzz;
++  // assign  dio = 4'bzzzz;
++
++  psram_cmd psram_cmd_i(
++    .clock(sck),
++    .valid(ren),
++    .cmd(cmd),
++    .wen(wen),
++    .data_wr(wdata),
++    .waddr(addr_w),
++    .addr(raddr),
++    .data(rdata)
++  );
+ 
+ endmodule
++
++
++import "DPI-C" function void psram_read(input int addr, output int data);
++import "DPI-C" function void psram_write(input int addr, input byte data);
++
++  module psram_cmd(
++    input             clock,
++    input             valid,
++    input             wen,
++    input       [7:0] cmd,
++    input      [7:0]  data_wr,
++    input      [31:0] addr,
++    input      [31:0] waddr,
++    output reg [31:0] data
++  );
++  always@(posedge clock) begin
++    if (valid)
++      if (cmd == 8'hEB) psram_read(addr, data);
++      else begin
++        $fwrite(32'h80000002, "Assertion failed: Unsupport command `%xh`, only support `03h` read command\n", cmd);
++        $fatal;
++      end
++  end
++
++  always @(posedge clock) begin
++    if (wen)
++      if (cmd == 8'h38) psram_write(waddr, data_wr);
++      else begin
++        $fwrite(32'h80000002, "Assertion failed: Unsupport command `%xh`, only support `03h` read command\n", cmd);
++        $fatal;
++      end
++  end
++
++endmodule
++
+diff --git a/perip/psram/psram_top_apb.v b/perip/psram/psram_top_apb.v
+index 0ba9c2f2..fab8c2b7 100644
+--- a/perip/psram/psram_top_apb.v
++++ b/perip/psram/psram_top_apb.v
+@@ -18,7 +18,14 @@ module psram_top_apb (
+ );
+ 
+   wire [3:0] din, dout, douten;
++
++  wire [3:0]  dout_u0;
++
++  wire qspi_sck_u0;
++
++  wire qspi_ce_n_u0;
+   wire ack;
++
+   EF_PSRAM_CTRL_wb u0 (
+     .clk_i(clock),
+     .rst_i(reset),
+@@ -31,19 +38,38 @@ module psram_top_apb (
+     .ack_o(ack),
+     .we_i(in_pwrite),
+   
+-    .sck(qspi_sck),
+-    .ce_n(qspi_ce_n),
++    .sck(qspi_sck_u0),
++    .ce_n(qspi_ce_n_u0),
+     .din(din),
+-    .dout(dout),
++    .dout(dout_u0),
+     .douten(douten)
+   );
++
++  // output declaration of module PSRAM_SWITCH
++    reg ms_sck;
++    reg ms_ce_n;
++    wire [3:0] ms_dout;
++    wire ms_douten;
++    
++    PSRAM_SWITCH u_PSRAM_SWITCH(
++        .clk    	(clock      ),
++        .rst_n  	(~reset     ),
++        .sck    	(ms_sck  ),
++        .ce_n   	(ms_ce_n    ),
++        .dout   	(ms_dout    ),
++        .douten 	(ms_douten  )
++    );
++
++  assign  qspi_ce_n = qspi_ce_n_u0 & ms_ce_n;
++  assign  qspi_sck = (ms_ce_n == 1'b1) ? qspi_sck_u0 : ms_sck;
++    
+   
+   assign in_pready = ack && in_psel;
+   assign in_pslverr = 1'b0;
+-  assign qspi_dio[0] = douten[0] ? dout[0] : 1'bz;
+-  assign qspi_dio[1] = douten[1] ? dout[1] : 1'bz;
+-  assign qspi_dio[2] = douten[2] ? dout[2] : 1'bz;
+-  assign qspi_dio[3] = douten[3] ? dout[3] : 1'bz;
++  assign qspi_dio[0] = (ms_ce_n == 1'b0) ? ms_dout [0] : (douten[0] ? dout_u0[0] : 1'bz);
++  assign qspi_dio[1] = (ms_ce_n == 1'b0) ? ms_dout [1] : (douten[1] ? dout_u0[1] : 1'bz);
++  assign qspi_dio[2] = (ms_ce_n == 1'b0) ? ms_dout [2] : (douten[2] ? dout_u0[2] : 1'bz);
++  assign qspi_dio[3] = (ms_ce_n == 1'b0) ? ms_dout [3] : (douten[3] ? dout_u0[3] : 1'bz);
+   assign din = qspi_dio;
+ 
+ endmodule
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cedbf77b..e2884d8c 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -42,7 +42,7 @@ module sdram_axi_core
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_accept_o
+@@ -55,10 +55,10 @@ module sdram_axi_core
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -68,15 +68,15 @@ module sdram_axi_core
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ              = 50;
+-parameter SDRAM_ADDR_W           = 24;
+-parameter SDRAM_COL_W            = 9;
+-parameter SDRAM_READ_LATENCY     = 2;
++parameter SDRAM_ADDR_W           = 25;
++parameter SDRAM_COL_W            = 10; 
++parameter SDRAM_READ_LATENCY     = 2; // 可在模块梨花
+ 
+ //-----------------------------------------------------------------
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+@@ -94,7 +94,7 @@ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+ // Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -112,7 +112,7 @@ localparam STATE_REFRESH     = 4'd9;
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -161,7 +161,7 @@ reg [SDRAM_BANK_W-1:0] bank_q;
+ 
+ // Buffer half word during read and write commands
+ reg [SDRAM_DATA_W-1:0] data_buffer_q;
+-reg [SDRAM_DQM_W-1:0]  dqm_buffer_q;
++// reg [SDRAM_DQM_W-1:0]  dqm_buffer_q;
+ 
+ wire [SDRAM_DATA_W-1:0] sdram_data_in_w;
+ 
+@@ -177,9 +177,9 @@ reg  [STATE_W-1:0]     target_state_q;
+ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
+-wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
++wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W+1){1'b0}}, ram_addr_w[SDRAM_COL_W:2]};
+ wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+-wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+1];
+ 
+ //-----------------------------------------------------------------
+ // SDRAM State Machine
+@@ -282,21 +282,21 @@ begin
+     //-----------------------------------------
+     // STATE_WRITE0
+     //-----------------------------------------
+-    STATE_WRITE0 :
+-    begin
+-        next_state_r = STATE_WRITE1;
+-    end
++    // STATE_WRITE0 :
++    // begin
++    //     next_state_r = STATE_WRITE1;
++    // end
+     //-----------------------------------------
+     // STATE_WRITE1
+     //-----------------------------------------
+-    STATE_WRITE1 :
++    STATE_WRITE0 :
+     begin
+         next_state_r = STATE_IDLE;
+ 
+         // Another pending write request (with no refresh pending)
++        // if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
+         if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
+         begin
+-            // Open row hit
+             if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+                 next_state_r = STATE_WRITE0;
+         end
+@@ -483,13 +483,13 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+     dqm_q           <= {SDRAM_DQM_W{1'b0}};
+     data_rd_en_q    <= 1'b1;
+-    dqm_buffer_q    <= {SDRAM_DQM_W{1'b0}};
++    // dqm_buffer_q    <= {SDRAM_DQM_W{1'b0}};
+ 
+     for (idx=0;idx<SDRAM_BANKS;idx=idx+1)
+         active_row_q[idx] <= {SDRAM_ROW_W{1'b0}};
+@@ -616,33 +616,33 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w[31:0];
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w;
++        // dqm_buffer_q    <= ~ram_wr_w[3:2];
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+     //-----------------------------------------
+     // STATE_WRITE1
+     //-----------------------------------------
+-    STATE_WRITE1 :
+-    begin
+-        // Burst continuation
+-        command_q   <= CMD_NOP;
++    // STATE_WRITE1 :
++    // begin
++    //     // Burst continuation
++    //     command_q   <= CMD_NOP;
+ 
+-        data_q      <= data_buffer_q;
++    //     data_q      <= data_buffer_q;
+ 
+-        // Disable auto precharge (auto close of row)
+-        addr_q[AUTO_PRECHARGE]  <= 1'b0;
++    //     // Disable auto precharge (auto close of row)
++    //     addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+-        // Write mask
+-        dqm_q       <= dqm_buffer_q;
+-    end
++    //     // Write mask
++    //     dqm_q       <= dqm_buffer_q;
++    // end
+     endcase
+ end
+ 
+@@ -665,14 +665,14 @@ else
+ // in WRITE0. Also buffer lower 16-bits of read data.
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+-    data_buffer_q <= 16'b0;
++    data_buffer_q <= 32'b0;
+ else if (state_q == STATE_WRITE0)
+-    data_buffer_q <= ram_write_data_w[31:16];
++    data_buffer_q <= ram_write_data_w[31:0];
+ else if (rd_q[SDRAM_READ_LATENCY+1])
+     data_buffer_q <= sample_data_q;
+ 
+ // Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
++assign ram_read_data_w = {data_buffer_q}; // 
+ 
+ //-----------------------------------------------------------------
+ // ACK
+@@ -684,7 +684,7 @@ if (rst_i)
+     ack_q   <= 1'b0;
+ else
+ begin
+-    if (state_q == STATE_WRITE1)
++    if (state_q == STATE_WRITE0)
+         ack_q <= 1'b1;
+     else if (rd_q[SDRAM_READ_LATENCY+1])
+         ack_q <= 1'b1;
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 3613b231..12dc8cd8 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -7,10 +7,275 @@ module sdram(
+   input        we,
+   input [12:0] a,
+   input [ 1:0] ba,
+-  input [ 1:0] dqm,
+-  inout [15:0] dq
++  input [ 3:0] dqm,
++  inout [31:0] dq
+ );
+ 
+-  assign dq = 16'bz;
++  localparam  IDLE          = 0;
++  localparam  ACTIVE        = 1;
++  localparam  READ_LATENCY  = 2;
++  // localparam  WRITE_LATENCY = 3;
++  localparam  READ_BURST    = 4;
++  localparam  WRITE_BURST   = 5;
++
++
++  reg   [3:0]     burst_len;
++  reg   [2:0]     cas_latency;
++
++  reg   [12:0]    mode_reg;
++
++  reg   [31:0]    data;
++  reg   [31:0]    data_wr;
++
++  reg   [3:0]     mode;
++
++  reg   [3:0]     mask;
++
++  reg            wen;
++  wire            ren;
++
++  assign mode = {cs, ras, cas, we};
++
++  reg   [3:0]     state;
++  // reg   [3:0]     next_state;
++
++  reg   [2:0]     latency_cnt;
++  reg   [3:0]     burst_cnt;
++
++  reg   [1:0]     bank;
++  reg   [15:0]    col;
++
++  reg   [15:0]    row_0;
++  reg   [15:0]    row_1;
++  reg   [15:0]    row_2;
++  reg   [15:0]    row_3; 
++  reg   [15:0]    row;
++  // reg   [15:0]    row_r;
++
++  always @(*) begin
++    case(mode_reg[2:0])  // burst_len
++      3'b000: burst_len = 4'h1;
++      3'b001: burst_len = 4'h2;
++      3'b010: burst_len = 4'h4;
++      3'b011: burst_len = 4'h8;
++      3'b111: burst_len = 4'hf;
++      default: burst_len = 4'h0;
++    endcase
++  end
++
++  assign  cas_latency = mode_reg[6:4]; // cas_latency
++
++  always @(posedge clk or negedge cke) begin
++    if(!cke) begin
++      mode_reg  <= 13'h0000;
++    end
++    else begin
++      if(mode == 4'b0000) begin // LOAD MODE REGISTER
++          mode_reg <= a;
++      end
++    end
++  end
++
++  always @(posedge clk or negedge cke) begin
++    if(!cke) begin
++      state       <= IDLE;
++    end
++    else begin
++      case(state)
++        // IDLE: begin
++        //   if(mode == 4'b0011) begin
++        //     state   <= ACTIVE;
++        //   end
++
++        //   else begin
++        //     state   <= IDLE;
++        //   end
++        // end
++
++        IDLE: begin
++          if(mode == 4'b0101) begin // read
++            state   <= READ_LATENCY;
++          end
++          else if(mode == 4'b0100) begin // write
++            state   <= WRITE_BURST;
++          end
++          else begin
++            state   <= IDLE;
++          end
++        end
++
++        READ_LATENCY: begin
++          if(latency_cnt == cas_latency - 1) begin
++            state   <= READ_BURST;
++          end
++          else begin
++            state   <= READ_LATENCY;
++          end
++        end
++
++        READ_BURST: begin
++          if(burst_cnt == burst_len) begin
++            state   <= IDLE;
++          end
++          else begin
++            state   <= READ_BURST;
++          end
++        end
++
++        WRITE_BURST: begin
++          if(burst_cnt == burst_len) begin
++            state   <= IDLE;
++          end
++          else begin
++            state   <= WRITE_BURST;
++          end
++        end
++      endcase
++    end
++  end
++
++  always @(posedge clk or negedge cke) begin
++    if(!cke) begin
++      row_0 <= 16'h0000;
++      row_1 <= 16'h0000;
++      row_2 <= 16'h0000;
++      row_3 <= 16'h0000;
++    end
++    else if(mode == 4'b0011) begin
++      if(ba == 2'b00) begin
++        row_0   <= {3'b000, a};
++      end
++      else if(ba == 2'b01) begin
++        row_1   <= {3'b000, a};
++      end
++      else if(ba == 2'b10) begin
++        row_2   <= {3'b000, a};
++      end
++      else if(ba == 2'b11) begin
++        row_3   <= {3'b000, a};
++      end
++    end
++  end
++
++  always @(*) begin
++    case(bank) 
++      2'b00: row = row_0;
++      2'b01: row = row_1;
++      2'b10: row = row_2;
++      2'b11: row = row_3;
++    endcase
++  end
++
++  always @(posedge clk or negedge cke) begin // write
++    if(!cke) begin
++      // row   <= 16'h0000;
++      data_wr <= 32'h0000;
++      burst_cnt <= 4'h0;
++      latency_cnt <= 3'b000;
++      bank    <= 2'b00;
++      // ren   <= 1'b0;
++      wen   <= 1'b0;
++      mask  <= 4'b0000;
++      bank  <= 2'b00;
++      col   <= 16'h0000;
++    end
++    else begin
++      // if(mode == 4'b0011) begin // active
++      //   // bank  <= ba;
++      //   // row   <= {3'b000, a};
++      // end
++      if(mode == 4'b0100) begin // write
++        col     <= {3'b000, a};
++        burst_cnt   <= burst_cnt + 1;
++        data_wr <= dq;
++        wen     <= 1'b1;
++        // ren   <= 1'b0;
++        bank    <= ba;
++        mask  <= dqm;
++      end
++      else if(mode == 4'b0101) begin // read
++        col   <= {3'b000, a};
++        latency_cnt <= latency_cnt + 1;
++        burst_cnt   <= burst_cnt + 1;
++        wen   <= 1'b0;
++        bank  <= ba;
++        // col   <= {3'b000, a};
++      end
++      else if(mode == 4'b0111 && state == WRITE_BURST) begin // NOP
++        burst_cnt   <= burst_cnt + 1;
++        col         <= col + 1;
++        data_wr     <= dq;
++        wen   <= 1'b0;
++        mask  <= dqm;
++      end
++      else if(mode == 4'b0111 && state == READ_LATENCY) begin
++        latency_cnt <= latency_cnt + 1;
++        // col     <= {3'b000, a};
++      end
++      else if(mode == 4'b0111 && state == READ_BURST) begin
++        burst_cnt   <= burst_cnt + 1;
++        col         <= col + 1;
++        // ren         <= 1'b1;
++      end
++      else begin
++        burst_cnt   <= 4'h0;
++        latency_cnt <= 3'b000;
++        // ren   <= 1'b0;
++        wen     <= 1'b0;
++      //   bank    <= 2'b00;
++      //   col     <= 16'h0000;
++      end
++    end
++  end
++
++  // assign wen = (mode == 4'b0100) ? 1'b1 : 1'b0;
++
++  assign  ren = (state == READ_BURST) ? 1'b1 : 1'b0;
++
++  assign  dq = (ren == 1'b1) ? data : 32'bz;
++
++  sdram_cmd sdram_cmd_i(
++    .clock        (clk      ),
++    .ren          (ren      ),
++    .wen          (wen      ),
++    .bank         (bank     ),
++    .mask         (mask     ),
++    .col          (col      ),
++    .row          (row      ),
++    .data_wr      (data_wr  ),
++    .data         (data     )
++  );
++
++endmodule
++
++import "DPI-C" function void sdram0_read(input byte bank,  input shortint row, input shortint col, output int data);
++import "DPI-C" function void sdram0_write(input byte bank, input shortint row, input shortint col, input byte mask, input int data);
++
++module sdram_cmd(
++    input               clock,
++    input               ren,
++    input               wen,
++    input       [3:0]   mask,
++    input       [1:0]   bank,
++    input       [15:0]  col, 
++    input       [15:0]  row,
++    input       [31:0]  data_wr,
++    output reg  [31:0]  data
++  );
++
++  always@(*) begin // read
++    if (ren) begin 
++      sdram0_read({6'b000000, bank}, row, col, data);
++    end
++    else begin
++      data = 32'h0000;
++    end
++  end
++
++  always @(posedge clock) begin // write
++    if(wen) begin
++      sdram0_write({6'b000000, bank}, row, col, {4'b0000, mask}, data_wr);
++    end
++  end
+ 
+ endmodule
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 3bc5b93b..6b32ca56 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -20,13 +20,13 @@ module sdram_top_apb (
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+@@ -45,10 +45,11 @@ module sdram_top_apb (
+ 
+   wire is_read  = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) && !in_pwrite;
+   wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
++  // wire is_write = ((in_psel && !in_penable) || (req_accept == 1'b0)) &&  in_pwrite;
+   sdram_axi_core #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
+-    .SDRAM_COL_W(9),
++    .SDRAM_ADDR_W(25),
++    .SDRAM_COL_W(10),
+     .SDRAM_READ_LATENCY(2)
+   ) u_sdram_ctrl(
+     .clk_i(clock),
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fdb..724bd8d8 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -37,7 +37,7 @@ module sdram_top_axi(
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+   output [ 1:0] sdram_dqm,
+   inout  [15:0] sdram_dq
+diff --git a/perip/spi/rtl/XIP.v b/perip/spi/rtl/XIP.v
+new file mode 100644
+index 00000000..664bd35f
+--- /dev/null
++++ b/perip/spi/rtl/XIP.v
+@@ -0,0 +1,187 @@
++module XIP( // APB转SPI
++    input               clk,
++    input               reset,
++    
++    input  [31:0]       in_paddr,
++    input               in_psel,
++    input               in_penable, //
++    input  [2:0]        in_pprot,   // 001
++    input               in_pwrite,  // 1表示写任务
++    input  [31:0]       in_pwdata,
++    input  [3:0]        in_pstrb,
++    output              in_pready,
++    output [31:0]       in_prdata,
++    output              in_pslverr,
++
++    // input               wb_rst_i,         // synchronous active high reset
++    output [4:0]        wb_adr_i,         // lower address bits
++    output [32-1:0]     wb_dat_i,         // databus input
++    input  [32-1:0]     wb_dat_o,         // databus output
++    output [3:0]        wb_sel_i,         // byte select inputs
++    output              wb_we_i,          // write enable input
++    output              wb_stb_i,         // stobe/core select signal // in_psel
++    output              wb_cyc_i,         // valid bus cycle input
++    input               wb_ack_o,         // bus cycle acknowledge output // in_pready
++    input               wb_err_o,         // termination w/ error // 
++    input               wb_int_o,         // interrupt request signal output
++
++    input   [7:0]       ss_pad_o          // 传输是否完成 
++);
++
++    assign  in_pslverr  = wb_err_o;
++
++    reg     [3:0]       current_state;
++    reg     [3:0]       next_state;
++
++    localparam  IDLE            = 0;
++    // localparam  GET_ADDR    = 1;
++    localparam  SPI_TX0         = 2;
++    localparam  SPI_DIV         = 4;
++    localparam  SPI_SS          = 5;
++    localparam  SPI_CTRL        = 6;
++    localparam  WAIT_DATA       = 7;
++    localparam  READ_INST       = 8;
++
++
++    always @(posedge clk or posedge reset) begin
++        if(reset == 1'b1) begin
++            current_state       <= IDLE;
++        end
++        else begin
++            current_state       <= next_state;
++        end
++    end
++
++    always @(*) begin
++
++        case(current_state)
++
++            IDLE: begin
++                if(in_psel == 1'b1 && in_paddr >= 32'h30000000 && in_paddr < 32'h40000000) begin
++                    next_state          = SPI_TX0;
++                end
++                else begin
++                    next_state          = IDLE;
++                end
++            end
++
++            SPI_TX0: begin
++                if(wb_ack_o == 1'b1) begin
++                    next_state              = SPI_DIV;
++                end
++                else begin
++                    next_state              = SPI_TX0;
++                end
++            end
++
++            SPI_DIV: begin
++                if(wb_ack_o == 1'b1) begin
++                    next_state              = SPI_SS;    
++                end
++                else begin
++                    next_state              = SPI_DIV;
++                end
++            end
++
++            SPI_SS: begin
++                if(wb_ack_o == 1'b1) begin
++                    next_state              = SPI_CTRL;    
++                end
++                else begin
++                    next_state              = SPI_SS;
++                end
++            end
++
++            SPI_CTRL: begin
++                if(wb_ack_o == 1'b1) begin
++                    next_state              = WAIT_DATA;    
++                end
++                else begin
++                    next_state              = SPI_CTRL;
++                end
++            end
++
++            WAIT_DATA: begin
++                if(ss_pad_o == 8'hFF) begin
++                    next_state              = READ_INST;
++                end
++                else begin
++                    next_state              = WAIT_DATA;  
++                end
++            end
++
++            READ_INST: begin
++                next_state              = IDLE;
++            end
++
++            default: next_state              = IDLE;
++
++        endcase
++    end
++
++    // reg     [31:0]          addr_r;
++    wire    [31:0]          spi_cmd;
++    reg     [31:0]          inst_r;
++    reg     [4:0]           wb_adr_r;
++    reg     [31:0]          wb_dat_r;
++
++    assign  wb_dat_i        = wb_dat_r;
++    assign  wb_adr_i        = wb_adr_r;
++
++    assign  in_prdata       = wb_dat_o;
++
++    assign  in_pready        = (current_state == READ_INST) ? 1'b1 : 1'b0;
++
++    always @(*) begin
++        case(current_state)
++            IDLE:    wb_adr_r       = 5'b00000;
++            SPI_TX0: wb_adr_r       = 5'b00100; // 0
++            SPI_DIV: wb_adr_r       = 5'b10100; // 
++            SPI_SS:  wb_adr_r       = 5'b11000;
++            SPI_CTRL: wb_adr_r      = 5'b10000;
++            WAIT_DATA: wb_adr_r      = 5'b00000;
++            READ_INST: wb_adr_r      = 5'b00000;
++            default: wb_adr_r       = 5'b00000;
++        endcase
++    end
++
++    assign  wb_we_i         = ((current_state == SPI_TX0) || (current_state == SPI_DIV) || (current_state == SPI_SS) || (current_state == SPI_CTRL)) ? 1'b1 : 1'b0;
++    assign  wb_stb_i        = ((current_state == IDLE)) ? 1'b0 : 1'b1;
++    assign  wb_cyc_i        = ((current_state == IDLE)) ? 1'b0 : 1'b1;
++
++    always @(*) begin
++        case(current_state)
++            SPI_TX0:  wb_dat_r     = spi_cmd;       // 0
++            SPI_DIV:  wb_dat_r     = 32'h00000004;  // 
++            SPI_SS:   wb_dat_r     = 32'h00000001;
++            SPI_CTRL: wb_dat_r     = 32'h00002740;
++            default:  wb_dat_r     = 32'h00000000;
++        endcase
++    end
++
++    assign  spi_cmd         = (reset == 1'b1) ? 32'h0 : { 8'h03, in_paddr[23:0]};
++
++
++    reg     [3:0]       wb_sel_r;
++
++    assign  wb_sel_i = wb_sel_r;
++
++
++    always @(*) begin
++        case(current_state)
++            IDLE:       wb_sel_r    = 4'b0000;
++            SPI_TX0:    wb_sel_r    = 4'b1111;
++            SPI_DIV:    wb_sel_r    = 4'b0001;
++            SPI_SS:     wb_sel_r    = 4'b0001;
++            SPI_CTRL:   wb_sel_r    = 4'b0011;
++            WAIT_DATA:  wb_sel_r    = 4'b1111;
++            READ_INST:  wb_sel_r    = 4'b1111;
++            default: wb_sel_r    = 4'b0000;
++        endcase 
++    end
++
++
++
++
++
++endmodule
+diff --git a/perip/spi/rtl/spi_defines.v b/perip/spi/rtl/spi_defines.v
+index 0de93ed2..a44dac95 100644
+--- a/perip/spi/rtl/spi_defines.v
++++ b/perip/spi/rtl/spi_defines.v
+@@ -43,8 +43,8 @@
+ // low frequency of system clock this can be reduced.
+ // Use SPI_DIVIDER_LEN for fine tuning theexact number.
+ //
+-//`define SPI_DIVIDER_LEN_8
+-`define SPI_DIVIDER_LEN_16
++`define SPI_DIVIDER_LEN_8
++// `define SPI_DIVIDER_LEN_16
+ //`define SPI_DIVIDER_LEN_24
+ //`define SPI_DIVIDER_LEN_32
+ 
+@@ -67,7 +67,7 @@
+ // SPI_MAX_CHAR_32, SPI_MAX_CHAR_24, SPI_MAX_CHAR_16, SPI_MAX_CHAR_8.
+ //
+ `define SPI_MAX_CHAR_128
+-//`define SPI_MAX_CHAR_64
++// `define SPI_MAX_CHAR_64
+ //`define SPI_MAX_CHAR_32
+ //`define SPI_MAX_CHAR_24
+ //`define SPI_MAX_CHAR_16
+@@ -103,7 +103,7 @@
+ // exact number.
+ //
+ `define SPI_SS_NB_8
+-//`define SPI_SS_NB_16
++// `define SPI_SS_NB_16
+ //`define SPI_SS_NB_24
+ //`define SPI_SS_NB_32
+ 
+diff --git a/perip/spi/rtl/spi_shift.v b/perip/spi/rtl/spi_shift.v
+index fac52a42..fe85325e 100644
+--- a/perip/spi/rtl/spi_shift.v
++++ b/perip/spi/rtl/spi_shift.v
+@@ -230,7 +230,7 @@ module spi_shift (clk, rst, latch, byte_sel, len, lsb, go,
+ `endif
+ `endif
+     else
+-      data[rx_bit_pos[`SPI_CHAR_LEN_BITS-1:0]] <= #Tp rx_clk ? s_in : data[rx_bit_pos[`SPI_CHAR_LEN_BITS-1:0]];
++      data[rx_bit_pos[`SPI_CHAR_LEN_BITS-1:0] - 1'b1] <= #Tp rx_clk ? s_in : data[rx_bit_pos[`SPI_CHAR_LEN_BITS-1:0] - 1'b1];
+   end
+ 
+ endmodule
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d37516..3ecfbf12 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-//`define FAST_FLASH
++// `define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+@@ -48,26 +48,68 @@ assign in_prdata  = data[31:0];
+ 
+ `else
+ 
++
++  wire  [4:0]         wb_adr_i;
++  wire  [31:0]        wb_dat_i;
++  wire  [31:0]        wb_dat_o;
++  wire  [3:0]         wb_sel_i;
++  wire                wb_we_i;
++  wire                wb_stb_i;
++  wire                wb_cyc_i;
++  wire                wb_ack_o;
++  wire                wb_err_o;
++  wire                wb_int_o;
++
++  // wire  [7:0]         ss_pad_o;
++
+ spi_top u0_spi_top (
+   .wb_clk_i(clock),
+   .wb_rst_i(reset),
+-  .wb_adr_i(in_paddr[4:0]),
+-  .wb_dat_i(in_pwdata),
+-  .wb_dat_o(in_prdata),
+-  .wb_sel_i(in_pstrb),
+-  .wb_we_i (in_pwrite),
+-  .wb_stb_i(in_psel),
+-  .wb_cyc_i(in_penable),
+-  .wb_ack_o(in_pready),
+-  .wb_err_o(in_pslverr),
+-  .wb_int_o(spi_irq_out),
+-
++  .wb_adr_i(wb_adr_i),
++  .wb_dat_i(wb_dat_i),
++  .wb_dat_o(wb_dat_o),
++  .wb_sel_i(wb_sel_i),
++  .wb_we_i (wb_we_i),
++  .wb_stb_i(wb_stb_i),
++  .wb_cyc_i(wb_cyc_i),
++  .wb_ack_o(wb_ack_o),
++  .wb_err_o(wb_err_o),
++  .wb_int_o(wb_int_o),
+   .ss_pad_o(spi_ss),
+   .sclk_pad_o(spi_sck),
+   .mosi_pad_o(spi_mosi),
+   .miso_pad_i(spi_miso)
+ );
+ 
++
++  XIP u_xip(
++    .clk                (clock      ),
++    .reset              (reset      ),
++    .in_paddr           (in_paddr),   
++    .in_psel            (in_psel),  
++    .in_penable         (in_penable),     
++    .in_pprot           (in_pprot),   
++    .in_pwrite          (in_pwrite),    
++    .in_pwdata          (in_pwdata),    
++    .in_pstrb           (in_pstrb),   
++    .in_pready          (in_pready    ),    
++    .in_prdata          (in_prdata    ),    
++    .in_pslverr         (in_pslverr   ),
++    
++    .wb_adr_i           (wb_adr_i     ),  
++    .wb_dat_i           (wb_dat_i     ),  
++    .wb_dat_o           (wb_dat_o     ),  
++    .wb_sel_i           (wb_sel_i     ),  
++    .wb_we_i            (wb_we_i      ), 
++    .wb_stb_i           (wb_stb_i     ),  
++    .wb_cyc_i           (wb_cyc_i     ),  
++    .wb_ack_o           (wb_ack_o     ),  
++    .wb_err_o           (wb_err_o     ),  
++    .wb_int_o           (wb_int_o     ),
++    .ss_pad_o           (spi_ss)
++  );
++
++
+ `endif // FAST_FLASH
+ 
+ endmodule
+diff --git a/perip/uart16550/rtl/uart_regs.v b/perip/uart16550/rtl/uart_regs.v
+index b48d1d6c..b4762fb8 100644
+--- a/perip/uart16550/rtl/uart_regs.v
++++ b/perip/uart16550/rtl/uart_regs.v
+@@ -410,9 +410,9 @@ always @(dl or dlab or ier or iir or scratch
+             or lcr or lsr or msr or rf_data_out or wb_addr_i or wb_re_i)   // asynchrounous reading
+ begin
+     case (wb_addr_i)
+-        `UART_REG_RB   : wb_dat_o = dlab ? dl[`UART_DL1] : rf_data_out[10:3];
+-        `UART_REG_IE   : wb_dat_o = dlab ? dl[`UART_DL2] : {4'b0, ier};
+-        `UART_REG_II   : wb_dat_o = {4'b1100,iir};
++        `UART_REG_RB   : wb_dat_o = dlab ? dl[`UART_DL1] : rf_data_out[10:3]; // receiver buffer
++        `UART_REG_IE   : wb_dat_o = dlab ? dl[`UART_DL2] : {4'b0, ier}; // Interrupt enable
++        `UART_REG_II   : wb_dat_o = {4'b1100,iir}; // 
+         `UART_REG_LC   : wb_dat_o = lcr;
+         `UART_REG_LS   : wb_dat_o = lsr;
+         `UART_REG_MS   : wb_dat_o = msr;
+@@ -492,7 +492,7 @@ always @(posedge clk or posedge wb_rst_i)
+         dl[`UART_DL2] <= #1 8'b0;
+     end
+     else
+-    if (wb_we_i && wb_addr_i==`UART_REG_IE)
++    if (wb_we_i && wb_addr_i==`UART_REG_IE) // Interrupt enable
+         if (dlab)
+         begin
+             dl[`UART_DL2] <= #1 wb_dat_i;
+@@ -543,7 +543,7 @@ always @(posedge clk or posedge wb_rst_i)
+         start_dlc <= #1 1'b0;
+     end
+     else
+-    if (wb_we_i && wb_addr_i==`UART_REG_TR)
++    if (wb_we_i && wb_addr_i==`UART_REG_TR) // transmitter
+         if (dlab)
+         begin
+             dl[`UART_DL1] <= #1 wb_dat_i;
+@@ -600,7 +600,7 @@ assign lsr1 = rf_overrun;     // Receiver overrun error
+ assign lsr2 = rf_data_out[1]; // parity error bit
+ assign lsr3 = rf_data_out[0]; // framing error bit
+ assign lsr4 = rf_data_out[2]; // break error in the character
+-assign lsr5 = (tf_count==5'b0 && thre_set_en);  // transmitter fifo is empty
++assign lsr5 = (tf_count==5'b0 && thre_set_en);  // transmitter fifo is full
+ assign lsr6 = (tf_count==5'b0 && thre_set_en && (tstate == /*`S_IDLE */ 0)); // transmitter empty
+ assign lsr7 = rf_error_bit | rf_overrun;
+ 
+diff --git a/perip/uart16550/rtl/uart_top_apb.v b/perip/uart16550/rtl/uart_top_apb.v
+index cd327a03..45f5c9a4 100644
+--- a/perip/uart16550/rtl/uart_top_apb.v
++++ b/perip/uart16550/rtl/uart_top_apb.v
+@@ -28,6 +28,7 @@ module uart_top_apb (
+    wire [2:0] reg_adr;
+    reg  [7:0] reg_dat8_w; // write to reg
+    reg  [7:0] reg_dat8_w_reg;
++   reg  [2:0] reg_adr_r;
+    wire [7:0] reg_dat8_r; // read from reg
+    wire       rts_internal;
+    assign     rtsn = ~rts_internal;
+@@ -36,10 +37,27 @@ module uart_top_apb (
+    assign in_pslverr = 1'b0;
+    assign reg_we  = ~reset & in_psel & ~in_penable &  in_pwrite;
+    assign reg_re  = ~reset & in_psel & ~in_penable & ~in_pwrite;
+-   assign reg_adr = in_paddr[2:0]; //assign adr_o   = in_paddr[2:0];
++  //  assign reg_adr = in_paddr[2:0]; //assign adr_o   = in_paddr[2:0];
++  assign reg_adr = reg_adr_r;
++
++   always @(*) begin
++    if(in_paddr[1:0] == 2'b00) begin
++      case(in_pstrb)
++        4'b1000: reg_adr_r = 3'b011;
++        4'b0100: reg_adr_r = 3'b010;
++        4'b0010: reg_adr_r = 3'b001;
++        4'b0001: reg_adr_r = 3'b000;
++        default: reg_adr_r = 3'b000;
++      endcase
++    end
++    else begin
++      reg_adr_r = in_paddr[2:0];
++    end
++   end
++
+    assign in_prdata  = (in_psel) ? {4{reg_dat8_r}} : 'h0;
+-   always @ (in_paddr[1:0] or in_pwdata) begin
+-             case (in_paddr[1:0])
++   always @ (reg_adr_r[1:0] or in_pwdata) begin
++             case (reg_adr_r[1:0])
+              `ifdef ENDIAN_BIG
+              2'b00: reg_dat8_w = #1 in_pwdata[31:24];
+              2'b01: reg_dat8_w = #1 in_pwdata[23:16];
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 1c65cd87..d622bb40 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -33,6 +33,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+ 
+   val luart = LazyModule(new APBUart16550(AddressSet.misaligned(0x10000000, 0x1000)))
+   val lgpio = LazyModule(new APBGPIO(AddressSet.misaligned(0x10002000, 0x10)))
++  val lclint = LazyModule(new APBCLINT(AddressSet.misaligned(0x02000000, 0x10)))
+   val lkeyboard = LazyModule(new APBKeyboard(AddressSet.misaligned(0x10011000, 0x8)))
+   val lvga = LazyModule(new APBVGA(AddressSet.misaligned(0x21000000, 0x200000)))
+   val lspi  = LazyModule(new APBSPI(
+@@ -43,11 +44,11 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+   val lmrom = LazyModule(new AXI4MROM(AddressSet.misaligned(0x20000000, 0x1000)))
+   val sramNode = AXI4RAM(AddressSet.misaligned(0x0f000000, 0x2000).head, false, true, 4, None, Nil, false)
+ 
+-  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, 0x2000000)
++  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, 0x4000000)
+   val lsdram_apb = if (!Config.sdramUseAXI) Some(LazyModule(new APBSDRAM (sdramAddressSet))) else None
+   val lsdram_axi = if ( Config.sdramUseAXI) Some(LazyModule(new AXI4SDRAM(sdramAddressSet))) else None
+ 
+-  List(lspi.node, luart.node, lpsram.node, lgpio.node, lkeyboard.node, lvga.node).map(_ := apbxbar)
++  List(lspi.node, luart.node, lpsram.node, lgpio.node, lclint.node, lkeyboard.node, lvga.node).map(_ := apbxbar)
+   List(apbxbar := APBDelayer() := AXI4ToAPB() := AXI4Buffer(), lmrom.node, sramNode).map(_ := xbar2)
+   xbar2 := AXI4UserYanker(Some(1)) := AXI4Fragmenter() := xbar
+   if (Config.sdramUseAXI) lsdram_axi.get.node := ysyx.AXI4Delayer() := xbar
+@@ -88,6 +89,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+     val psram = IO(chiselTypeOf(lpsram.module.qspi_bundle))
+     val sdram = IO(chiselTypeOf(sdramBundle))
+     val gpio = IO(chiselTypeOf(lgpio.module.gpio_bundle))
++    val clint = IO(chiselTypeOf(lclint.module.clint_bundle))
+     val ps2 = IO(chiselTypeOf(lkeyboard.module.ps2_bundle))
+     val vga = IO(chiselTypeOf(lvga.module.vga_bundle))
+     uart <> luart.module.uart
+@@ -95,6 +97,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+     psram <> lpsram.module.qspi_bundle
+     sdram <> sdramBundle
+     gpio <> lgpio.module.gpio_bundle
++    clint <> lclint.module.clint_bundle
+     ps2 <> lkeyboard.module.ps2_bundle
+     vga <> lvga.module.vga_bundle
+   }
+@@ -147,11 +150,13 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+ 
+     val externalPins = IO(new Bundle{
+       val gpio = chiselTypeOf(masic.gpio)
++      val clint = chiselTypeOf(masic.clint)
+       val ps2 = chiselTypeOf(masic.ps2)
+       val vga = chiselTypeOf(masic.vga)
+       val uart = chiselTypeOf(masic.uart)
+     })
+     externalPins.gpio <> masic.gpio
++    externalPins.clint <> masic.clint
+     externalPins.ps2 <> masic.ps2
+     externalPins.vga <> masic.vga
+     externalPins.uart <> masic.uart
+diff --git a/src/device/CLINT.scala b/src/device/CLINT.scala
+new file mode 100644
+index 00000000..42347a6d
+--- /dev/null
++++ b/src/device/CLINT.scala
+@@ -0,0 +1,52 @@
++package ysyx
++
++import chisel3._
++import chisel3.util._
++
++import freechips.rocketchip.amba.apb._
++import org.chipsalliance.cde.config.Parameters
++import freechips.rocketchip.diplomacy._
++import freechips.rocketchip.util._
++
++class CLINTIO extends Bundle {
++//   val out = Output(UInt(16.W))
++//   val in = Input(UInt(16.W))
++//   val seg = Output(Vec(8, UInt(8.W)))
++}
++
++class CLINTCtrlIO extends Bundle {
++  val clock = Input(Clock())
++  val reset = Input(Reset())
++  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++  val clint = new CLINTIO
++}
++
++class clint_top_apb extends BlackBox {
++  val io = IO(new CLINTCtrlIO)
++}
++
++class clintChisel extends Module {
++  val io = IO(new CLINTCtrlIO)
++}
++
++class APBCLINT(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
++  val node = APBSlaveNode(Seq(APBSlavePortParameters(
++    Seq(APBSlaveParameters(
++      address       = address,
++      executable    = true,
++      supportsRead  = true,
++      supportsWrite = true)),
++    beatBytes  = 4)))
++
++  lazy val module = new Impl
++  class Impl extends LazyModuleImp(this) {
++    val (in, _) = node.in(0)
++    val clint_bundle = IO(new CLINTIO)
++
++    val mclint = Module(new clint_top_apb)
++    mclint.io.clock := clock
++    mclint.io.reset := reset
++    mclint.io.in <> in
++    clint_bundle <> mclint.io.clint
++  }
++}
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index a823c718..f3e9734c 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -11,16 +11,17 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ 
+ class SDRAMIO extends Bundle {
+-  val clk = Output(Bool())
+-  val cke = Output(Bool())
+-  val cs  = Output(Bool())
+-  val ras = Output(Bool())
+-  val cas = Output(Bool())
+-  val we  = Output(Bool())
+-  val a   = Output(UInt(13.W))
+-  val ba  = Output(UInt(2.W))
+-  val dqm = Output(UInt(2.W))
+-  val dq  = Analog(16.W)
++  val clk   = Output(Bool())
++  val cke   = Output(Bool())
++  val cs    = Output(Bool())
++  // val cs_1  = Output(Bool())
++  val ras   = Output(Bool())
++  val cas   = Output(Bool())
++  val we    = Output(Bool())
++  val a     = Output(UInt(13.W))
++  val ba    = Output(UInt(2.W))
++  val dqm   = Output(UInt(4.W))
++  val dq    = Analog(32.W)
+ }
+ 
+ class sdram_top_axi extends BlackBox {
+-- 
+2.34.1
+

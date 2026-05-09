@@ -1,0 +1,78 @@
+From 28ef42a792c6f283a0e364ea6135b07b14945fa8 Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Thu, 22 Jan 2026 10:37:13 +0800
+Subject: [PATCH 09/27] commit_0122_difftest
+
+---
+ .gitignore                |  1 +
+ csrc/src/difftest/dut.cpp |  6 ++++--
+ csrc/src/npc-exec.cpp     | 10 ++++++++++
+ 3 files changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index fe935b9a..9d92e898 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,6 +2,7 @@ build/
+ out/
+ *.vcd
+ *.fst
++*.fst.hier
+ obj_dir/
+ sta_result/
+ sdc/
+diff --git a/csrc/src/difftest/dut.cpp b/csrc/src/difftest/dut.cpp
+index 460a9872..95bdfa32 100644
+--- a/csrc/src/difftest/dut.cpp
++++ b/csrc/src/difftest/dut.cpp
+@@ -20,6 +20,9 @@
+ #include <paddr.h>
+ #include <utils.h>
+ #include <flash.h>
++#include "svdpi.h"
++#include "VysyxSoCFull__Dpi.h"
++#include <cpu/difftest.h>
+ // #include <difftest-def.h>
+ 
+ void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) = NULL;
+@@ -57,7 +60,7 @@ bool isa_difftest_checkregs(NPC_state *ref_r, vaddr_t pc) {
+ 
+ // this is used to let ref skip instructions which
+ // can not produce consistent behavior with NEMU
+-void difftest_skip_ref() {
++extern "C" void difftest_skip_ref() {
+   is_skip_ref = true;
+   // If such an instruction is one of the instruction packing in QEMU
+   // (see below), we end the process of catching up with QEMU's pc to
+@@ -117,7 +120,6 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
+       "If it is not necessary, you can turn it off in menuconfig.", ref_so_file);
+ 
+   ref_difftest_init(port);
+-  printf("120 mark\n");
+   ref_difftest_memcpy(0x30000000, guest_to_host_flash(0x0), img_size, DIFFTEST_TO_REF);
+   ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
+ }
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+index 0b30352b..c67456e2 100644
+--- a/csrc/src/npc-exec.cpp
++++ b/csrc/src/npc-exec.cpp
+@@ -74,6 +74,16 @@ const char *regs[] = {
+   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
+ };
+ 
++#ifdef CONFIG_DIFFTEST
++extern "C" svBit in_mem(int addr){
++  uint32_t addr_r = (uint32_t)addr;
++  if(((addr >= 0x30000000) && (addr < 0x31000000)) || ((addr >= 0xa0000000) && (addr < 0xa4000000))){
++    return 0;
++  }
++  return 1;
++}
++#endif
++
+ void step_and_dump_wave(){
+     top->clock = !top->clock; // 翻转时钟
+     top->eval();
+-- 
+2.34.1
+

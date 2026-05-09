@@ -1,0 +1,688 @@
+From ef3e37716b430c39db99006b2d1b9e0fe7a06809 Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Sat, 7 Feb 2026 11:15:32 +0800
+Subject: [PATCH 10/27] commit_0207
+
+---
+ csrc/include/cpu/difftest.h                  |   2 +-
+ csrc/src/difftest/dut.cpp                    |   3 +-
+ csrc/src/npc-exec.cpp                        |  12 +-
+ csrc/src/sdram.cpp                           |   4 +-
+ perip/amba/axi4_delayer.v                    | 221 ++++++++++++++++++-
+ perip/sdram/core_sdram_axi4/sdram_axi.v      |  12 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |   4 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_pmem.v |   2 +-
+ perip/sdram/sdram.v                          | 103 +++++----
+ perip/sdram/sdram_top_axi.v                  |  16 +-
+ src/Top.scala                                |   2 +-
+ 11 files changed, 296 insertions(+), 85 deletions(-)
+
+diff --git a/csrc/include/cpu/difftest.h b/csrc/include/cpu/difftest.h
+index 11719255..26531c42 100644
+--- a/csrc/include/cpu/difftest.h
++++ b/csrc/include/cpu/difftest.h
+@@ -20,7 +20,7 @@
+ // #include <difftest-def.h>
+ 
+ #ifdef CONFIG_DIFFTEST
+-void difftest_skip_ref();
++extern "C" void difftest_skip_ref();
+ // void difftest_skip_load();
+ void difftest_skip_dut(int nr_ref, int nr_dut);
+ void difftest_set_patch(void (*fn)(void *arg), void *arg);
+diff --git a/csrc/src/difftest/dut.cpp b/csrc/src/difftest/dut.cpp
+index 95bdfa32..d2874300 100644
+--- a/csrc/src/difftest/dut.cpp
++++ b/csrc/src/difftest/dut.cpp
+@@ -41,7 +41,7 @@ static int skip_dut_nr_inst = 0;
+ 
+ bool isa_difftest_checkregs(NPC_state *ref_r, vaddr_t pc) {
+ 
+-  // printf("%08x %08x %08x\n", pc, ref_r->pc, cpu.pc);
++  // log_write("%08x %08x %08x\n", pc, ref_r->pc, cpu.pc);
+   if(cpu.pc != ref_r->pc){
+     printf("41 %08x, %08x\n", cpu.pc, ref_r->pc);
+     return false;
+@@ -70,6 +70,7 @@ extern "C" void difftest_skip_ref() {
+   // will load that memory, we will encounter false negative. But such
+   // situation is infrequent.
+   skip_dut_nr_inst = 0;
++  // printf("73 skip\n");
+ }
+ 
+ // void difftest_skip_load() {
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+index c67456e2..04cdc118 100644
+--- a/csrc/src/npc-exec.cpp
++++ b/csrc/src/npc-exec.cpp
+@@ -44,9 +44,9 @@ static uint64_t g_timer = 0; // unit: us
+ // static uint64_t timer_end = 0;
+ 
+ static bool g_print_step = false;
+-#ifdef CONFIG_DIFFTEST
++// #ifdef CONFIG_DIFFTEST
+ static bool difftest_skip_first = false;
+-#endif
++// #endif
+ 
+ VerilatedContext* contextp = NULL;
+ #ifdef CONFIG_VCD_TRACE
+@@ -157,7 +157,7 @@ void exit_npc(){
+ 
+ /*reg function*/
+ static inline int check_reg_idx(int idx) {
+-  IFDEF(CONFIG_RT_CHECK, assert(idx >= 0 && idx < 32));
++  IFDEF(CONFIG_RT_CHECK, assert(idx >= 0 && idx < 16));
+   return idx;
+ }
+ 
+@@ -249,15 +249,17 @@ static void npc_once(){
+ 
+   IFDEF(CONFIG_DIFFTEST, state_copy());
+   // state_copy();
+-  if(top->reset == 0 && top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__current_state == 0){ // or EXU finish one inst
++  if(top->reset == 0 && top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IFU_ysyx__DOT__current_state == 1){ // or EXU finish one inst
+     if(difftest_skip_first == true){// 跳过第一次difftest
++      // IFDEF(CONFIG_DIFFTEST, state_copy());
+       // printf("pc = %08x, Next_pc = %08x\n", top->pc, top->Next_pc);
+-      trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, inst_now);
++      trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IFU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_IFU_ysyx__DOT__pc_r, inst_now);
+     }
+     else{
+       difftest_skip_first = true;
+     }
+     g_nr_guest_inst ++;
++    // printf("262 %d\n", g_nr_guest_inst);
+   }
+   
+ 
+diff --git a/csrc/src/sdram.cpp b/csrc/src/sdram.cpp
+index aa8cf9c9..ad0d09d6 100644
+--- a/csrc/src/sdram.cpp
++++ b/csrc/src/sdram.cpp
+@@ -43,7 +43,7 @@ extern "C" void sdram0_read(char bank, short row, short col, int *data){
+         // printf("read %08x, %08x\n", addr, temp);
+         temp = sdram[temp_bank][temp_col][temp_row];
+         *data = (int)temp;
+-        // printf("read %04x, %04x, %04x\n", temp_col, temp_row, temp);
++        // printf("read %04x, %04x, %08x\n", temp_col, temp_row, temp);
+     }
+     else{
+       printf("%04x, %04x, %04x\n", temp_bank, temp_col, temp_row);
+@@ -65,7 +65,7 @@ extern "C" void sdram0_write(char bank, short row, short col, char mask, int dat
+     if(mask == 0x00){
+ 
+       sdram[temp_bank][temp_col][temp_row] = temp_data;
+-      // printf("write %04x, %04x, %04x, %08x\n", temp_col, temp_row, (uint32_t)temp_data);
++      // printf("write %04x, %04x, %04x, %08x\n", temp_bank, temp_col, temp_row, (uint32_t)temp_data);
+     }
+     else if(mask == 0x0E){ // 1110
+       sdram[temp_bank][temp_col][temp_row] = (sdram[temp_bank][temp_col][temp_row] & 0xFFFFFF00) | (temp_data & 0x000000FF);
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803b..123b4a6c 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -70,12 +70,12 @@ module axi4_delayer(
+   assign out_arlen = in_arlen;
+   assign out_arsize = in_arsize;
+   assign out_arburst = in_arburst;
+-  assign out_rready = in_rready;
+-  assign in_rvalid = out_rvalid;
+-  assign in_rid = out_rid;
+-  assign in_rdata = out_rdata;
++  // assign out_rready = in_rready;
++  // assign in_rvalid = out_rvalid;
++  // assign in_rid = out_rid;
++  // assign in_rdata = out_rdata;
+   assign in_rresp = out_rresp;
+-  assign in_rlast = out_rlast;
++  // assign in_rlast = out_rlast;
+   assign in_awready = out_awready;
+   assign out_awvalid = in_awvalid;
+   assign out_awid = in_awid;
+@@ -88,9 +88,212 @@ module axi4_delayer(
+   assign out_wdata = in_wdata;
+   assign out_wstrb = in_wstrb;
+   assign out_wlast = in_wlast;
+-  assign out_bready = in_bready;
+-  assign in_bvalid = out_bvalid;
+-  assign in_bid = out_bid;
+-  assign in_bresp = out_bresp;
++  // assign out_bready = in_bready;
++  // assign in_bvalid = out_bvalid;
++  // assign in_bid = out_bid;
++  // assign in_bresp = out_bresp;
++
++  // read
++  reg   [31:0]    total_read;
++  reg   [31:0]    counter_read;
++
++  // write
++  reg   [31:0]    total_wr;
++  reg   [31:0]    counter_wr;
++
++  localparam  R   = 8;
++
++  localparam  IDLE_READ     = 0;
++  // localparam  WAIT_RDATA    = 1;
++  localparam  BACK_READ     = 1;
++
++  localparam  IDLE_WR       = 0;
++  localparam  BACK_WR       = 1;
++
++  reg   [31:0]  latency_read  [7:0];
++  reg   [31:0]  fifo_rdata    [7:0];
++  reg   [3:0]   fifo_rid      [7:0];
++  reg   [0:0]   fifo_rlast    [7:0];
++  reg   [7:0]   read_len;
++  reg   [2:0]   wpt_r;
++  reg   [2:0]   rpt_r;
++  reg   [1:0]   current_read;
++  reg   [1:0]   next_read;
++  reg   [1:0]   state_wr;
++
++  always @(posedge clock or posedge reset) begin
++    if(reset) begin
++      current_read  <= IDLE_READ;
++    end
++    else begin
++      current_read  <= next_read;
++    end
++  end
++
++  always @(*) begin // rid = 0
++
++    case(current_read)
++      
++      IDLE_READ: begin // address 
++        if(in_arvalid == 1'b1) begin
++          next_read    = BACK_READ;
++        end
++        else begin
++          next_read    = IDLE_READ;
++        end
++      end
++
++      BACK_READ: begin
++        if(in_rlast) begin
++          next_read    = IDLE_READ;
++        end
++        else begin
++          next_read    = BACK_READ;
++        end
++      end
++
++      default: begin
++        next_read   = IDLE_READ;
++      end
++    endcase
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset) begin
++      read_len   <= 8'h00;
++    end
++    else begin
++      if(in_arvalid == 1'b1 && in_arready == 1'b1) begin
++        read_len   <= in_arlen;
++      end
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset) begin
++      wpt_r   <= 3'h0;
++    end
++    else begin
++      if(out_rvalid && out_rready) begin
++        wpt_r               <= wpt_r + 1;
++        fifo_rdata[wpt_r]   <= out_rdata;
++        latency_read[wpt_r] <= total_read;
++        fifo_rid[wpt_r]     <= out_rid;
++        fifo_rlast[wpt_r]   <= out_rlast;
++      end
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset) begin
++      rpt_r   <= 3'h0;
++    end
++    else begin
++      if((latency_read[rpt_r] == counter_read) && (counter_read != 0)) begin
++        rpt_r <= rpt_r + 1;
++      end
++    end
++  end
++
++  always @(posedge clock) begin
++    if(rpt_r == wpt_r + 1) begin
++      $display("%h, %h", rpt_r, wpt_r);
++      assert(0);
++    end
++    // assert(rpt_r == wpt_r + 1);
++  end
++
++  assign  in_rdata    = fifo_rdata[rpt_r];
++  assign  in_rvalid   = (latency_read[rpt_r] == counter_read) && (counter_read != 0);
++  assign  in_rid      = fifo_rid[rpt_r];
++  assign  in_rlast    = ((latency_read[rpt_r] == counter_read) && (counter_read != 0)) ? fifo_rlast[rpt_r] : 1'b0;
++  assign  out_rready  = (current_read == BACK_READ);
++
++  always @(posedge clock or posedge reset) begin
++    if(reset) begin
++      total_read    <= 32'h0;
++      counter_read  <= 32'h0;
++    end
++    else begin
++      if(current_read == BACK_READ) begin
++        total_read     <= total_read + R;
++        counter_read   <= counter_read + 1;
++      end
++      else if (current_read == IDLE_READ) begin
++        total_read   <= 32'h0;
++        counter_read <= 32'h0;
++      end
++    end
++  end
++
++  reg   [31:0]  latency_wr;
++  reg   [1:0]   fifo_bresp;
++  reg   [3:0]   fifo_bid;
++  // reg   [0:0]   fifo_wlast;
++
++  always @(posedge clock or posedge reset) begin
++    if(reset) begin
++      state_wr    <= IDLE_WR;
++    end 
++    else begin
++      case(state_wr)
++        IDLE_WR: begin
++          if(in_awvalid) begin
++            state_wr    <= BACK_WR;
++          end
++          else begin
++            state_wr    <= IDLE_WR;
++          end 
++        end
++
++        BACK_WR: begin
++          if(in_bvalid) begin
++            state_wr    <= IDLE_WR;
++          end
++          else begin
++            state_wr    <= BACK_WR;
++          end
++        end
++
++        default: begin
++          state_wr    <= IDLE_WR;
++        end
++
++      endcase
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset) begin
++      total_wr    <= 32'h0;
++      counter_wr  <= 32'h0;
++    end
++    else begin
++      if(state_wr == BACK_WR) begin
++        total_wr     <= total_wr + R;
++        counter_wr   <= counter_wr + 1;
++      end
++      else if (state_wr == IDLE_WR) begin
++        total_wr   <= 32'h0;
++        counter_wr <= 32'h0;
++      end
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(out_bvalid && out_bready) begin
++      fifo_bresp   <= out_bresp;
++      latency_wr   <= total_wr;
++      fifo_bid     <= out_bid;
++      // fifo_wlast   <= out_wlast;
++    end
++  end
++
++  assign  in_bresp    = fifo_bresp;
++  assign  in_bvalid   = (latency_wr == counter_wr) && (counter_wr != 0);
++  assign  in_bid      = fifo_bid;
++  // assign  in_wlast    = ((latency_wr == counter_wr) && (counter_wr != 0)) ? fifo_wlast : 1'b0;
++  assign  out_bready  = (state_wr == BACK_WR);
++
+ 
+ endmodule
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f58..f1cf4c7a 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -86,9 +86,9 @@ module sdram_axi
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ             = 50;
+-parameter SDRAM_ADDR_W          = 24;
+-parameter SDRAM_COL_W           = 9;
+-parameter SDRAM_READ_LATENCY    = 2;
++parameter SDRAM_ADDR_W          = 25;
++parameter SDRAM_COL_W           = 10;
++parameter SDRAM_READ_LATENCY    = 1;
+ 
+ //-----------------------------------------------------------------
+ // AXI Interface
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index e2884d8c..7cb71cbe 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -70,7 +70,7 @@ module sdram_axi_core
+ parameter SDRAM_MHZ              = 50;
+ parameter SDRAM_ADDR_W           = 25;
+ parameter SDRAM_COL_W            = 10; 
+-parameter SDRAM_READ_LATENCY     = 2; // 可在模块梨花
++parameter SDRAM_READ_LATENCY     = 1;
+ 
+ //-----------------------------------------------------------------
+ // Defines / Local params
+@@ -134,7 +134,7 @@ wire          ram_ack_w;
+ 
+ wire          ram_req_w = (ram_wr_w != 4'b0) | ram_rd_w;
+ 
+-assign inport_ack_o       = ram_ack_w;
++assign inport_ack_o       = ram_ack_w && (dqm_q != 4'hf);
+ assign inport_read_data_o = ram_read_data_w;
+ assign inport_error_o     = 1'b0;
+ assign inport_accept_o    = ram_accept_w;
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v b/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+index 3d6a5bb4..908e007d 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+@@ -303,7 +303,7 @@ wire read_prio_w    = ((!req_prio_q & !req_hold_wr_q) | req_hold_rd_q);
+ wire write_active_w  = (axi_awvalid_i || req_wr_q) && !req_rd_q && req_fifo_accept_w && (write_prio_w || req_wr_q || !axi_arvalid_i);
+ wire read_active_w   = (axi_arvalid_i || req_rd_q) && !req_wr_q && req_fifo_accept_w && (read_prio_w || req_rd_q || !axi_awvalid_i);
+ 
+-assign axi_awready_o = write_active_w && !req_wr_q && ram_accept_i && req_fifo_accept_w;
++assign axi_awready_o = write_active_w && !req_wr_q && req_fifo_accept_w;
+ assign axi_wready_o  = write_active_w &&              ram_accept_i && req_fifo_accept_w;
+ assign axi_arready_o = read_active_w  && !req_rd_q && ram_accept_i && req_fifo_accept_w;
+ 
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 12dc8cd8..3301f489 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -25,14 +25,13 @@ module sdram(
+   reg   [12:0]    mode_reg;
+ 
+   reg   [31:0]    data;
+-  reg   [31:0]    data_wr;
++  wire  [31:0]    data_wr;
+ 
+   reg   [3:0]     mode;
+ 
+-  reg   [3:0]     mask;
++  wire   [3:0]    mask;
+ 
+-  reg            wen;
+-  wire            ren;
++  assign  mask  = dqm;
+ 
+   assign mode = {cs, ras, cas, we};
+ 
+@@ -42,13 +41,13 @@ module sdram(
+   reg   [2:0]     latency_cnt;
+   reg   [3:0]     burst_cnt;
+ 
+-  reg   [1:0]     bank;
+-  reg   [15:0]    col;
++  wire  [1:0]     bank;
++  wire  [15:0]    col;
+ 
+   reg   [15:0]    row_0;
+   reg   [15:0]    row_1;
+   reg   [15:0]    row_2;
+-  reg   [15:0]    row_3; 
++  reg   [15:0]    row_3;
+   reg   [15:0]    row;
+   // reg   [15:0]    row_r;
+ 
+@@ -82,15 +81,6 @@ module sdram(
+     end
+     else begin
+       case(state)
+-        // IDLE: begin
+-        //   if(mode == 4'b0011) begin
+-        //     state   <= ACTIVE;
+-        //   end
+-
+-        //   else begin
+-        //     state   <= IDLE;
+-        //   end
+-        // end
+ 
+         IDLE: begin
+           if(mode == 4'b0101) begin // read
+@@ -169,15 +159,15 @@ module sdram(
+   always @(posedge clk or negedge cke) begin // write
+     if(!cke) begin
+       // row   <= 16'h0000;
+-      data_wr <= 32'h0000;
++      // data_wr <= 32'h0000;
+       burst_cnt <= 4'h0;
+       latency_cnt <= 3'b000;
+-      bank    <= 2'b00;
++      // bank    <= 2'b00;
+       // ren   <= 1'b0;
+-      wen   <= 1'b0;
+-      mask  <= 4'b0000;
+-      bank  <= 2'b00;
+-      col   <= 16'h0000;
++      // wen   <= 1'b0;
++      // mask  <= 4'b0000;
++      // bank  <= 2'b00;
++      // col   <= 16'h0000;
+     end
+     else begin
+       // if(mode == 4'b0011) begin // active
+@@ -185,28 +175,28 @@ module sdram(
+       //   // row   <= {3'b000, a};
+       // end
+       if(mode == 4'b0100) begin // write
+-        col     <= {3'b000, a};
++        // col     <= {3'b000, a};
+         burst_cnt   <= burst_cnt + 1;
+-        data_wr <= dq;
+-        wen     <= 1'b1;
++        // data_wr <= dq;
++        // wen     <= 1'b1;
+         // ren   <= 1'b0;
+-        bank    <= ba;
+-        mask  <= dqm;
++        // bank    <= ba;
++        // mask  <= dqm;
+       end
+       else if(mode == 4'b0101) begin // read
+-        col   <= {3'b000, a};
++        // col   <= {3'b000, a};
+         latency_cnt <= latency_cnt + 1;
+         burst_cnt   <= burst_cnt + 1;
+-        wen   <= 1'b0;
+-        bank  <= ba;
++        // wen   <= 1'b0;
++        // bank  <= ba;
+         // col   <= {3'b000, a};
+       end
+       else if(mode == 4'b0111 && state == WRITE_BURST) begin // NOP
+         burst_cnt   <= burst_cnt + 1;
+-        col         <= col + 1;
+-        data_wr     <= dq;
+-        wen   <= 1'b0;
+-        mask  <= dqm;
++        // col         <= col + 1;
++        // data_wr     <= dq;
++        // wen   <= 1'b0;
++        // mask  <= dqm;
+       end
+       else if(mode == 4'b0111 && state == READ_LATENCY) begin
+         latency_cnt <= latency_cnt + 1;
+@@ -214,30 +204,47 @@ module sdram(
+       end
+       else if(mode == 4'b0111 && state == READ_BURST) begin
+         burst_cnt   <= burst_cnt + 1;
+-        col         <= col + 1;
++        // col         <= col + 1;
+         // ren         <= 1'b1;
+       end
+       else begin
+         burst_cnt   <= 4'h0;
+         latency_cnt <= 3'b000;
+         // ren   <= 1'b0;
+-        wen     <= 1'b0;
++        // wen     <= 1'b0;
+       //   bank    <= 2'b00;
+       //   col     <= 16'h0000;
+       end
+     end
+   end
+ 
+-  // assign wen = (mode == 4'b0100) ? 1'b1 : 1'b0;
++  // reg   [31:0] data_out;
++
++  // wire  [31:0] data_out_w;
++  // assign  data_out_w  = data_out;
+ 
+-  assign  ren = (state == READ_BURST) ? 1'b1 : 1'b0;
++  // always @(posedge clk or negedge cke) begin
++  //   if(!cke) begin
++  //     data_out    <= 32'h0000;
++  //   end
++  //   else begin
++  //     data_out    <= data;
++  //   end
++  // end
+ 
+-  assign  dq = (ren == 1'b1) ? data : 32'bz;
++  assign  bank  = ba;
++  assign  col   = (mode == 4'b0100 || mode == 4'b0101) ? {3'b000, a} : 16'h0000;
+ 
++  // assign wen = (mode == 4'b0100) ? 1'b1 : 1'b0;
++
++  // assign  ren = (state == READ_BURST) ? 1'b1 : 1'b0;
++  // assign  wen = (state == WRITE_BURST);
++
++  assign  dq = (mode == 4'b0100) ? 32'bz : data;
++  assign  data_wr = (mode == 4'b0100) ? dq : 32'b0;
+   sdram_cmd sdram_cmd_i(
+     .clock        (clk      ),
+-    .ren          (ren      ),
+-    .wen          (wen      ),
++    .mode         (mode     ),
+     .bank         (bank     ),
+     .mask         (mask     ),
+     .col          (col      ),
+@@ -253,8 +260,9 @@ import "DPI-C" function void sdram0_write(input byte bank, input shortint row, i
+ 
+ module sdram_cmd(
+     input               clock,
+-    input               ren,
+-    input               wen,
++    // input               ren,
++    // input               wen,
++    input       [3:0]   mode,
+     input       [3:0]   mask,
+     input       [1:0]   bank,
+     input       [15:0]  col, 
+@@ -263,17 +271,14 @@ module sdram_cmd(
+     output reg  [31:0]  data
+   );
+ 
+-  always@(*) begin // read
+-    if (ren) begin 
++  always@(posedge clock) begin // read
++    if (mode == 4'b0101) begin 
+       sdram0_read({6'b000000, bank}, row, col, data);
+     end
+-    else begin
+-      data = 32'h0000;
+-    end
+   end
+ 
+   always @(posedge clock) begin // write
+-    if(wen) begin
++    if(mode == 4'b0100) begin
+       sdram0_write({6'b000000, bank}, row, col, {4'b0000, mask}, data_wr);
+     end
+   end
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index 724bd8d8..e9d52dbe 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -37,20 +37,20 @@ module sdram_top_axi(
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [13:0] sdram_a,
++  output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
+-    .SDRAM_COL_W(9),
+-    .SDRAM_READ_LATENCY(2)
++    .SDRAM_ADDR_W(25),
++    .SDRAM_COL_W(10),
++    .SDRAM_READ_LATENCY(1)
+   ) u_sdram_axi(
+     .clk_i(clock),
+     .rst_i(reset),
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.34.1
+

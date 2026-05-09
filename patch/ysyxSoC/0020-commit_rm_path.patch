@@ -1,0 +1,25 @@
+From db47fc45ef3fb36c3503d0ab6736cd047e47aa89 Mon Sep 17 00:00:00 2001
+From: dengzibin <1447762756@qq.com>
+Date: Tue, 28 Apr 2026 18:04:34 +0800
+Subject: [PATCH 20/27] commit_rm_path
+
+---
+ Makefile | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index dc1a3d4a..84aceadd 100644
+--- a/Makefile
++++ b/Makefile
+@@ -17,8 +17,6 @@ OBJ_DIR = $(BUILD_DIR)/obj_dir
+ BIN = $(BUILD_DIR)/$(TOPNAME)
+ YSYXC_PATH = ./csrc/include
+ 
+-NPC_HOME = $(YSYX_HOME)/npc
+-
+ STA_HOME = /home/dengzibin/yosys-sta
+ 
+ default: $(BIN)
+-- 
+2.34.1
+

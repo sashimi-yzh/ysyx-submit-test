@@ -1,0 +1,25 @@
+From 70e5b40fba1f394b1a868564ce9ff45d58c28d62 Mon Sep 17 00:00:00 2001
+From: dengzibin <1447762756@qq.com>
+Date: Thu, 30 Apr 2026 13:15:53 +0800
+Subject: [PATCH 24/27] delay8
+
+---
+ perip/amba/axi4_delayer.v | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index e92ebb74..a1432152 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -100,7 +100,7 @@ module axi4_delayer(
+   reg   [31:0]    total_wr;
+   reg   [31:0]    counter_wr;
+ 
+-  localparam  R   = 4;
++  localparam  R   = 8;
+ 
+   localparam  IDLE_READ       = 0;
+   localparam  WAIT_OUT_RREADY = 2;
+-- 
+2.34.1
+

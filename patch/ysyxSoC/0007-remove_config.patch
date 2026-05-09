@@ -1,0 +1,22 @@
+From 7a58fcbb2c6dffb7258a62a4545f828b21686897 Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Mon, 19 Jan 2026 21:44:03 +0800
+Subject: [PATCH 07/27] remove_config
+
+---
+ .gitignore | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.gitignore b/.gitignore
+index b5c4908c..fe935b9a 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,4 +6,4 @@ obj_dir/
+ sta_result/
+ sdc/
+ vsrc/npc_config.vh
+-csrc/inlude/config.h
++csrc/include/config.h
+-- 
+2.34.1
+

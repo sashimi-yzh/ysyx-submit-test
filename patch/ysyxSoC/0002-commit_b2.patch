@@ -1,0 +1,19 @@
+From 32abdd3a5dce11837a3e9f2a5fc0a93b20c965fe Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Sat, 27 Dec 2025 19:43:13 +0800
+Subject: [PATCH 02/27] commit_b2
+
+---
+ rocket-chip | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rocket-chip b/rocket-chip
+index d0c6b50f..9fb8abd0 160000
+--- a/rocket-chip
++++ b/rocket-chip
+@@ -1 +1 @@
+-Subproject commit d0c6b50fdefcdbe121e9788433ea51f7efaf1d32
++Subproject commit 9fb8abd075aa49132df1d3c943d0c516443c519e
+-- 
+2.34.1
+

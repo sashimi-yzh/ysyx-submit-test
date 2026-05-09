@@ -1,0 +1,17 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.v
+!*.vh
+!*.cc
+!*.cpp
+!.gitignore
+!README.md
+build/
+obj_dir/
+*.vcd
+*.fst
+CacheSim/build/

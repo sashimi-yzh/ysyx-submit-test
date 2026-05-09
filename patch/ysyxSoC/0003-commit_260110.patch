@@ -1,0 +1,549 @@
+From 158f232d728ae0f26b8111deb85d7c0a7f991337 Mon Sep 17 00:00:00 2001
+From: 24011211232-Deng Xidian <1447762756@qq.com>
+Date: Sat, 10 Jan 2026 13:29:05 +0800
+Subject: [PATCH 03/27] commit_260110
+
+---
+ .gitignore                 |   5 ++
+ Makefile                   |  16 ++++-
+ csrc/include/config.h      |   2 +-
+ csrc/include/npc_counter.h |  12 ++++
+ csrc/src/npc-exec.cpp      |  28 ++++++--
+ csrc/src/npc_counter.cpp   |  54 +++++++++++++++
+ perip/amba/apb_delayer.v   | 134 +++++++++++++++++++++++++++++++++++--
+ perip/spi/rtl/XIP.v        |   2 +-
+ src/SoC.scala              |  12 ++--
+ src/device/CLINT.scala     |  52 --------------
+ 10 files changed, 242 insertions(+), 75 deletions(-)
+ create mode 100644 csrc/include/npc_counter.h
+ create mode 100644 csrc/src/npc_counter.cpp
+ delete mode 100644 src/device/CLINT.scala
+
+diff --git a/.gitignore b/.gitignore
+index 3c0160d0..f73c60ac 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,7 @@
+ build/
+ out/
++*.vcd
++*.fst
++obj_dir/
++sta_result/
++sdc/
+\ No newline at end of file
+diff --git a/Makefile b/Makefile
+index bfca5f74..4ddb5995 100644
+--- a/Makefile
++++ b/Makefile
+@@ -17,6 +17,8 @@ OBJ_DIR = $(BUILD_DIR)/obj_dir
+ BIN = $(BUILD_DIR)/$(TOPNAME)
+ YSYXC_PATH = /home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include
+ 
++STA_HOME = /home/dengzibin/yosys-sta
++
+ default: $(BIN)
+  
+ $(shell mkdir -p $(BUILD_DIR))
+@@ -30,13 +32,18 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
+ FIRTOOL_VERSION = 1.105.0
+ FIRTOOL_PATCH_DIR = $(shell pwd)/patch/firtool
+ 
+-VSRCS = $(shell find $(abspath ./vsrc) -name "*.v")
++VSRCS = $(shell find $(abspath ./vsrc) -name "*.v" -or -name "*.vh")
+ VSRCS += $(shell find $(abspath ./perip) -name "*.v")
+ VSRCS += $(shell find $(abspath ./build) -name "*.v")
++RTL_FILE = "$(shell find $(abspath ./vsrc) -name "*.v")"
+ CSRCS = $(shell find $(abspath ./csrc/src) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+ CSRCSS = $(shell find $(abspath ./csrc/src) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+ CSRCSS += $(SRC_AUTO_BIND)
+ 
++SDC_FILE = /home/dengzibin/ysyx-workbench/ysyxSoC/sdc/cpu_top.sdc
++RESULT_DIR = /home/dengzibin/ysyx-workbench/ysyxSoC/sta_result
++DESIGN = cpu_top
++
+ # rules for NVBoard
+ include $(NVBOARD_HOME)/scripts/nvboard.mk
+  
+@@ -59,7 +66,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
+-$(BIN): $(VSRCS) $(CSRCSS) $(NVBOARD_ARCHIVE)
++$(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
+ 	@rm -rf $(OBJ_DIR)
+ 	$(VERILATOR) $(VERILATOR_CFLAGS) \
+ 		--top-module $(TOPNAME) $^ \
+@@ -76,7 +83,7 @@ dev-init:
+ 	cd rocket-chip && git apply ../patch/rocket-chip.patch
+ 
+ run:
+-	verilator -Wno-fatal --cc $(VSRCS) --exe $(CSRCS) -LDFLAGS -lreadline -CFLAGS "-I/home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include" \
++	verilator -Wno-fatal --cc $(VSRCS) -I./vsrc/ --exe $(CSRCS) -LDFLAGS -lreadline -CFLAGS "-I/home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include" \
+ 		--top-module ysyxSoCFull --trace-fst --timescale "1ns/1ns" --autoflush --no-timing +incdir+./perip/uart16550/rtl +incdir+./perip/spi/rtl
+ 	make -C obj_dir -f VysyxSoCFull.mk VysyxSoCFull
+ 	./obj_dir/VysyxSoCFull $(ARGS) $(IMG)
+@@ -84,5 +91,8 @@ run:
+ nvboard: $(BIN)
+ 	@$^ $(ARGS) $(IMG)
+ 
++sta: 
++	make -C $(STA_HOME) sta DESIGN=$(DESIGN) SDC_FILE=$(SDC_FILE) CLK_FREQ_MHZ=800 CLK_PORT_NAME=clock \
++		O=$(RESULT_DIR) RTL_FILES=$(RTL_FILE)
+ 
+ .PHONY: verilog clean dev-init
+diff --git a/csrc/include/config.h b/csrc/include/config.h
+index 04acbebc..37b316c6 100644
+--- a/csrc/include/config.h
++++ b/csrc/include/config.h
+@@ -18,6 +18,6 @@
+ #define CONFIG_TIME 0xa0000070
+ #define CONFIG_WATCHPOINT 1
+ #define CONFIG_FTRACE 1
+-#define CONFIG_NVBOARD 1
++// #define CONFIG_NVBOARD 1
+ 
+ #endif
+\ No newline at end of file
+diff --git a/csrc/include/npc_counter.h b/csrc/include/npc_counter.h
+new file mode 100644
+index 00000000..d939c30d
+--- /dev/null
++++ b/csrc/include/npc_counter.h
+@@ -0,0 +1,12 @@
++#ifndef _NPC_COUNTER_H__
++#define _NPC_COUNTER_H__
++
++#include <common.h>
++
++void cycle_add(int type, uint32_t num);
++
++int type_of_inst();
++
++void display_counter();
++
++#endif
+\ No newline at end of file
+diff --git a/csrc/src/npc-exec.cpp b/csrc/src/npc-exec.cpp
+index 5db1f8d8..68f93581 100644
+--- a/csrc/src/npc-exec.cpp
++++ b/csrc/src/npc-exec.cpp
+@@ -5,12 +5,13 @@
+ #include "VysyxSoCFull___024root.h"
+ #include "VysyxSoCFull__Dpi.h"
+ 
+-// #ifdef CONFIG_NVBOARD
++#ifdef CONFIG_NVBOARD
+ #include <nvboard.h>
+-// #endif
++#endif
+ 
+ #include <mrom.h>
+ #include <cpu/ftrace.h>
++#include <npc_counter.h>
+ #include <common.h>
+ #include <locale.h>
+ #include <cpu/cpu.h>
+@@ -37,6 +38,7 @@ static uint32_t abort_count = 0;
+ static bool fst_trace_start = true;
+ 
+ uint64_t g_nr_guest_inst = 0;
++uint64_t g_nr_cycle = 0;
+ static uint64_t g_timer = 0; // unit: us
+ // static uint64_t timer_start = 0;
+ // static uint64_t timer_end = 0;
+@@ -210,6 +212,7 @@ static void statistic() {
+ #define NUMBERIC_FMT MUXDEF(CONFIG_TARGET_AM, "%", "%'") PRIu64
+   Log("host time spent = " NUMBERIC_FMT " us", g_timer);
+   Log("total guest instructions = " NUMBERIC_FMT, g_nr_guest_inst);
++  Log("cycles per instructions = " NUMBERIC_FMT " cycles/inst", g_nr_cycle/g_nr_guest_inst);
+   if (g_timer > 0) Log("simulation frequency = " NUMBERIC_FMT " inst/s", g_nr_guest_inst * 1000000 / g_timer);
+   else Log("Finish running in less than 1 us and can not calculate the simulation frequency");
+ }
+@@ -240,32 +243,45 @@ static void npc_once(){
+     // if(difftest_skip_first == true){// 跳过第一次difftest
+       // printf("pc = %08x, Next_pc = %08x\n", top->pc, top->Next_pc);
+       g_nr_guest_inst ++;
+-      trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_LSU_ysyx__DOT__Next_pc_r, inst_pre);
+-    }
+-    else{
+-    }
++      trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, inst_pre);
++  }
++  else{
++  }
++
++  // if(top->reset == 0 && top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_EXU_ysyx__DOT__current_state == 0){
++  //   // if(difftest_skip_first == true){// 跳过第一次difftest
++  //     // printf("pc = %08x, Next_pc = %08x\n", top->pc, top->Next_pc);
++  //     g_nr_guest_inst ++;
++  //     trace_and_difftest(top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, top->rootp->ysyxSoCFull__DOT__asic__DOT__cpu__DOT__cpu__DOT__u_WBU_ysyx__DOT__pc_r, inst_pre);
++  // }
+ 
+ 
+   if(inst_pre == inst_now){
+     abort_count ++;
+   }
+   else{
++    int type = type_of_inst();
++    cycle_add(type, abort_count);
+     abort_count = 0;
+   }
+   
+   step_and_dump_wave();  // 下降沿
+ 
++  g_nr_cycle ++ ;
++
+   // if(cpu_state() == 0xa0000370) {
+   //   fst_trace_start = true;
+   // }
+ 
+   if(abort_count >= 20000){ // 保护
++    printf("overtime\n");
+     npc_state.state = NPC_ABORT;
+     npc_state.halt_pc = cpu_state();
+     npc_state.halt_ret = get_reg(10);
+   }
+ 
+   if(ebreak == true){
++    display_counter();
+     npc_state.state = NPC_END;
+     npc_state.halt_pc = cpu_state();
+     npc_state.halt_ret = get_reg(10);
+diff --git a/csrc/src/npc_counter.cpp b/csrc/src/npc_counter.cpp
+new file mode 100644
+index 00000000..572d6598
+--- /dev/null
++++ b/csrc/src/npc_counter.cpp
+@@ -0,0 +1,54 @@
++#include <npc_counter.h>
++#include "svdpi.h"
++#include "VysyxSoCFull__Dpi.h"
++
++static uint64_t lui_count = 0;
++static uint64_t auipc_count = 0;
++static uint64_t alu_count = 0;
++static uint64_t lsu_count = 0;
++static uint32_t jal_count = 0;
++static uint64_t branch_count = 0;
++
++enum {LUI, AUIPC, ALU, LSU, JAL, BRANCH, CSR, NO_TYPE};
++
++static int inst_type = NO_TYPE;
++
++static struct counter {
++    const char *regex;
++    uint64_t inst_count;
++    uint64_t cycle_count;
++} counters[] = {
++    {"lui_inst", 0, 0},
++    {"auipc_inst", 0, 0},
++    {"alu_inst", 0, 0},       
++    {"lsu_inst", 0, 0},
++    {"jal_inst", 0, 0},
++    {"branch_inst", 0, 0},
++    {"csr_inst", 0, 0},
++    {"notype", 0, 0},
++};
++
++extern "C" void inst_add(int no){
++    counters[no].inst_count ++;
++    inst_type = no;
++    return;
++}
++
++void cycle_add(int type, uint32_t num){
++    counters[type].cycle_count += num;
++}
++
++int type_of_inst(){
++    return inst_type;
++}
++
++void display_counter(){
++
++    printf("           type |   num    | cycles/inst\n");
++
++    for(int i = 0; i < 6; i++){
++        if(counters[i].inst_count != 0){
++            printf("%15s | %8ld | %ld\n", counters[i].regex, counters[i].inst_count, counters[i].cycle_count/counters[i].inst_count);
++        }
++    }
++}
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index c0d20764..42288822 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -25,14 +25,136 @@ module apb_delayer(
+ );
+ 
+   assign out_paddr   = in_paddr;
+-  assign out_psel    = in_psel;
+-  assign out_penable = in_penable;
++  // assign out_psel    = in_psel;
++  // assign out_penable = in_penable;
+   assign out_pprot   = in_pprot;
+-  assign out_pwrite  = in_pwrite;
++  // assign out_pwrite  = in_pwrite;
+   assign out_pwdata  = in_pwdata;
+   assign out_pstrb   = in_pstrb;
+-  assign in_pready   = out_pready;
+-  assign in_prdata   = out_prdata;
+-  assign in_pslverr  = out_pslverr;
++  // assign in_pready   = out_pready;
++  // assign in_prdata   = out_prdata;
++  // assign in_pslverr  = out_pslverr;
++
++  localparam  R   = 128; // 8*16
++
++  reg   [31:0]    total;
++  reg   [31:0]    counter;
++
++  reg   [31:0]    prdata;
++  reg             pslverr;
++
++  localparam  IDLE      = 0;
++  localparam  PABLE     = 1;
++  localparam  WAIT_DATA = 2;
++  localparam  DIV       = 3;
++  localparam  SENT_DATA = 4;
++
++  reg [3:0] current_state;
++  reg [3:0] next_state;
++
++  always @(posedge clock or posedge reset) begin
++    if(reset == 1'b1) begin
++      current_state   <= IDLE;
++    end
++    else begin
++      current_state   <= next_state;
++    end
++  end
++
++  always @(*) begin
++    case(current_state)
++      IDLE: begin
++        if(in_psel == 1'b1) begin
++          next_state = PABLE;
++        end
++        else begin
++          next_state = IDLE;
++        end
++      end
++
++      PABLE: begin
++        next_state = WAIT_DATA;
++      end
++
++      WAIT_DATA: begin
++        if(out_pready == 1'b1) begin
++          next_state = DIV;
++        end
++        else begin
++          next_state = WAIT_DATA;
++        end
++      end
++
++      DIV: begin
++        next_state = SENT_DATA;
++      end
++
++      SENT_DATA: begin
++        if(counter == total) begin
++          next_state = IDLE;
++        end
++        else begin
++          next_state = SENT_DATA;
++        end
++      end
++
++      default: next_state = IDLE;
++    endcase
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset == 1'b1) begin
++      prdata    <= 32'h0000;
++      pslverr   <= 1'b0;
++    end
++    else begin
++      if(in_psel == 1'b1 && out_pready == 1'b1) begin
++        prdata    <= out_prdata;
++        pslverr   <= out_pslverr;
++      end
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if(reset == 1'b1) begin
++      counter   <= 32'h0001;
++      total     <= 32'h0068;
++    end
++    else begin
++      case(current_state)
++        IDLE: begin
++          counter   <= 32'h0001;
++          total     <= 32'h0068;
++        end 
++        PABLE: begin
++          total     <= total + R;
++          counter   <= counter + 1;
++        end
++        WAIT_DATA: begin
++          total     <= total + R;
++          counter   <= counter + 1;
++        end
++        DIV: begin
++          total     <= total >> 4;
++          counter   <= counter + 1;
++        end       
++        SENT_DATA: begin
++          counter   <= counter + 1;
++          total     <= total;
++        end 
++        default: begin
++          counter   <= 32'h0001;
++          total     <= 32'h0068;
++        end   
++      endcase
++    end
++  end
++
++  assign  out_psel    = (current_state == WAIT_DATA || current_state == PABLE);
++  assign  out_penable = (current_state == WAIT_DATA);
++  assign  out_pwrite  = (in_pwrite && (current_state == WAIT_DATA || current_state == PABLE));
++  assign  in_pready = (current_state == SENT_DATA && counter == total) ? 1'b1 : 1'b0;
++  assign  in_prdata = prdata;
++  assign  in_pslverr = pslverr;
+ 
+ endmodule
+diff --git a/perip/spi/rtl/XIP.v b/perip/spi/rtl/XIP.v
+index 664bd35f..9416b271 100644
+--- a/perip/spi/rtl/XIP.v
++++ b/perip/spi/rtl/XIP.v
+@@ -152,7 +152,7 @@ module XIP( // APB转SPI
+     always @(*) begin
+         case(current_state)
+             SPI_TX0:  wb_dat_r     = spi_cmd;       // 0
+-            SPI_DIV:  wb_dat_r     = 32'h00000004;  // 
++            SPI_DIV:  wb_dat_r     = 32'h00000000;  // 
+             SPI_SS:   wb_dat_r     = 32'h00000001;
+             SPI_CTRL: wb_dat_r     = 32'h00002740;
+             default:  wb_dat_r     = 32'h00000000;
+diff --git a/src/SoC.scala b/src/SoC.scala
+index d622bb40..2ae578af 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -33,7 +33,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+ 
+   val luart = LazyModule(new APBUart16550(AddressSet.misaligned(0x10000000, 0x1000)))
+   val lgpio = LazyModule(new APBGPIO(AddressSet.misaligned(0x10002000, 0x10)))
+-  val lclint = LazyModule(new APBCLINT(AddressSet.misaligned(0x02000000, 0x10)))
++  // val lclint = LazyModule(new APBCLINT(AddressSet.misaligned(0x02000000, 0x10)))
+   val lkeyboard = LazyModule(new APBKeyboard(AddressSet.misaligned(0x10011000, 0x8)))
+   val lvga = LazyModule(new APBVGA(AddressSet.misaligned(0x21000000, 0x200000)))
+   val lspi  = LazyModule(new APBSPI(
+@@ -48,7 +48,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+   val lsdram_apb = if (!Config.sdramUseAXI) Some(LazyModule(new APBSDRAM (sdramAddressSet))) else None
+   val lsdram_axi = if ( Config.sdramUseAXI) Some(LazyModule(new AXI4SDRAM(sdramAddressSet))) else None
+ 
+-  List(lspi.node, luart.node, lpsram.node, lgpio.node, lclint.node, lkeyboard.node, lvga.node).map(_ := apbxbar)
++  List(lspi.node, luart.node, lpsram.node, lgpio.node, lkeyboard.node, lvga.node).map(_ := apbxbar)
+   List(apbxbar := APBDelayer() := AXI4ToAPB() := AXI4Buffer(), lmrom.node, sramNode).map(_ := xbar2)
+   xbar2 := AXI4UserYanker(Some(1)) := AXI4Fragmenter() := xbar
+   if (Config.sdramUseAXI) lsdram_axi.get.node := ysyx.AXI4Delayer() := xbar
+@@ -89,7 +89,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+     val psram = IO(chiselTypeOf(lpsram.module.qspi_bundle))
+     val sdram = IO(chiselTypeOf(sdramBundle))
+     val gpio = IO(chiselTypeOf(lgpio.module.gpio_bundle))
+-    val clint = IO(chiselTypeOf(lclint.module.clint_bundle))
++    // val clint = IO(chiselTypeOf(lclint.module.clint_bundle))
+     val ps2 = IO(chiselTypeOf(lkeyboard.module.ps2_bundle))
+     val vga = IO(chiselTypeOf(lvga.module.vga_bundle))
+     uart <> luart.module.uart
+@@ -97,7 +97,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+     psram <> lpsram.module.qspi_bundle
+     sdram <> sdramBundle
+     gpio <> lgpio.module.gpio_bundle
+-    clint <> lclint.module.clint_bundle
++    // clint <> lclint.module.clint_bundle
+     ps2 <> lkeyboard.module.ps2_bundle
+     vga <> lvga.module.vga_bundle
+   }
+@@ -150,13 +150,13 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+ 
+     val externalPins = IO(new Bundle{
+       val gpio = chiselTypeOf(masic.gpio)
+-      val clint = chiselTypeOf(masic.clint)
++      // val clint = chiselTypeOf(masic.clint)
+       val ps2 = chiselTypeOf(masic.ps2)
+       val vga = chiselTypeOf(masic.vga)
+       val uart = chiselTypeOf(masic.uart)
+     })
+     externalPins.gpio <> masic.gpio
+-    externalPins.clint <> masic.clint
++    // externalPins.clint <> masic.clint
+     externalPins.ps2 <> masic.ps2
+     externalPins.vga <> masic.vga
+     externalPins.uart <> masic.uart
+diff --git a/src/device/CLINT.scala b/src/device/CLINT.scala
+deleted file mode 100644
+index 42347a6d..00000000
+--- a/src/device/CLINT.scala
++++ /dev/null
+@@ -1,52 +0,0 @@
+-package ysyx
+-
+-import chisel3._
+-import chisel3.util._
+-
+-import freechips.rocketchip.amba.apb._
+-import org.chipsalliance.cde.config.Parameters
+-import freechips.rocketchip.diplomacy._
+-import freechips.rocketchip.util._
+-
+-class CLINTIO extends Bundle {
+-//   val out = Output(UInt(16.W))
+-//   val in = Input(UInt(16.W))
+-//   val seg = Output(Vec(8, UInt(8.W)))
+-}
+-
+-class CLINTCtrlIO extends Bundle {
+-  val clock = Input(Clock())
+-  val reset = Input(Reset())
+-  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-  val clint = new CLINTIO
+-}
+-
+-class clint_top_apb extends BlackBox {
+-  val io = IO(new CLINTCtrlIO)
+-}
+-
+-class clintChisel extends Module {
+-  val io = IO(new CLINTCtrlIO)
+-}
+-
+-class APBCLINT(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
+-
+-  lazy val module = new Impl
+-  class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
+-    val clint_bundle = IO(new CLINTIO)
+-
+-    val mclint = Module(new clint_top_apb)
+-    mclint.io.clock := clock
+-    mclint.io.reset := reset
+-    mclint.io.in <> in
+-    clint_bundle <> mclint.io.clint
+-  }
+-}
+-- 
+2.34.1
+

@@ -1,0 +1,39 @@
+From 05e94fe2528cd3e87cfcc2c5b22b85d8b2759b57 Mon Sep 17 00:00:00 2001
+From: dengzibin <1447762756@qq.com>
+Date: Tue, 28 Apr 2026 11:59:30 +0800
+Subject: [PATCH 18/27] path
+
+---
+ Makefile | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index ef1d0753..84aceadd 100644
+--- a/Makefile
++++ b/Makefile
+@@ -15,7 +15,7 @@ VERILATOR_CFLAGS += --trace-fst --timescale "1ns/1ns" --autoflush --no-timing  \
+ BUILD_DIR = ./build
+ OBJ_DIR = $(BUILD_DIR)/obj_dir
+ BIN = $(BUILD_DIR)/$(TOPNAME)
+-YSYXC_PATH = /home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include
++YSYXC_PATH = ./csrc/include
+ 
+ STA_HOME = /home/dengzibin/yosys-sta
+ 
+@@ -42,10 +42,10 @@ RTL_FILE = $(NPC_HOME)/build/ysyx_25040102.v
+ CSRCS = $(shell find $(abspath ./csrc/src) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+ CSRCSS = $(shell find $(abspath ./csrc/src) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+ CSRCSS += $(SRC_AUTO_BIND)
+-CHEAD = /home/dengzibin/ysyx-workbench/ysyxSoC/csrc/include
++CHEAD = ./csrc/include
+ 
+-SDC_FILE = /home/dengzibin/ysyx-workbench/ysyxSoC/sdc/cpu_top.sdc
+-RESULT_DIR = /home/dengzibin/ysyx-workbench/ysyxSoC/sta_result
++SDC_FILE = ./sdc/cpu_top.sdc
++RESULT_DIR = ./sta_result
+ DESIGN = ysyx_25040102
+ 
+ # rules for NVBoard
+-- 
+2.34.1
+

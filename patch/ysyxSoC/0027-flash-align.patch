@@ -1,0 +1,25 @@
+From bc5bf10de56782fe65257f467c078a655568ba0b Mon Sep 17 00:00:00 2001
+From: dengzibin <1447762756@qq.com>
+Date: Sat, 9 May 2026 12:02:21 +0800
+Subject: [PATCH 27/27] flash-align
+
+---
+ perip/spi/rtl/spi_top_apb.v | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 3ecfbf12..04e5ff29 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -85,7 +85,7 @@ spi_top u0_spi_top (
+   XIP u_xip(
+     .clk                (clock      ),
+     .reset              (reset      ),
+-    .in_paddr           (in_paddr),   
++    .in_paddr           ({in_paddr[31:2], 2'b00}),   
+     .in_psel            (in_psel),  
+     .in_penable         (in_penable),     
+     .in_pprot           (in_pprot),   
+-- 
+2.34.1
+
