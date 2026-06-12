@@ -1,0 +1,69 @@
+From da5b5fee4b32f6e0ac3447ece7ae1c8a2c370e2c Mon Sep 17 00:00:00 2001
+From: Water Block <17048545@qq.com>
+Date: Thu, 21 May 2026 10:18:38 +0800
+Subject: [PATCH 4/6] Skip AXI and APB delayer
+
+---
+ src/amba/APBDelayer.scala  | 11 +++++++++--
+ src/amba/AXI4Delayer.scala |  8 +++++++-
+ 2 files changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index c8bcb32d..d25440ad 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -20,8 +20,14 @@ class apb_delayer extends BlackBox {
+   val io = IO(new APBDelayerIO)
+ }
+ 
++class APBDelayerChiselDirect extends Module {
++  val io = IO(new APBDelayerIO)
++  io.out :<>= io.in
++}
++
+ class APBDelayerChisel(
+-  cpuFreq: BigDecimal = 945.883, 
++  // cpuFreq: BigDecimal = 945.883, 
++  cpuFreq: BigDecimal = 200, 
+   deviceFreq: BigDecimal = 100, 
+   scale: Int = 10,
+   maxK: Int = 1000
+@@ -81,7 +87,8 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new APBDelayerChisel)
++      // val delayer = Module(new APBDelayerChisel)
++      val delayer = Module(new APBDelayerChiselDirect)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index e815b4e8..86cb5e52 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -26,6 +26,11 @@ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
++class AXI4DelayerChiselDirect extends Module {
++  val io = IO(new AXI4DelayerIO)
++  io.out :<>= io.in
++}
++
+ class AXI4DelayerChisel(
+     cpuFreq: BigDecimal = 945.883,
+     deviceFreq: BigDecimal = 100,
+@@ -400,7 +405,8 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new AXI4DelayerChisel)
++      // val delayer = Module(new AXI4DelayerChisel)
++      val delayer = Module(new AXI4DelayerChiselDirect)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.43.0
+

@@ -1,0 +1,227 @@
+From 8414091208ca27e7ab7723fb038107751eb57afc Mon Sep 17 00:00:00 2001
+From: Water Block <17048545@qq.com>
+Date: Mon, 18 May 2026 18:27:24 +0800
+Subject: [PATCH 1/2] Before CI check
+
+---
+ .gitignore                                |  3 ++
+ bsp/abstract-machine/Makefile             |  2 +-
+ bsp/abstract-machine/extra.ld             |  6 +--
+ bsp/abstract-machine/integrate-am-apps.py |  2 +
+ bsp/abstract-machine/src/context.c        | 56 ++++++++++++++++++++---
+ bsp/abstract-machine/src/uart.c           | 40 +++++++++++++++-
+ 6 files changed, 98 insertions(+), 11 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 558b09f1e..4842af3cd 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -51,3 +51,6 @@ tags
+ CMakeLists.txt
+ cmake-build-debug
+ *.mk
++
++.cache/
++compile_commands.json
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..3013b74c8 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -6,9 +6,9 @@ RTCONFIG_H = rtconfig.h
+ 
+ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
++LDSCRIPTS += extra.ld
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..05dcc0503 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,5 +1,5 @@
+ SECTIONS {
+-  .data.extra : {
++  .data.extra : ALIGN_WITH_INPUT {
+     /* section information for finsh shell */
+     __fsymtab_start = .;
+     KEEP(*(FSymTab))
+@@ -27,7 +27,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++  } >RAM AT>ROM
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +40,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } >RAM
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df387..0416dca9c 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -64,6 +64,8 @@ def integrate(app_dir):
+             redefine_sym_fp.write(f"__am_{app_name}_{f} {f}\n")
+     redefine_sym_fp.close()
+     for obj in objs:
++        # print(str(obj))
++        # print(f"{CROSS_COMPILE}objcopy --prefix-symbols=__am_{app_name}_ --set-section-flags .text*=readonly,noload --set-section-flags .*rodata*=readonly,noload {str(obj)}")
+         os.system(f"{CROSS_COMPILE}objcopy --prefix-symbols=__am_{app_name}_ --set-section-flags .text*=readonly,noload --set-section-flags .*rodata*=readonly,noload {str(obj)}")
+         os.system(f"{CROSS_COMPILE}objcopy --redefine-syms=redefine_sym.txt --prefix-alloc-sections=__am_apps {str(obj)}")
+         os.system(f"{CROSS_COMPILE}objcopy --set-section-flags .text*=readonly,code,alloc --set-section-flags .*rodata*=readonly,data,alloc {str(obj)}")
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..def3d0a58 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,8 +2,22 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++typedef struct {
++  Context **from, **to;
++} switch_args_t;
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_IRQ_TIMER: break;
++    case EVENT_IRQ_IODEV: break;
++    case EVENT_YIELD: {
++      switch_args_t *switch_args = (switch_args_t *)rt_thread_self()->user_data;
++      if (switch_args->from) {
++        *switch_args->from = c;
++      }
++      assert(switch_args->to);
++      return *switch_args->to;
++    }
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -13,19 +27,49 @@ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++  rt_thread_t cur = rt_thread_self();
++  rt_ubase_t tmp = cur->user_data;
++  switch_args_t switch_args = {.from = (Context **)from, .to = (Context **)to};
++  cur->user_data = (rt_ubase_t)&switch_args;
++  yield();
++  cur->user_data = tmp;
++}
++
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_hw_context_switch((rt_ubase_t)NULL, to);
+ }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++// void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
++//   assert(0);
++// }
++void rt_hw_context_switch_interrupt(rt_ubase_t from, rt_ubase_t to, rt_thread_t from_thread, rt_thread_t to_thread) {
+   assert(0);
+ }
+ 
+-void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+-  assert(0);
++typedef struct {
++  void (*tentry)(void *);
++  void *parameter; 
++  void (*texit)(void);
++} pw_args_t;
++
++static void process_wrapper(void *args) {
++  pw_args_t *pw_args = (pw_args_t *)args;
++  pw_args->tentry(pw_args->parameter);
++  pw_args->texit();
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  uintptr_t sta_addr = (uintptr_t)(stack_addr) & ~(sizeof(uintptr_t) - 1);
++  sta_addr -= sizeof(pw_args_t);
++  pw_args_t *pw_args = (pw_args_t *)sta_addr;
++  pw_args->tentry = tentry;
++  pw_args->parameter = parameter;
++  pw_args->texit = texit;
++
++  sta_addr = (uintptr_t)(sta_addr) & ~(sizeof(uintptr_t) - 1);
++  Context *ctx = kcontext((Area){.start = 0u, .end = (void *)sta_addr}, 
++      process_wrapper, pw_args);
++  
++  return (rt_uint8_t *)ctx;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..c54e6aae8 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -36,9 +37,46 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+   return 1;
+ }
+ 
++// static char lut_lower[256] = {
++//   [AM_KEY_A] = 'a', [AM_KEY_B] = 'b', [AM_KEY_C] = 'c', [AM_KEY_D] = 'd',
++//   [AM_KEY_E] = 'e', [AM_KEY_F] = 'f', [AM_KEY_G] = 'g', [AM_KEY_H] = 'h',
++//   [AM_KEY_I] = 'i', [AM_KEY_J] = 'j', [AM_KEY_K] = 'k', [AM_KEY_L] = 'l',
++//   [AM_KEY_M] = 'm', [AM_KEY_N] = 'n', [AM_KEY_O] = 'o', [AM_KEY_P] = 'p',
++//   [AM_KEY_Q] = 'q', [AM_KEY_R] = 'r', [AM_KEY_S] = 's', [AM_KEY_T] = 't',
++//   [AM_KEY_U] = 'u', [AM_KEY_V] = 'v', [AM_KEY_W] = 'w', [AM_KEY_X] = 'x',
++//   [AM_KEY_Y] = 'y', [AM_KEY_Z] = 'z',   
++//   [AM_KEY_0] = '0', [AM_KEY_1] = '1', [AM_KEY_2] = '2', [AM_KEY_3] = '3',
++//   [AM_KEY_4] = '4', [AM_KEY_5] = '5', [AM_KEY_6] = '6', [AM_KEY_7] = '7',
++//   [AM_KEY_8] = '8', [AM_KEY_9] = '9', 
++//   [AM_KEY_MINUS] = '-', [AM_KEY_EQUALS] = '=', [AM_KEY_SPACE] = ' ', 
++//   [AM_KEY_RETURN] = '\n', [AM_KEY_BACKSPACE] = '\b',
++// };
++//
++// static char lut_upper[256] = {
++//   [AM_KEY_A] = 'A', [AM_KEY_B] = 'B', [AM_KEY_C] = 'C', [AM_KEY_D] = 'D',
++//   [AM_KEY_E] = 'E', [AM_KEY_F] = 'F', [AM_KEY_G] = 'G', [AM_KEY_H] = 'H',
++//   [AM_KEY_I] = 'I', [AM_KEY_J] = 'J', [AM_KEY_K] = 'K', [AM_KEY_L] = 'L',
++//   [AM_KEY_M] = 'M', [AM_KEY_N] = 'N', [AM_KEY_O] = 'O', [AM_KEY_P] = 'P',
++//   [AM_KEY_Q] = 'Q', [AM_KEY_R] = 'R', [AM_KEY_S] = 'S', [AM_KEY_T] = 'T',
++//   [AM_KEY_U] = 'U', [AM_KEY_V] = 'V', [AM_KEY_W] = 'W', [AM_KEY_X] = 'X',
++//   [AM_KEY_Y] = 'Y', [AM_KEY_Z] = 'Z',
++//   [AM_KEY_0] = ')', [AM_KEY_1] = '!', [AM_KEY_2] = '@', [AM_KEY_3] = '#',
++//   [AM_KEY_4] = '$', [AM_KEY_5] = '%', [AM_KEY_6] = '^', [AM_KEY_7] = '&',
++//   [AM_KEY_8] = '*', [AM_KEY_9] = '(', 
++//   [AM_KEY_MINUS] = '_', [AM_KEY_EQUALS] = '+', [AM_KEY_SPACE] = ' ',
++//   [AM_KEY_RETURN] = '\n', [AM_KEY_BACKSPACE] = '\b',
++// };
++
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++
++  if (*p != '\0') {
++    return *(p++);
++  } else if (io_read(AM_UART_CONFIG).present) {
++    return io_read(AM_UART_RX).data;
++  } else {
++    return -1;
++  }
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.43.0
+

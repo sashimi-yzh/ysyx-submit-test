@@ -1,0 +1,10 @@
+diff --git a/Makefile b/Makefile
+index c6ae59d..705e53d 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,4 +1,4 @@
+-CFLAGS = -Iinclude -Wall -Wextra -MMD #-Werror
++CFLAGS = -Iinclude -Wall -Wextra -MMD -fPIC #-Werror
+ 
+ CURDIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+ 

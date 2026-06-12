@@ -1,0 +1,210 @@
+From 9482cfdb3955e595eb7e1880b3348df249dc3e23 Mon Sep 17 00:00:00 2001
+From: Water Block <17048545@qq.com>
+Date: Thu, 11 Jun 2026 15:59:31 +0800
+Subject: [PATCH 6/6] Enable fast flash
+
+---
+ perip/spi/rtl/spi_top_apb.v |   2 +-
+ src/device/SPI.scala        | 168 +++++++++++++++++++-----------------
+ 2 files changed, 88 insertions(+), 82 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index ac68fd09..a745423c 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-// `define FAST_FLASH
++`define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index 6266f516..350ba06c 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -46,93 +46,99 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     val mspi = Module(new spi_top_apb)
+     mspi.io.clock := clock
+     mspi.io.reset := reset
++    spi_bundle <> mspi.io.spi
+ 
+-    val isFlashAddr = in.paddr >= "h30000000".U && in.paddr < "h40000000".U
+-    val mspiFire = mspi.io.in.penable && mspi.io.in.pready
+-    val mspiBsyBit = mspi.io.in.prdata(8).asBool
++    val fastFlash = true
+ 
+-    object States extends ChiselEnum {
+-      val sIdle, sErr, sSpi = Value
+-      val sFlashTx0, sFlashTx1, sFlashDiv, sFlashSs, sFlashCtrl, sFlashGoBsy = Value
+-      val sFlashWait, sFlashRx0 = Value
+-    }
+-    import States._
++    if (fastFlash) {
++      mspi.io.in <> in
++    } else {
++      val isFlashAddr = in.paddr >= "h30000000".U && in.paddr < "h40000000".U
++      val mspiFire = mspi.io.in.penable && mspi.io.in.pready
++      val mspiBsyBit = mspi.io.in.prdata(8).asBool
+ 
+-    val state = RegInit(sIdle)
+-    val nextState = MuxLookup(state, sIdle)(Seq(
+-      sIdle -> Mux(in.psel, Mux(isFlashAddr, Mux(in.pwrite, sErr, sFlashTx0), sSpi), sIdle),
+-      sErr -> sIdle,
+-      sSpi -> Mux(mspiFire, sIdle, sSpi),
+-      sFlashTx0 -> Mux(mspiFire, sFlashTx1, sFlashTx0),
+-      sFlashTx1 -> Mux(mspiFire, sFlashDiv, sFlashTx1),
+-      sFlashDiv -> Mux(mspiFire, sFlashSs, sFlashDiv),
+-      sFlashSs -> Mux(mspiFire, sFlashCtrl, sFlashSs),
+-      sFlashCtrl -> Mux(mspiFire, sFlashGoBsy, sFlashCtrl),
+-      sFlashGoBsy -> Mux(mspiFire, sFlashWait, sFlashGoBsy),
+-      sFlashWait -> Mux(mspi.io.spi_irq_out, sFlashRx0, sFlashWait),
+-      sFlashRx0 -> Mux(mspiFire, sIdle, sFlashRx0),
+-      ))
+-    state := nextState
++      object States extends ChiselEnum {
++        val sIdle, sErr, sSpi = Value
++        val sFlashTx0, sFlashTx1, sFlashDiv, sFlashSs, sFlashCtrl, sFlashGoBsy = Value
++        val sFlashWait, sFlashRx0 = Value
++      }
++      import States._
+ 
+-    val flashApb = Wire(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-    DontCare :>= flashApb
+-    def flashApbWrite(offset: UInt, data: UInt) = {
+-      flashApb.psel := true.B
+-      flashApb.penable := true.B
+-      flashApb.pwrite := true.B
+-      flashApb.paddr := "h10001000".U + offset
+-      flashApb.pprot := 0.U
+-      flashApb.pwdata := data
+-      flashApb.pstrb := Fill(flashApb.params.dataBits/8, 1.U(1.W))
+-    }
+-    def flashApbRead(offset: UInt) = {
+-      flashApb.psel := true.B
+-      flashApb.penable := true.B
+-      flashApb.pwrite := false.B
+-      flashApb.paddr := "h10001000".U + offset
+-      flashApb.pprot := 0.U
+-      flashApb.pwdata := 0.U
+-      flashApb.pstrb := 0.U
+-    }
+-    when (state === sFlashTx0) {
+-      flashApbWrite(0x0.U, 0.U)
+-    } .elsewhen (state === sFlashTx1) {
+-      val data = "h03".U(8.W) ## (in.paddr - "h30000000".U)(23, 2) ## 0.U(2.W)
+-      flashApbWrite(0x4.U, data)
+-    } .elsewhen (state === sFlashDiv) {
+-      flashApbWrite(0x14.U, 0.U)
+-    } .elsewhen (state === sFlashSs) {
+-      flashApbWrite(0x18.U, 1.U)
+-    } .elsewhen (state === sFlashCtrl) {
+-      flashApbWrite(0x10.U, "b110_1000_100_0000".U)
+-    } .elsewhen (state === sFlashGoBsy) {
+-      flashApbWrite(0x10.U, "b110_1010_100_0000".U)
+-    } .elsewhen (state === sFlashWait) {
+-      flashApb :<= 0.U.asTypeOf(chiselTypeOf(flashApb))
+-    } .elsewhen (state === sFlashRx0) {
+-      flashApbRead(0x0.U)
+-    } .otherwise {
+-      flashApb :<= DontCare
+-    }
++      val state = RegInit(sIdle)
++      val nextState = MuxLookup(state, sIdle)(Seq(
++        sIdle -> Mux(in.psel, Mux(isFlashAddr, Mux(in.pwrite, sErr, sFlashTx0), sSpi), sIdle),
++        sErr -> sIdle,
++        sSpi -> Mux(mspiFire, sIdle, sSpi),
++        sFlashTx0 -> Mux(mspiFire, sFlashTx1, sFlashTx0),
++        sFlashTx1 -> Mux(mspiFire, sFlashDiv, sFlashTx1),
++        sFlashDiv -> Mux(mspiFire, sFlashSs, sFlashDiv),
++        sFlashSs -> Mux(mspiFire, sFlashCtrl, sFlashSs),
++        sFlashCtrl -> Mux(mspiFire, sFlashGoBsy, sFlashCtrl),
++        sFlashGoBsy -> Mux(mspiFire, sFlashWait, sFlashGoBsy),
++        sFlashWait -> Mux(mspi.io.spi_irq_out, sFlashRx0, sFlashWait),
++        sFlashRx0 -> Mux(mspiFire, sIdle, sFlashRx0),
++        ))
++      state := nextState
+ 
+-    spi_bundle <> mspi.io.spi
+-    0.U.asTypeOf(chiselTypeOf(in)) :>= in
+-    mspi.io.in :<= 0.U.asTypeOf(chiselTypeOf(mspi.io.in))
++      val flashApb = Wire(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++      DontCare :>= flashApb
++      def flashApbWrite(offset: UInt, data: UInt) = {
++        flashApb.psel := true.B
++        flashApb.penable := true.B
++        flashApb.pwrite := true.B
++        flashApb.paddr := "h10001000".U + offset
++        flashApb.pprot := 0.U
++        flashApb.pwdata := data
++        flashApb.pstrb := Fill(flashApb.params.dataBits/8, 1.U(1.W))
++      }
++      def flashApbRead(offset: UInt) = {
++        flashApb.psel := true.B
++        flashApb.penable := true.B
++        flashApb.pwrite := false.B
++        flashApb.paddr := "h10001000".U + offset
++        flashApb.pprot := 0.U
++        flashApb.pwdata := 0.U
++        flashApb.pstrb := 0.U
++      }
++      when (state === sFlashTx0) {
++        flashApbWrite(0x0.U, 0.U)
++      } .elsewhen (state === sFlashTx1) {
++        val data = "h03".U(8.W) ## (in.paddr - "h30000000".U)(23, 2) ## 0.U(2.W)
++        flashApbWrite(0x4.U, data)
++      } .elsewhen (state === sFlashDiv) {
++        flashApbWrite(0x14.U, 0.U)
++      } .elsewhen (state === sFlashSs) {
++        flashApbWrite(0x18.U, 1.U)
++      } .elsewhen (state === sFlashCtrl) {
++        flashApbWrite(0x10.U, "b110_1000_100_0000".U)
++      } .elsewhen (state === sFlashGoBsy) {
++        flashApbWrite(0x10.U, "b110_1010_100_0000".U)
++      } .elsewhen (state === sFlashWait) {
++        flashApb :<= 0.U.asTypeOf(chiselTypeOf(flashApb))
++      } .elsewhen (state === sFlashRx0) {
++        flashApbRead(0x0.U)
++      } .otherwise {
++        flashApb :<= DontCare
++      }
+ 
+-    when (state === sErr) {
+-      in.pready := true.B
+-      in.pslverr := true.B
+-    } .elsewhen (state === sSpi) {
+-      mspi.io.in <> in
+-    } .elsewhen (state =/= sIdle && state =/= sSpi) {
+-      assert(in.pwrite === false.B, "Flash is read only")
+-      mspi.io.in :<= flashApb
+-    }
+-    when (state === sFlashRx0) {
+-      mspi.io.in :>= in
+-      val rdata = mspi.io.in.prdata
+-      val rdataBitRev = rdata(7, 0) ## rdata(15, 8) ## rdata(23, 16) ## rdata(31, 24)
+-      in.prdata := rdataBitRev
++      0.U.asTypeOf(chiselTypeOf(in)) :>= in
++      mspi.io.in :<= 0.U.asTypeOf(chiselTypeOf(mspi.io.in))
++
++      when (state === sErr) {
++        in.pready := true.B
++        in.pslverr := true.B
++      } .elsewhen (state === sSpi) {
++        mspi.io.in <> in
++      } .elsewhen (state =/= sIdle && state =/= sSpi) {
++        assert(in.pwrite === false.B, "Flash is read only")
++        mspi.io.in :<= flashApb
++      }
++      when (state === sFlashRx0) {
++        mspi.io.in :>= in
++        val rdata = mspi.io.in.prdata
++        val rdataBitRev = rdata(7, 0) ## rdata(15, 8) ## rdata(23, 16) ## rdata(31, 24)
++        in.prdata := rdataBitRev
++      }
+     }
+   }
+ }
+-- 
+2.43.0
+

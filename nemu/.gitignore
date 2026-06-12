@@ -1,0 +1,14 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.cc
+!.gitignore
+!README.md
+!Kconfig
+!/tools/gdb-scripts/smart-connect.py
+!/**/configs/*
+**/include/config
+**/include/generated

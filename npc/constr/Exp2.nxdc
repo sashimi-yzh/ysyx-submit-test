@@ -1,0 +1,7 @@
+top=Exp2
+
+io_sw (SW7, SW6, SW5, SW4, SW3, SW2, SW1, SW0)
+io_en SW8
+io_led (LD2, LD1, LD0)
+io_hasOne LD4
+io_led7 (SEG0A, SEG0B, SEG0C, SEG0D, SEG0E, SEG0F, SEG0G)

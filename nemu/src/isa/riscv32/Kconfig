@@ -1,0 +1,36 @@
+menu "ISA-dependent Options for riscv"
+
+config RV64
+  bool "64-bit RISC-V architecture"
+  default n
+
+config RVE
+  bool "Use E extension"
+  default n
+
+menuconfig NPC
+  bool "Use NPC"
+  default n
+
+if NPC
+
+config NPC_WAVE
+  bool "Generate wave file"
+  default n
+
+config NPC_PACKAGE_NAME
+  string "Scala package name"
+  default "sirius"
+
+config NPC_TOP_NAME
+  string "Top module name"
+  default "Top"
+
+config NPC_VERILATOR_GPR
+  string "Verilator GPR"
+  default "Top__DOT__getGprDpiC__DOT__temp_regs"
+
+endif #NPC
+
+
+endmenu

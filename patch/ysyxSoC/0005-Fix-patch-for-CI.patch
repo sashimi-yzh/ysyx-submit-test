@@ -1,0 +1,81 @@
+From 1756f0b5738fc62e3a96071d437039b1dcbc2973 Mon Sep 17 00:00:00 2001
+From: Water Block <17048545@qq.com>
+Date: Sat, 6 Jun 2026 11:42:46 +0800
+Subject: [PATCH 5/6] Fix patch for CI
+
+---
+ Makefile                     |  6 ++++++
+ patch/rocket-chip-sram.patch | 17 +++++++++++++++++
+ patch/rocket-chip.patch      | 17 -----------------
+ 3 files changed, 23 insertions(+), 17 deletions(-)
+ create mode 100644 patch/rocket-chip-sram.patch
+
+diff --git a/Makefile b/Makefile
+index a9042a24..1aedb4fa 100644
+--- a/Makefile
++++ b/Makefile
+@@ -6,7 +6,13 @@ SCALA_FILES = $(shell find src/ -name "*.scala")
+ FIRTOOL_VERSION = 1.105.0
+ FIRTOOL_PATCH_DIR = $(shell pwd)/patch/firtool
+ 
++ROCKET_CHIP_MY_PATCH = patch/rocket-chip-sram.patch
++
+ $(V_FILE_FINAL): $(SCALA_FILES)
++	cd rocket-chip && \
++	if ! git apply --check --reverse ../$(ROCKET_CHIP_MY_PATCH) >/dev/null 2>&1; then \
++		git apply ../$(ROCKET_CHIP_MY_PATCH); \
++	fi
+ # Replace firtool with a newer version
+ # TODO: This can be removed after chisel publishes a new version
+ 	@./patch/update-firtool.sh $(FIRTOOL_VERSION) $(FIRTOOL_PATCH_DIR)
+diff --git a/patch/rocket-chip-sram.patch b/patch/rocket-chip-sram.patch
+new file mode 100644
+index 00000000..cbecf7f9
+--- /dev/null
++++ b/patch/rocket-chip-sram.patch
+@@ -0,0 +1,17 @@
++diff --git a/src/main/scala/amba/axi4/SRAM.scala b/src/main/scala/amba/axi4/SRAM.scala
++index f4838b73a..710dd4581 100644
++--- a/src/main/scala/amba/axi4/SRAM.scala
+++++ b/src/main/scala/amba/axi4/SRAM.scala
++@@ -75,8 +75,10 @@ class AXI4RAM(
++     val w_full = RegInit(false.B)
++     val w_id   = Reg(UInt())
++     val w_echo = Reg(BundleMap(in.params.echoFields))
++-    val r_sel1 = RegNext(r_sel0)
++-    val w_sel1 = RegNext(w_sel0)
+++    // val r_sel1 = RegNext(r_sel0)
+++    // val w_sel1 = RegNext(w_sel0)
+++    val r_sel1 = Reg(Bool())
+++    val w_sel1 = Reg(Bool())
++ 
++     when (in. b.fire) { w_full := false.B }
++     when (in.aw.fire) { w_full := true.B }
+diff --git a/patch/rocket-chip.patch b/patch/rocket-chip.patch
+index 2756c285..ecd58dc2 100644
+--- a/patch/rocket-chip.patch
++++ b/patch/rocket-chip.patch
+@@ -17,20 +17,3 @@ index 088c226d8..20522d11e 100644
+    val respBits  = AXI4Parameters.respBits
+  
+    def union(x: AXI4BundleParameters) =
+-diff --git a/src/main/scala/amba/axi4/SRAM.scala b/src/main/scala/amba/axi4/SRAM.scala
+-index f4838b73a..710dd4581 100644
+---- a/src/main/scala/amba/axi4/SRAM.scala
+-+++ b/src/main/scala/amba/axi4/SRAM.scala
+-@@ -75,8 +75,10 @@ class AXI4RAM(
+-     val w_full = RegInit(false.B)
+-     val w_id   = Reg(UInt())
+-     val w_echo = Reg(BundleMap(in.params.echoFields))
+--    val r_sel1 = RegNext(r_sel0)
+--    val w_sel1 = RegNext(w_sel0)
+-+    // val r_sel1 = RegNext(r_sel0)
+-+    // val w_sel1 = RegNext(w_sel0)
+-+    val r_sel1 = Reg(Bool())
+-+    val w_sel1 = Reg(Bool())
+- 
+-     when (in. b.fire) { w_full := false.B }
+-     when (in.aw.fire) { w_full := true.B }
+-- 
+2.43.0
+

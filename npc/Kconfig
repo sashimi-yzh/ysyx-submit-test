@@ -1,0 +1,176 @@
+if NPC
+
+menu "NPC skip difftest"
+
+# CLINT
+menuconfig NPC_SKIP_CLINT
+    bool "Skip CLINT"
+    default n
+if NPC_SKIP_CLINT
+config NPC_CLINT_START
+    hex "CLINT start address"
+    default 0x02000000
+config NPC_CLINT_END
+    hex "CLINT end address"
+    default 0x0200ffff
+endif
+
+# SRAM
+menuconfig NPC_SKIP_SRAM
+    bool "Skip SRAM"
+    default n
+if NPC_SKIP_SRAM
+config NPC_SRAM_START
+    hex "SRAM start address"
+    default 0x0f000000
+config NPC_SRAM_END
+    hex "SRAM end address"
+    default 0x0fffffff
+endif
+
+# UART16550
+menuconfig NPC_SKIP_UART
+    bool "Skip serial"
+    default y
+if NPC_SKIP_UART
+config NPC_UART_START
+    hex "MMIO address of the UART16550 start"
+    default 0x10000000
+config NPC_UART_END
+    hex "MMIO address of the UART16550 end"
+    default 0x10000fff
+endif
+
+# SPI master
+menuconfig NPC_SKIP_SPI
+    bool "Skip SPI master"
+    default n
+if NPC_SKIP_SPI
+config NPC_SPI_START
+    hex "SPI master start address"
+    default 0x10001000
+config NPC_SPI_END
+    hex "SPI master end address"
+    default 0x10001fff
+endif
+
+# GPIO
+menuconfig NPC_SKIP_GPIO
+    bool "Skip GPIO"
+    default n
+if NPC_SKIP_GPIO
+config NPC_GPIO_START
+    hex "GPIO start address"
+    default 0x10002000
+config NPC_GPIO_END
+    hex "GPIO end address"
+    default 0x1000200f
+endif
+
+# PS2
+menuconfig NPC_SKIP_PS2
+    bool "Skip PS2"
+    default n
+if NPC_SKIP_PS2
+config NPC_PS2_START
+    hex "PS2 start address"
+    default 0x10011000
+config NPC_PS2_END
+    hex "PS2 end address"
+    default 0x10011007
+endif
+
+# MROM
+menuconfig NPC_SKIP_MROM
+    bool "Skip MROM"
+    default n
+if NPC_SKIP_MROM
+config NPC_MROM_START
+    hex "MROM start address"
+    default 0x20000000
+config NPC_MROM_END
+    hex "MROM end address"
+    default 0x20000fff
+endif
+
+# VGA
+menuconfig NPC_SKIP_VGA
+    bool "Skip VGA"
+    default n
+if NPC_SKIP_VGA
+config NPC_VGA_START
+    hex "VGA start address"
+    default 0x21000000
+config NPC_VGA_END
+    hex "VGA end address"
+    default 0x211fffff
+endif
+
+# Flash
+menuconfig NPC_SKIP_FLASH
+    bool "Skip Flash"
+    default n
+if NPC_SKIP_FLASH
+config NPC_FLASH_START
+    hex "Flash start address"
+    default 0x30000000
+config NPC_FLASH_END
+    hex "Flash end address"
+    default 0x3fffffff
+endif
+
+# ChipLink MMIO
+menuconfig NPC_SKIP_CHIPLINK_MMIO
+    bool "Skip ChipLink MMIO"
+    default n
+if NPC_SKIP_CHIPLINK_MMIO
+config NPC_CHIPLINK_MMIO_START
+    hex "ChipLink MMIO start address"
+    default 0x40000000
+config NPC_CHIPLINK_MMIO_END
+    hex "ChipLink MMIO end address"
+    default 0x7fffffff
+endif
+
+# PSRAM
+menuconfig NPC_SKIP_PSRAM
+    bool "Skip PSRAM"
+    default n
+if NPC_SKIP_PSRAM
+config NPC_PSRAM_START
+    hex "PSRAM start address"
+    default 0x80000000
+config NPC_PSRAM_END
+    hex "PSRAM end address"
+    default 0x9fffffff
+endif
+
+# SDRAM
+menuconfig NPC_SKIP_SDRAM
+    bool "Skip SDRAM"
+    default n
+if NPC_SKIP_SDRAM
+config NPC_SDRAM_START
+    hex "SDRAM start address"
+    default 0xa0000000
+config NPC_SDRAM_END
+    hex "SDRAM end address"
+    default 0xbfffffff
+endif
+
+# ChipLink MEM
+menuconfig NPC_SKIP_CHIPLINK_MEM
+    bool "Skip ChipLink MEM"
+    default n
+if NPC_SKIP_CHIPLINK_MEM
+config NPC_CHIPLINK_MEM_START
+    hex "ChipLink MEM start address"
+    default 0xc0000000
+config NPC_CHIPLINK_MEM_END
+    hex "ChipLink MEM end address"
+    default 0xffffffff
+endif
+
+endmenu
+
+endif # NPC

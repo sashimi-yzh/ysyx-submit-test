@@ -1,0 +1,40 @@
+From d63829f22f391f7ec1f08c6cb80da6ec965734e8 Mon Sep 17 00:00:00 2001
+From: Water Block <17048545@qq.com>
+Date: Mon, 18 May 2026 18:55:16 +0800
+Subject: [PATCH 2/6] Before CI check
+
+---
+ .gitignore | 3 ---
+ Makefile   | 2 +-
+ 2 files changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 073a8303..6d21ba25 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,9 +2,6 @@ build/
+ out/
+ .metals/
+ .bloops/
+-<<<<<<< HEAD
+ .bsp/
+ .scala-build/
+ patch/firtool/**/bin/
+-=======
+->>>>>>> b9723b55 (Before CI check)
+diff --git a/Makefile b/Makefile
+index 5f34d5e3..a9042a24 100644
+--- a/Makefile
++++ b/Makefile
+@@ -15,7 +15,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	mv $(V_FILE_GEN) $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+-	sed -i 's/ysyx_00000000/Top/g' $@
++	sed -i 's/ysyx_00000000/ysyx_26010008/g' $@
+ 
+ verilog: $(V_FILE_FINAL)
+ 
+-- 
+2.43.0
+
