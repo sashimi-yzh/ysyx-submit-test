@@ -1,0 +1,186 @@
+{
+    "version": "2.0.0",
+    "configurations": [
+        {
+            "name": "NEMU: Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/nemu/build/riscv32-nemu-interpreter-debug",
+            "args": [
+                "--log=${workspaceFolder}/nemu/build/nemu-log.txt"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/nemu",
+            "environment": [
+                {
+                    "name": "NEMU_HOME",
+                    "value": "${workspaceFolder}/nemu"
+                },
+                {
+                    "name": "AM_HOME",
+                    "value": "${workspaceFolder}/abstract-machine"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "preLaunchTask": "NEMU: build debug",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable pagination",
+                    "text": "-gdb-set pagination off",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "NEMU: Debug with image",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/nemu/build/riscv32-nemu-interpreter-debug",
+            "args": [
+                "--log=${workspaceFolder}/nemu/build/nemu-log.txt",
+                "${input:nemuImage}"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/nemu",
+            "environment": [
+                {
+                    "name": "NEMU_HOME",
+                    "value": "${workspaceFolder}/nemu"
+                },
+                {
+                    "name": "AM_HOME",
+                    "value": "${workspaceFolder}/abstract-machine"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "preLaunchTask": "NEMU: build debug",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable pagination",
+                    "text": "-gdb-set pagination off",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "NPC: Debug with image",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/npc/build/npc/riscv32-npc-interpreter-debug",
+            "args": [
+                "-l",
+                "${workspaceFolder}/npc/build/npc-log.txt",
+                "-f",
+                "${input:npcElf}",
+                "${input:npcImage}"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/npc",
+            "environment": [
+                {
+                    "name": "NPC_HOME",
+                    "value": "${workspaceFolder}/npc"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "preLaunchTask": "NPC: build debug",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable pagination",
+                    "text": "-gdb-set pagination off",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "NPC ysyxSoC: Debug with image",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/npc/build/ysyxsoc/riscv32-npc-interpreter-debug",
+            "args": [
+                "-l",
+                "${workspaceFolder}/npc/build/npc-log.txt",
+                "-f",
+                "${input:npcYsyxSoCElf}",
+                "${input:npcYsyxSoCImage}"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/npc",
+            "environment": [
+                {
+                    "name": "NPC_HOME",
+                    "value": "${workspaceFolder}/npc"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "preLaunchTask": "NPC: build ysyxSoC debug",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty printing",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Disable pagination",
+                    "text": "-gdb-set pagination off",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "nemuImage",
+            "type": "promptString",
+            "description": "Guest image path passed to NEMU",
+            "default": "${workspaceFolder}/am-kernels/tests/cpu-tests/build/dummy-riscv32-nemu.bin"
+        },
+        {
+            "id": "npcImage",
+            "type": "promptString",
+            "description": "Guest image path passed to standalone NPC",
+            "default": "${workspaceFolder}/am-kernels/kernels/hello/build/hello-riscv32e-npc.bin"
+        },
+        {
+            "id": "npcElf",
+            "type": "promptString",
+            "description": "Guest ELF path for standalone NPC ftrace",
+            "default": "${workspaceFolder}/am-kernels/kernels/hello/build/hello-riscv32e-npc.elf"
+        },
+        {
+            "id": "npcYsyxSoCImage",
+            "type": "promptString",
+            "description": "Guest image path passed to ysyxSoC NPC",
+            "default": "${workspaceFolder}/am-kernels/kernels/hello/build/hello-riscv32e-ysyxsoc.bin"
+        },
+        {
+            "id": "npcYsyxSoCElf",
+            "type": "promptString",
+            "description": "Guest ELF path for ysyxSoC NPC ftrace",
+            "default": "${workspaceFolder}/am-kernels/kernels/hello/build/hello-riscv32e-ysyxsoc.elf"
+        }
+    ]
+}

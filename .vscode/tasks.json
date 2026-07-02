@@ -1,0 +1,115 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "VSCode: generate compile_commands",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/scripts/gen_vscode_compile_commands.py"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "detail": "Regenerate .vscode/compile_commands.json for NEMU/NPC IntelliSense."
+        },
+        {
+            "label": "NEMU: build debug",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "-C",
+                "${workspaceFolder}/nemu",
+                "NEMU_HOME=${workspaceFolder}/nemu",
+                "AM_HOME=${workspaceFolder}/abstract-machine",
+                "DEBUG=1",
+                "CONFIG_CC_DEBUG=y",
+                "run-env"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Build NEMU with -DDEBUG and -Og -ggdb3 for VSCode/GDB debugging."
+        },
+        {
+            "label": "NPC: build debug",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "-C",
+                "${workspaceFolder}/npc",
+                "npc_defconfig",
+                "build",
+                "DEBUG=1",
+                "SIM_MODE=npc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build standalone NPC with -DDEBUG and -Og -ggdb3 for VSCode/GDB debugging."
+        },
+        {
+            "label": "NPC: build ysyxSoC debug",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "-C",
+                "${workspaceFolder}/npc",
+                "ysyxsoc_defconfig",
+                "build",
+                "DEBUG=1",
+                "SIM_MODE=ysyxsoc"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "detail": "Build ysyxSoC NPC with -DDEBUG and -Og -ggdb3 for VSCode/GDB debugging."
+        },
+        {
+            "label": "NEMU: clean",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "-C",
+                "${workspaceFolder}/nemu",
+                "NEMU_HOME=${workspaceFolder}/nemu",
+                "AM_HOME=${workspaceFolder}/abstract-machine",
+                "clean"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "detail": "Clean NEMU build outputs."
+        },
+        {
+            "label": "NPC: clean",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "-C",
+                "${workspaceFolder}/npc",
+                "clean"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "detail": "Clean NPC build outputs."
+        }
+    ]
+}

@@ -1,0 +1,297 @@
+[
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/cpu/cpu-exec.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/cpu/cpu-exec.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/cpu/difftest/dut.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/cpu/difftest/dut.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/cpu/difftest/ref.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/cpu/difftest/ref.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/alarm.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/alarm.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/audio.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/audio.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/device.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/device.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/disk.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/disk.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/intr.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/intr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/io/map.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/io/map.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/io/mmio.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/io/mmio.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/io/port-io.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/io/port-io.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/keyboard.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/keyboard.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/sdcard.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/sdcard.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/serial.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/serial.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/timer.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/timer.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/device/vga.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/device/vga.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/engine/interpreter/hostcall.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/engine/interpreter/hostcall.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/engine/interpreter/init.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/engine/interpreter/init.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/isa/riscv32/difftest/dut.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/isa/riscv32/difftest/dut.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/isa/riscv32/init.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/isa/riscv32/init.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/isa/riscv32/inst.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/isa/riscv32/inst.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/isa/riscv32/logo.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/isa/riscv32/logo.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/isa/riscv32/reg.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/isa/riscv32/reg.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/isa/riscv32/system/intr.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/isa/riscv32/system/intr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/isa/riscv32/system/mmu.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/isa/riscv32/system/mmu.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/memory/paddr.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/memory/paddr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/memory/vaddr.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/memory/vaddr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/monitor/ftrace.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/monitor/ftrace.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/monitor/monitor.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/monitor/monitor.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/monitor/sdb/expr.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/monitor/sdb/expr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/monitor/sdb/sdb.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/monitor/sdb/sdb.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/monitor/sdb/watchpoint.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/monitor/sdb/watchpoint.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/nemu-main.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/nemu-main.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/utils/disasm.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/utils/disasm.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/utils/log.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/utils/log.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/utils/state.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/utils/state.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I nemu/include -I nemu/src/isa/riscv32/include -I nemu/src/engine/interpreter -I nemu/tools/capstone/repo/include -include nemu/include/generated/autoconf.h -c nemu/src/utils/timer.c",
+    "file": "/home/ecall73/ysyx-workbench/nemu/src/utils/timer.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "g++ -std=c++17 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -DNPC_BUILD_PLATFORM_NPC=1 -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -I npc/build/npc/obj-riscv32-npc-interpreter/verilator -include npc/include/generated/autoconf.h -c npc/src/cpu/cpu-exec.cpp",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/cpu/cpu-exec.cpp"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/cpu/difftest/dut.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/cpu/difftest/dut.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "g++ -std=c++17 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -DNPC_BUILD_PLATFORM_NPC=1 -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -I npc/build/npc/obj-riscv32-npc-interpreter/verilator -include npc/include/generated/autoconf.h -c npc/src/cpu/dpi/commit.cpp",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/cpu/dpi/commit.cpp"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/engine/interpreter/init.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/engine/interpreter/init.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/isa/riscv32/difftest/dut.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/isa/riscv32/difftest/dut.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/isa/riscv32/init.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/isa/riscv32/init.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/isa/riscv32/reg.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/isa/riscv32/reg.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/memory/paddr.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/memory/paddr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/memory/vaddr.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/memory/vaddr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/monitor/ftrace.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/monitor/ftrace.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "g++ -std=c++17 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -DNPC_BUILD_PLATFORM_NPC=1 -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -I npc/build/npc/obj-riscv32-npc-interpreter/verilator -include npc/include/generated/autoconf.h -c npc/src/monitor/monitor.cpp",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/monitor/monitor.cpp"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/monitor/sdb/expr.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/monitor/sdb/expr.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/monitor/sdb/sdb.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/monitor/sdb/sdb.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/monitor/sdb/watchpoint.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/monitor/sdb/watchpoint.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/npc-main.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/npc-main.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "g++ -std=c++17 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -DNPC_BUILD_PLATFORM_NPC=1 -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -I npc/build/npc/obj-riscv32-npc-interpreter/verilator -include npc/include/generated/autoconf.h -c npc/src/platform/common/sim.cpp",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/platform/common/sim.cpp"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "g++ -std=c++17 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -DNPC_BUILD_PLATFORM_NPC=1 -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -I npc/build/npc/obj-riscv32-npc-interpreter/verilator -include npc/include/generated/autoconf.h -c npc/src/platform/npc/platform.cpp",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/platform/npc/platform.cpp"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "g++ -std=c++17 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -DNPC_BUILD_PLATFORM_YSYXSOC=1 -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -I npc/build/npc/obj-riscv32-npc-interpreter/verilator -include npc/include/generated/autoconf.h -c npc/src/platform/ysyxsoc/platform.cpp",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/platform/ysyxsoc/platform.cpp"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/utils/disasm.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/utils/disasm.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/utils/log.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/utils/log.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/utils/state.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/utils/state.c"
+  },
+  {
+    "directory": "/home/ecall73/ysyx-workbench",
+    "command": "gcc -std=gnu11 -D__GUEST_ISA__=riscv32 -DDEBUG -DITRACE_COND=true -DMTRACE_COND=true -I npc/include -I npc/src/isa/riscv32/include -I npc/src/engine/interpreter -I npc/vsrc -I npc/vsrc/core -I npc/tools/capstone/repo/include -I nvboard/usr/include -I /usr/local/share/verilator/include -I /usr/local/share/verilator/include/vltstd -I /home/ecall73/oss-cad-suite/share/verilator/include -I /home/ecall73/oss-cad-suite/share/verilator/include/vltstd -include npc/include/generated/autoconf.h -c npc/src/utils/timer.c",
+    "file": "/home/ecall73/ysyx-workbench/npc/src/utils/timer.c"
+  }
+]

@@ -1,0 +1,5 @@
+.*/fceux-am
+.*/
+out/
+__pycache__/
+!.vscode/

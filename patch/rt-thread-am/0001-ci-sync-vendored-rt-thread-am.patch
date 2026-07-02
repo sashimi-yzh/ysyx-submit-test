@@ -1,0 +1,235 @@
+From 138867f34bb904cd0f441c9c5250992d8375720a Mon Sep 17 00:00:00 2001
+From: ysyx-ci-local <ci-local@ysyx.org>
+Date: Wed, 1 Jul 2026 21:29:54 +0800
+Subject: [PATCH] ci: sync vendored rt-thread-am
+
+---
+ bsp/abstract-machine/Makefile             |  7 +-
+ bsp/abstract-machine/extra-ysyxsoc.ld     | 47 ++++++++++++++
+ bsp/abstract-machine/integrate-am-apps.py |  2 +-
+ bsp/abstract-machine/src/context.c        | 79 +++++++++++++++++++++--
+ bsp/abstract-machine/src/uart.c           | 10 ++-
+ 5 files changed, 137 insertions(+), 8 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra-ysyxsoc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f31..ec8a35b 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,12 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++
++EXTRA_LD = extra.ld
++ifneq ($(filter %-ysyxsoc,$(ARCH)),)
++EXTRA_LD = extra-ysyxsoc.ld
++endif
++LDFLAGS += -T $(EXTRA_LD)
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra-ysyxsoc.ld b/bsp/abstract-machine/extra-ysyxsoc.ld
+new file mode 100644
+index 0000000..b6a2bc8
+--- /dev/null
++++ b/bsp/abstract-machine/extra-ysyxsoc.ld
+@@ -0,0 +1,47 @@
++SECTIONS {
++  .data.extra : AT(LOADADDR(.data) + SIZEOF(.data)) {
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } : data
++
++  _data_end = .;
++}
++INSERT AFTER .data;
++
++SECTIONS {
++  .bss.extra : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  }
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df3..fec3b78 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -11,7 +11,7 @@ app_dir_list = [
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++#  AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829..cffcd2a 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,8 +2,46 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++typedef struct {
++  void *tentry;
++  void *parameter;
++  void *texit;
++} kctx_boot_t;
++
++typedef struct {
++  Context **from;
++  Context **to;
++} kctx_switch_req_t;
++
++static void rt_kthread_bootstrap(void *arg) {
++  kctx_boot_t *boot = (kctx_boot_t *)arg;
++  void (*entry)(void *) = (void (*)(void *))boot->tentry;
++  void (*texit)(void) = (void (*)(void))boot->texit;
++  entry(boot->parameter);
++  texit();
++  halt(1);
++}
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD: {
++      rt_thread_t self = rt_thread_self();
++      if (self == RT_NULL || self->user_data == 0) {
++        return c;
++      }
++      kctx_switch_req_t *req = (kctx_switch_req_t *)(uintptr_t)self->user_data;
++      if (req->from != RT_NULL) {
++        *req->from = c;
++      }
++      Context *next = *req->to;
++      RT_ASSERT(next != RT_NULL);
++      return next;
++    }
++    case EVENT_IRQ_TIMER:
++      rt_interrupt_enter();
++      rt_tick_increase();
++      rt_interrupt_leave();
++      return c;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -14,18 +52,49 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t self = rt_thread_self();
++  RT_ASSERT(self != RT_NULL);
++  uintptr_t saved_user_data = self->user_data;
++  kctx_switch_req_t req = {
++    .from = RT_NULL,
++    .to = (Context **)to,
++  };
++  self->user_data = (rt_ubase_t)(uintptr_t)&req;
++  yield();
++  self->user_data = saved_user_data;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t self = rt_thread_self();
++  RT_ASSERT(self != RT_NULL);
++  uintptr_t saved_user_data = self->user_data;
++  kctx_switch_req_t req = {
++    .from = (Context **)from,
++    .to = (Context **)to,
++  };
++  self->user_data = (rt_ubase_t)(uintptr_t)&req;
++  yield();
++  self->user_data = saved_user_data;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+-  assert(0);
++  (void)context;
++  (void)to_thread;
++  rt_hw_context_switch(from, to);
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  uintptr_t stack_top = RT_ALIGN_DOWN((uintptr_t)stack_addr, sizeof(uintptr_t));
++  uintptr_t ctx_base = stack_top - sizeof(Context);
++  uintptr_t boot_addr = RT_ALIGN_DOWN(ctx_base - sizeof(kctx_boot_t), sizeof(uintptr_t));
++
++  kctx_boot_t *boot = (kctx_boot_t *)boot_addr;
++  boot->tentry = tentry;
++  boot->parameter = parameter;
++  boot->texit = texit;
++
++  Context *cp = kcontext((Area){ .start = (void *)boot_addr, .end = (void *)stack_top },
++                         rt_kthread_bootstrap, boot);
++  RT_ASSERT(cp != RT_NULL);
++  return (rt_uint8_t *)cp;
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb866..c04a625 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,14 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  if (*p != '\0') {
++    return *(p ++);
++  }
++
++  AM_UART_RX_T rx = io_read(AM_UART_RX);
++  uint8_t data = (uint8_t)rx.data;
++  // IOE uses 0xff as "no data"; RT-Thread serial getc uses -1 for that.
++  return (data == 0xffu) ? -1 : (int)data;
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

@@ -1,0 +1,2218 @@
+From 58afeb7518360858498db1ebb568251f95b296c8 Mon Sep 17 00:00:00 2001
+From: ysyx-ci-local <ci-local@ysyx.org>
+Date: Wed, 1 Jul 2026 21:29:56 +0800
+Subject: [PATCH] ci: sync vendored ysyxSoC
+
+---
+ .gitignore                              |   2 +-
+ patch/rocket-chip.patch                 |   2 +-
+ perip/amba/apb_delayer.v                | 172 +++++++++
+ perip/amba/axi4_delayer.v               | 475 ++++++++++++++++++++++++
+ perip/bitrev/bitrev.v                   |  39 +-
+ perip/gpio/gpio_top_apb.v               |  86 +++++
+ perip/ps2/ps2_top_apb.v                 |  98 +++++
+ perip/psram/efabless/EF_PSRAM_CTRL.v    | 137 +++++--
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v |  49 ++-
+ perip/psram/psram.v                     | 198 +++++++++-
+ perip/sdram/sdram.v                     | 341 ++++++++++++++++-
+ perip/spi/rtl/spi_top_apb.v             | 233 +++++++++++-
+ perip/uart16550/rtl/uart_tfifo.v        |   4 +
+ perip/vga/vga_top_apb.v                 | 110 ++++++
+ src/CPU.scala                           |   4 +-
+ src/Top.scala                           |   2 +-
+ 16 files changed, 1897 insertions(+), 55 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 3c0160d..606c84a 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,2 @@
+-build/
+ out/
++patch/firtool/
+diff --git a/patch/rocket-chip.patch b/patch/rocket-chip.patch
+index 9d46875..6483245 100644
+--- a/patch/rocket-chip.patch
++++ b/patch/rocket-chip.patch
+@@ -1,5 +1,5 @@
+ diff --git a/src/main/scala/amba/axi4/Parameters.scala b/src/main/scala/amba/axi4/Parameters.scala
+-index b059fb192..bd1fa835b 100644
++index 088c226..20522d1 100644
+ --- a/src/main/scala/amba/axi4/Parameters.scala
+ +++ b/src/main/scala/amba/axi4/Parameters.scala
+ @@ -127,10 +127,10 @@ case class AXI4BundleParameters(
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index c0d2076..c531818 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -36,3 +36,175 @@ module apb_delayer(
+   assign in_pslverr  = out_pslverr;
+ 
+ endmodule
++
++/*
++module apb_delayer(
++  input         clock,
++  input         reset,
++  input  [31:0] in_paddr,
++  input         in_psel,
++  input         in_penable,
++  input  [2:0]  in_pprot,
++  input         in_pwrite,
++  input  [31:0] in_pwdata,
++  input  [3:0]  in_pstrb,
++  output        in_pready,
++  output [31:0] in_prdata,
++  output        in_pslverr,
++
++  output [31:0] out_paddr,
++  output        out_psel,
++  output        out_penable,
++  output [2:0]  out_pprot,
++  output        out_pwrite,
++  output [31:0] out_pwdata,
++  output [3:0]  out_pstrb,
++  input         out_pready,
++  input  [31:0] out_prdata,
++  input         out_pslverr
++);
++
++  // CPU_MHZ can be edited to 100/200/400 when validating calibration.
++  localparam integer CPU_MHZ  = 100;
++  localparam integer DEV_MHZ  = 100;
++  localparam integer R_SHIFT  = 8;
++  localparam integer R_SCALED = (CPU_MHZ << R_SHIFT) / DEV_MHZ;
++
++  localparam [1:0] ST_IDLE   = 2'd0;
++  localparam [1:0] ST_ACCESS = 2'd1;
++  localparam [1:0] ST_DELAY  = 2'd2;
++
++  reg [1:0]  state;
++  reg [31:0] req_paddr;
++  reg [2:0]  req_pprot;
++  reg        req_pwrite;
++  reg [31:0] req_pwdata;
++  reg [3:0]  req_pstrb;
++
++  reg [31:0] resp_prdata;
++  reg        resp_pslverr;
++  reg        resp_captured;
++
++  reg [31:0] service_scaled_accum;
++  reg [31:0] service_cycles;
++  reg [31:0] delay_cycles_left;
++
++  // Waveform-facing debug registers.
++  reg [1:0]  dbg_state;
++  reg [31:0] dbg_service_cycles;
++  reg [31:0] dbg_target_cycles;
++  reg [31:0] dbg_extra_cycles;
++  reg        dbg_resp_captured;
++
++  wire new_req_fire = (state == ST_IDLE) && in_psel && !in_penable;
++
++  wire [31:0] access_scaled_accum_next = service_scaled_accum + R_SCALED[31:0];
++  wire [31:0] access_service_cycles_next = service_cycles + 32'd1;
++  wire [31:0] access_target_cycles_next = access_scaled_accum_next >> R_SHIFT;
++  wire [31:0] access_extra_cycles_next =
++    (access_target_cycles_next > access_service_cycles_next) ?
++      (access_target_cycles_next - access_service_cycles_next) : 32'd0;
++  wire access_done = (state == ST_ACCESS) && out_pready;
++  wire access_reply_now = access_done && (access_extra_cycles_next == 32'd0);
++  wire delay_done = (state == ST_DELAY) && (delay_cycles_left == 32'd0) && resp_captured;
++
++  assign out_paddr = (state == ST_IDLE) ? in_paddr : req_paddr;
++  assign out_pprot = (state == ST_IDLE) ? in_pprot : req_pprot;
++  assign out_pwrite = (state == ST_IDLE) ? in_pwrite : req_pwrite;
++  assign out_pwdata = (state == ST_IDLE) ? in_pwdata : req_pwdata;
++  assign out_pstrb = (state == ST_IDLE) ? in_pstrb : req_pstrb;
++
++  // Forward the setup phase immediately, then hold the access phase locally.
++  assign out_psel =
++    ((state == ST_IDLE) && in_psel && !in_penable) ||
++    (state == ST_ACCESS);
++  assign out_penable = (state == ST_ACCESS);
++
++  assign in_pready = access_reply_now || delay_done;
++  assign in_prdata = access_reply_now ? out_prdata : resp_prdata;
++  assign in_pslverr = access_reply_now ? out_pslverr : resp_pslverr;
++
++  always @(posedge clock) begin
++    if (reset) begin
++      state <= ST_IDLE;
++      req_paddr <= 32'b0;
++      req_pprot <= 3'b0;
++      req_pwrite <= 1'b0;
++      req_pwdata <= 32'b0;
++      req_pstrb <= 4'b0;
++      resp_prdata <= 32'b0;
++      resp_pslverr <= 1'b0;
++      resp_captured <= 1'b0;
++      service_scaled_accum <= 32'b0;
++      service_cycles <= 32'b0;
++      delay_cycles_left <= 32'b0;
++      dbg_state <= ST_IDLE;
++      dbg_service_cycles <= 32'b0;
++      dbg_target_cycles <= 32'b0;
++      dbg_extra_cycles <= 32'b0;
++      dbg_resp_captured <= 1'b0;
++    end else begin
++      case (state)
++        ST_IDLE: begin
++          service_scaled_accum <= 32'b0;
++          service_cycles <= 32'b0;
++          delay_cycles_left <= 32'b0;
++          resp_captured <= 1'b0;
++          dbg_service_cycles <= 32'b0;
++          dbg_target_cycles <= 32'b0;
++          dbg_extra_cycles <= 32'b0;
++          dbg_resp_captured <= 1'b0;
++          if (new_req_fire) begin
++            req_paddr <= in_paddr;
++            req_pprot <= in_pprot;
++            req_pwrite <= in_pwrite;
++            req_pwdata <= in_pwdata;
++            req_pstrb <= in_pstrb;
++            state <= ST_ACCESS;
++          end
++        end
++
++        ST_ACCESS: begin
++          service_scaled_accum <= access_scaled_accum_next;
++          service_cycles <= access_service_cycles_next;
++          dbg_service_cycles <= access_service_cycles_next;
++          dbg_target_cycles <= access_target_cycles_next;
++          dbg_extra_cycles <= access_extra_cycles_next;
++
++          if (out_pready) begin
++            resp_prdata <= out_prdata;
++            resp_pslverr <= out_pslverr;
++            resp_captured <= 1'b1;
++            dbg_resp_captured <= 1'b1;
++
++            if (access_extra_cycles_next == 32'd0) begin
++              state <= ST_IDLE;
++            end else begin
++              delay_cycles_left <= access_extra_cycles_next - 32'd1;
++              state <= ST_DELAY;
++            end
++          end
++        end
++
++        ST_DELAY: begin
++          if (delay_cycles_left != 32'd0) begin
++            delay_cycles_left <= delay_cycles_left - 32'd1;
++          end else begin
++            state <= ST_IDLE;
++          end
++        end
++
++        default: begin
++          state <= ST_IDLE;
++        end
++      endcase
++
++      dbg_state <= state;
++      if (state == ST_DELAY) begin
++        dbg_extra_cycles <= delay_cycles_left;
++      end
++    end
++  end
++
++endmodule
++*/
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803..9485e64 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -94,3 +94,478 @@ module axi4_delayer(
+   assign in_bresp = out_bresp;
+ 
+ endmodule
++
++/*
++module axi4_delayer(
++  input         clock,
++  input         reset,
++
++  output        in_arready,
++  input         in_arvalid,
++  input  [3:0]  in_arid,
++  input  [31:0] in_araddr,
++  input  [7:0]  in_arlen,
++  input  [2:0]  in_arsize,
++  input  [1:0]  in_arburst,
++  input         in_rready,
++  output        in_rvalid,
++  output [3:0]  in_rid,
++  output [31:0] in_rdata,
++  output [1:0]  in_rresp,
++  output        in_rlast,
++  output        in_awready,
++  input         in_awvalid,
++  input  [3:0]  in_awid,
++  input  [31:0] in_awaddr,
++  input  [7:0]  in_awlen,
++  input  [2:0]  in_awsize,
++  input  [1:0]  in_awburst,
++  output        in_wready,
++  input         in_wvalid,
++  input  [31:0] in_wdata,
++  input  [3:0]  in_wstrb,
++  input         in_wlast,
++                in_bready,
++  output        in_bvalid,
++  output [3:0]  in_bid,
++  output [1:0]  in_bresp,
++
++  input         out_arready,
++  output        out_arvalid,
++  output [3:0]  out_arid,
++  output [31:0] out_araddr,
++  output [7:0]  out_arlen,
++  output [2:0]  out_arsize,
++  output [1:0]  out_arburst,
++  output        out_rready,
++  input         out_rvalid,
++  input  [3:0]  out_rid,
++  input  [31:0] out_rdata,
++  input  [1:0]  out_rresp,
++  input         out_rlast,
++  input         out_awready,
++  output        out_awvalid,
++  output [3:0]  out_awid,
++  output [31:0] out_awaddr,
++  output [7:0]  out_awlen,
++  output [2:0]  out_awsize,
++  output [1:0]  out_awburst,
++  input         out_wready,
++  output        out_wvalid,
++  output [31:0] out_wdata,
++  output [3:0]  out_wstrb,
++  output        out_wlast,
++                out_bready,
++  input         out_bvalid,
++  input  [3:0]  out_bid,
++  input  [1:0]  out_bresp
++);
++
++  // CPU_MHZ can be edited to 100/200/400 when validating calibration.
++  localparam integer CPU_MHZ       = 100;
++  localparam integer DEV_MHZ       = 100;
++  localparam integer R_SHIFT       = 8;
++  localparam integer R_SCALED      = (CPU_MHZ << R_SHIFT) / DEV_MHZ;
++  localparam integer RD_FIFO_DEPTH = 8;
++  localparam integer RD_FIFO_PTR_W = 3;
++
++  localparam [1:0] RD_IDLE    = 2'd0;
++  localparam [1:0] RD_WAIT_AR = 2'd1;
++  localparam [1:0] RD_WAIT_R  = 2'd2;
++
++  localparam [1:0] WR_IDLE      = 2'd0;
++  localparam [1:0] WR_WAIT_AW_W = 2'd1;
++  localparam [1:0] WR_WAIT_B    = 2'd2;
++  localparam [1:0] WR_HOLD_B    = 2'd3;
++
++  reg [1:0] rd_state;
++  reg [1:0] wr_state;
++
++  reg [3:0]  rd_arid_reg;
++  reg [31:0] rd_araddr_reg;
++  reg [7:0]  rd_arlen_reg;
++  reg [2:0]  rd_arsize_reg;
++  reg [1:0]  rd_arburst_reg;
++  reg [31:0] rd_service_cycles;
++  reg [31:0] rd_scaled_accum;
++
++  reg [3:0]  rd_fifo_rid [0:RD_FIFO_DEPTH-1];
++  reg [31:0] rd_fifo_rdata [0:RD_FIFO_DEPTH-1];
++  reg [1:0]  rd_fifo_rresp [0:RD_FIFO_DEPTH-1];
++  reg        rd_fifo_rlast [0:RD_FIFO_DEPTH-1];
++  reg [31:0] rd_fifo_target [0:RD_FIFO_DEPTH-1];
++  reg [RD_FIFO_PTR_W-1:0] rd_fifo_head;
++  reg [RD_FIFO_PTR_W-1:0] rd_fifo_tail;
++  reg [3:0]               rd_fifo_count;
++
++  reg [3:0]  wr_awid_reg;
++  reg [31:0] wr_awaddr_reg;
++  reg [7:0]  wr_awlen_reg;
++  reg [2:0]  wr_awsize_reg;
++  reg [1:0]  wr_awburst_reg;
++  reg        wr_aw_buf_valid;
++  reg        wr_aw_done;
++
++  reg [31:0] wr_wdata_reg;
++  reg [3:0]  wr_wstrb_reg;
++  reg        wr_wlast_reg;
++  reg        wr_w_buf_valid;
++  reg        wr_w_done;
++
++  reg [31:0] wr_service_cycles;
++  reg [31:0] wr_scaled_accum;
++  reg [3:0]  wr_bid_reg;
++  reg [1:0]  wr_bresp_reg;
++  reg [31:0] wr_b_target_cycle;
++  reg        wr_b_captured;
++
++  reg [1:0]  dbg_rd_state;
++  reg [1:0]  dbg_wr_state;
++  reg [31:0] dbg_rd_elapsed_cycles;
++  reg [31:0] dbg_wr_elapsed_cycles;
++  reg [31:0] dbg_rd_last_target_cycle;
++  reg [31:0] dbg_wr_last_target_cycle;
++  reg [3:0]  dbg_rd_fifo_occupancy;
++
++  wire rd_start = (rd_state == RD_IDLE) && in_arvalid;
++  wire rd_wait_ar = (rd_state == RD_WAIT_AR);
++  wire rd_wait_r = (rd_state == RD_WAIT_R);
++  wire rd_busy = (rd_state != RD_IDLE);
++  wire rd_ar_path_valid = rd_start || rd_wait_ar;
++  wire rd_ar_fire = rd_ar_path_valid && out_arready;
++
++  wire [31:0] rd_live_target_cycle = rd_scaled_accum >> R_SHIFT;
++  wire rd_live_target_ready = (rd_live_target_cycle <= rd_service_cycles);
++  wire rd_fifo_head_valid = (rd_fifo_count != 4'd0);
++  wire [31:0] rd_head_target_cycle = rd_fifo_target[rd_fifo_head];
++  wire rd_fifo_head_ready = rd_fifo_head_valid && (rd_head_target_cycle <= rd_service_cycles);
++  wire rd_live_visible = rd_wait_r && out_rvalid && !rd_fifo_head_valid && rd_live_target_ready;
++  wire rd_direct_bypass_fire = rd_live_visible && in_rready;
++  wire rd_pop_head = rd_fifo_head_ready && in_rready;
++  wire rd_push_beat = rd_wait_r && out_rvalid && out_rready && !rd_direct_bypass_fire;
++  wire [RD_FIFO_PTR_W-1:0] rd_fifo_head_next = rd_fifo_head + {{(RD_FIFO_PTR_W-1){1'b0}}, 1'b1};
++  wire [RD_FIFO_PTR_W-1:0] rd_fifo_tail_next = rd_fifo_tail + {{(RD_FIFO_PTR_W-1){1'b0}}, 1'b1};
++  wire [3:0] rd_fifo_count_after =
++    rd_fifo_count +
++    (rd_push_beat ? 4'd1 : 4'd0) -
++    (rd_pop_head ? 4'd1 : 4'd0);
++
++  wire rd_done_from_fifo = rd_pop_head && rd_fifo_rlast[rd_fifo_head];
++  wire rd_done_from_live = rd_direct_bypass_fire && out_rlast;
++
++  wire wr_start = (wr_state == WR_IDLE) && (in_awvalid || in_wvalid);
++  wire wr_wait_aw_w = (wr_state == WR_WAIT_AW_W);
++  wire wr_wait_b = (wr_state == WR_WAIT_B);
++  wire wr_hold_b = (wr_state == WR_HOLD_B);
++  wire wr_busy = (wr_state != WR_IDLE);
++
++  wire wr_aw_path_valid =
++    ((wr_state == WR_IDLE) || wr_wait_aw_w) &&
++    !wr_aw_done &&
++    (wr_aw_buf_valid || in_awvalid);
++  wire wr_w_path_valid =
++    ((wr_state == WR_IDLE) || wr_wait_aw_w) &&
++    !wr_w_done &&
++    (wr_w_buf_valid || in_wvalid);
++  wire wr_aw_fire = wr_aw_path_valid && out_awready;
++  wire wr_w_fire = wr_w_path_valid && out_wready;
++
++  wire [31:0] wr_live_target_cycle = wr_scaled_accum >> R_SHIFT;
++  wire wr_live_target_ready = (wr_live_target_cycle <= wr_service_cycles);
++  wire wr_live_b_visible = wr_wait_b && out_bvalid && !wr_b_captured && wr_live_target_ready;
++  wire wr_direct_bypass_fire = wr_live_b_visible && in_bready;
++
++  assign in_arready = rd_ar_path_valid && out_arready;
++  assign out_arvalid = rd_ar_path_valid;
++  assign out_arid = rd_wait_ar ? rd_arid_reg : in_arid;
++  assign out_araddr = rd_wait_ar ? rd_araddr_reg : in_araddr;
++  assign out_arlen = rd_wait_ar ? rd_arlen_reg : in_arlen;
++  assign out_arsize = rd_wait_ar ? rd_arsize_reg : in_arsize;
++  assign out_arburst = rd_wait_ar ? rd_arburst_reg : in_arburst;
++
++  assign out_rready = rd_wait_r && (rd_fifo_count < RD_FIFO_DEPTH);
++  assign in_rvalid = rd_fifo_head_valid ? rd_fifo_head_ready : rd_live_visible;
++  assign in_rid = rd_fifo_head_valid ? rd_fifo_rid[rd_fifo_head] : out_rid;
++  assign in_rdata = rd_fifo_head_valid ? rd_fifo_rdata[rd_fifo_head] : out_rdata;
++  assign in_rresp = rd_fifo_head_valid ? rd_fifo_rresp[rd_fifo_head] : out_rresp;
++  assign in_rlast = rd_fifo_head_valid ? rd_fifo_rlast[rd_fifo_head] : out_rlast;
++
++  assign in_awready = wr_aw_path_valid && out_awready;
++  assign out_awvalid = wr_aw_path_valid;
++  assign out_awid = wr_aw_buf_valid ? wr_awid_reg : in_awid;
++  assign out_awaddr = wr_aw_buf_valid ? wr_awaddr_reg : in_awaddr;
++  assign out_awlen = wr_aw_buf_valid ? wr_awlen_reg : in_awlen;
++  assign out_awsize = wr_aw_buf_valid ? wr_awsize_reg : in_awsize;
++  assign out_awburst = wr_aw_buf_valid ? wr_awburst_reg : in_awburst;
++
++  assign in_wready = wr_w_path_valid && out_wready;
++  assign out_wvalid = wr_w_path_valid;
++  assign out_wdata = wr_w_buf_valid ? wr_wdata_reg : in_wdata;
++  assign out_wstrb = wr_w_buf_valid ? wr_wstrb_reg : in_wstrb;
++  assign out_wlast = wr_w_buf_valid ? wr_wlast_reg : in_wlast;
++
++  assign out_bready = wr_wait_b && !wr_b_captured;
++  assign in_bvalid = wr_b_captured ? (wr_b_target_cycle <= wr_service_cycles) : wr_live_b_visible;
++  assign in_bid = wr_b_captured ? wr_bid_reg : out_bid;
++  assign in_bresp = wr_b_captured ? wr_bresp_reg : out_bresp;
++
++  always @(posedge clock) begin
++    if (reset) begin
++      rd_state <= RD_IDLE;
++      wr_state <= WR_IDLE;
++
++      rd_arid_reg <= 4'b0;
++      rd_araddr_reg <= 32'b0;
++      rd_arlen_reg <= 8'b0;
++      rd_arsize_reg <= 3'b0;
++      rd_arburst_reg <= 2'b0;
++      rd_service_cycles <= 32'b0;
++      rd_scaled_accum <= 32'b0;
++      rd_fifo_head <= {RD_FIFO_PTR_W{1'b0}};
++      rd_fifo_tail <= {RD_FIFO_PTR_W{1'b0}};
++      rd_fifo_count <= 4'b0;
++
++      wr_awid_reg <= 4'b0;
++      wr_awaddr_reg <= 32'b0;
++      wr_awlen_reg <= 8'b0;
++      wr_awsize_reg <= 3'b0;
++      wr_awburst_reg <= 2'b0;
++      wr_aw_buf_valid <= 1'b0;
++      wr_aw_done <= 1'b0;
++      wr_wdata_reg <= 32'b0;
++      wr_wstrb_reg <= 4'b0;
++      wr_wlast_reg <= 1'b0;
++      wr_w_buf_valid <= 1'b0;
++      wr_w_done <= 1'b0;
++      wr_service_cycles <= 32'b0;
++      wr_scaled_accum <= 32'b0;
++      wr_bid_reg <= 4'b0;
++      wr_bresp_reg <= 2'b0;
++      wr_b_target_cycle <= 32'b0;
++      wr_b_captured <= 1'b0;
++
++      dbg_rd_state <= RD_IDLE;
++      dbg_wr_state <= WR_IDLE;
++      dbg_rd_elapsed_cycles <= 32'b0;
++      dbg_wr_elapsed_cycles <= 32'b0;
++      dbg_rd_last_target_cycle <= 32'b0;
++      dbg_wr_last_target_cycle <= 32'b0;
++      dbg_rd_fifo_occupancy <= 4'b0;
++    end else begin
++      case (rd_state)
++        RD_IDLE: begin
++          rd_service_cycles <= 32'b0;
++          rd_scaled_accum <= 32'b0;
++          rd_fifo_head <= {RD_FIFO_PTR_W{1'b0}};
++          rd_fifo_tail <= {RD_FIFO_PTR_W{1'b0}};
++          rd_fifo_count <= 4'b0;
++          dbg_rd_last_target_cycle <= 32'b0;
++
++          if (rd_start) begin
++            rd_service_cycles <= 32'd1;
++            rd_scaled_accum <= R_SCALED[31:0];
++            if (!out_arready) begin
++              rd_arid_reg <= in_arid;
++              rd_araddr_reg <= in_araddr;
++              rd_arlen_reg <= in_arlen;
++              rd_arsize_reg <= in_arsize;
++              rd_arburst_reg <= in_arburst;
++              rd_state <= RD_WAIT_AR;
++            end else begin
++              rd_state <= RD_WAIT_R;
++            end
++          end
++        end
++
++        RD_WAIT_AR: begin
++          rd_service_cycles <= rd_service_cycles + 32'd1;
++          rd_scaled_accum <= rd_scaled_accum + R_SCALED[31:0];
++          if (rd_ar_fire) begin
++            rd_state <= RD_WAIT_R;
++          end
++        end
++
++        RD_WAIT_R: begin
++          rd_service_cycles <= rd_service_cycles + 32'd1;
++          rd_scaled_accum <= rd_scaled_accum + R_SCALED[31:0];
++
++          if (rd_push_beat) begin
++            rd_fifo_rid[rd_fifo_tail] <= out_rid;
++            rd_fifo_rdata[rd_fifo_tail] <= out_rdata;
++            rd_fifo_rresp[rd_fifo_tail] <= out_rresp;
++            rd_fifo_rlast[rd_fifo_tail] <= out_rlast;
++            rd_fifo_target[rd_fifo_tail] <= rd_live_target_cycle;
++            rd_fifo_tail <= rd_fifo_tail_next;
++            dbg_rd_last_target_cycle <= rd_live_target_cycle;
++          end
++
++          if (rd_pop_head) begin
++            rd_fifo_head <= rd_fifo_head_next;
++          end
++
++          rd_fifo_count <= rd_fifo_count_after;
++
++          if (rd_done_from_live || rd_done_from_fifo) begin
++            rd_state <= RD_IDLE;
++          end
++        end
++
++        default: begin
++          rd_state <= RD_IDLE;
++        end
++      endcase
++
++      case (wr_state)
++        WR_IDLE: begin
++          wr_aw_buf_valid <= 1'b0;
++          wr_aw_done <= 1'b0;
++          wr_w_buf_valid <= 1'b0;
++          wr_w_done <= 1'b0;
++          wr_service_cycles <= 32'b0;
++          wr_scaled_accum <= 32'b0;
++          wr_b_captured <= 1'b0;
++          wr_b_target_cycle <= 32'b0;
++          dbg_wr_last_target_cycle <= 32'b0;
++
++          if (wr_start) begin
++            wr_service_cycles <= 32'd1;
++            wr_scaled_accum <= R_SCALED[31:0];
++
++            if (in_awvalid && !out_awready) begin
++              wr_aw_buf_valid <= 1'b1;
++              wr_awid_reg <= in_awid;
++              wr_awaddr_reg <= in_awaddr;
++              wr_awlen_reg <= in_awlen;
++              wr_awsize_reg <= in_awsize;
++              wr_awburst_reg <= in_awburst;
++            end
++            wr_aw_done <= in_awvalid && out_awready;
++
++            if (in_wvalid && !out_wready) begin
++              wr_w_buf_valid <= 1'b1;
++              wr_wdata_reg <= in_wdata;
++              wr_wstrb_reg <= in_wstrb;
++              wr_wlast_reg <= in_wlast;
++            end
++            wr_w_done <= in_wvalid && out_wready;
++
++            if ((in_awvalid && out_awready) && (in_wvalid && out_wready)) begin
++              wr_state <= WR_WAIT_B;
++            end else begin
++              wr_state <= WR_WAIT_AW_W;
++            end
++          end
++        end
++
++        WR_WAIT_AW_W: begin
++          wr_service_cycles <= wr_service_cycles + 32'd1;
++          wr_scaled_accum <= wr_scaled_accum + R_SCALED[31:0];
++
++          if (!wr_aw_done && !wr_aw_buf_valid && in_awvalid && !out_awready) begin
++            wr_aw_buf_valid <= 1'b1;
++            wr_awid_reg <= in_awid;
++            wr_awaddr_reg <= in_awaddr;
++            wr_awlen_reg <= in_awlen;
++            wr_awsize_reg <= in_awsize;
++            wr_awburst_reg <= in_awburst;
++          end
++          if (!wr_w_done && !wr_w_buf_valid && in_wvalid && !out_wready) begin
++            wr_w_buf_valid <= 1'b1;
++            wr_wdata_reg <= in_wdata;
++            wr_wstrb_reg <= in_wstrb;
++            wr_wlast_reg <= in_wlast;
++          end
++
++          if (wr_aw_fire) begin
++            wr_aw_done <= 1'b1;
++            wr_aw_buf_valid <= 1'b0;
++          end
++          if (wr_w_fire) begin
++            wr_w_done <= 1'b1;
++            wr_w_buf_valid <= 1'b0;
++          end
++
++          if ((wr_aw_done || wr_aw_fire) && (wr_w_done || wr_w_fire)) begin
++            wr_state <= WR_WAIT_B;
++          end
++        end
++
++        WR_WAIT_B: begin
++          wr_service_cycles <= wr_service_cycles + 32'd1;
++          wr_scaled_accum <= wr_scaled_accum + R_SCALED[31:0];
++
++          if (out_bvalid && !wr_b_captured) begin
++            dbg_wr_last_target_cycle <= wr_live_target_cycle;
++            if (wr_direct_bypass_fire) begin
++              wr_state <= WR_IDLE;
++            end else begin
++              wr_bid_reg <= out_bid;
++              wr_bresp_reg <= out_bresp;
++              wr_b_target_cycle <= wr_live_target_cycle;
++              wr_b_captured <= 1'b1;
++              wr_state <= WR_HOLD_B;
++            end
++          end
++        end
++
++        WR_HOLD_B: begin
++          wr_service_cycles <= wr_service_cycles + 32'd1;
++          wr_scaled_accum <= wr_scaled_accum + R_SCALED[31:0];
++
++          if ((wr_b_target_cycle <= wr_service_cycles) && in_bready) begin
++            wr_state <= WR_IDLE;
++          end
++        end
++
++        default: begin
++          wr_state <= WR_IDLE;
++        end
++      endcase
++
++      dbg_rd_state <= rd_state;
++      dbg_wr_state <= wr_state;
++      dbg_rd_elapsed_cycles <= rd_service_cycles;
++      dbg_wr_elapsed_cycles <= wr_service_cycles;
++      dbg_rd_fifo_occupancy <= rd_fifo_count;
++    end
++  end
++
++`ifndef SYNTHESIS
++  always @(posedge clock) begin
++    if (!reset) begin
++      if (DEV_MHZ <= 0) begin
++        $fatal(1, "axi4_delayer DEV_MHZ must be > 0");
++      end
++      if (CPU_MHZ <= 0) begin
++        $fatal(1, "axi4_delayer CPU_MHZ must be > 0");
++      end
++      if (rd_start && (in_arlen > 8'd7)) begin
++        $fatal(1, "axi4_delayer only supports read burst beats <= 8");
++      end
++      if ((rd_state == RD_WAIT_R) && in_arvalid) begin
++        $fatal(1, "axi4_delayer does not support multiple in-flight read transactions");
++      end
++      if (rd_push_beat && (rd_fifo_count == RD_FIFO_DEPTH)) begin
++        $fatal(1, "axi4_delayer read beat buffer overflow");
++      end
++      if ((wr_start || (!wr_aw_done && in_awvalid)) && (in_awlen != 8'h00)) begin
++        $fatal(1, "axi4_delayer does not support write burst calibration");
++      end
++      if (wr_w_fire && !out_wlast) begin
++        $fatal(1, "axi4_delayer single-beat write requires wlast=1");
++      end
++      if ((wr_state == WR_WAIT_B || wr_state == WR_HOLD_B) && (in_awvalid || in_wvalid)) begin
++        $fatal(1, "axi4_delayer does not support overlapping write transactions");
++      end
++      if ((R_SCALED == (1 << R_SHIFT)) && rd_wait_r && out_rvalid && !rd_fifo_head_valid && !rd_live_visible) begin
++        $fatal(1, "axi4_delayer inserted unexpected read delay at ratio 1");
++      end
++      if ((R_SCALED == (1 << R_SHIFT)) && wr_wait_b && out_bvalid && !wr_live_target_ready) begin
++        $fatal(1, "axi4_delayer inserted unexpected write-response delay at ratio 1");
++      end
++    end
++  end
++`endif
++
++endmodule
++*/
+\ No newline at end of file
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+index f1c3b36..1e7f1a4 100644
+--- a/perip/bitrev/bitrev.v
++++ b/perip/bitrev/bitrev.v
+@@ -4,5 +4,42 @@ module bitrev (
+   input  mosi,
+   output miso
+ );
+-  assign miso = 1'b1;
++  reg [7:0] rx_data;
++  reg [7:0] tx_data;
++  reg [4:0] bit_cnt;
++  reg       miso_reg;
++
++  assign miso = miso_reg;
++
++  // Sample MOSI on SCK falling edge when slave is selected.
++  always @(negedge sck or posedge ss) begin
++    if (ss) begin
++      rx_data <= 8'h00;
++      tx_data <= 8'h00;
++      bit_cnt <= 5'd0;
++    end else begin
++      if (bit_cnt < 5'd8) begin
++        rx_data[bit_cnt[2:0]] <= mosi;
++      end
++      if (bit_cnt == 5'd7) begin
++        tx_data <= {rx_data[0], rx_data[1], rx_data[2], rx_data[3], rx_data[4], rx_data[5], rx_data[6], mosi};
++      end
++      if (bit_cnt < 5'd16) begin
++        bit_cnt <= bit_cnt + 5'd1;
++      end
++    end
++  end
++
++  // Drive MISO on SCK rising edge; idle high when not selected.
++  always @(posedge sck or posedge ss) begin
++    if (ss) begin
++      miso_reg <= 1'b1;
++    end else if (bit_cnt < 5'd8) begin
++      miso_reg <= 1'b1;
++    end else if (bit_cnt < 5'd16) begin
++      miso_reg <= tx_data[bit_cnt[2:0]];
++    end else begin
++      miso_reg <= 1'b1;
++    end
++  end
+ endmodule
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index ec51ffe..e161b28 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -24,4 +24,90 @@ module gpio_top_apb(
+   output [7:0]  gpio_seg_7
+ );
+ 
++  localparam [3:0] GPIO_LED_OFS = 4'h0;
++  localparam [3:0] GPIO_SW_OFS  = 4'h4;
++  localparam [3:0] GPIO_SEG_OFS = 4'h8;
++  localparam [3:0] GPIO_RSV_OFS = 4'hc;
++
++  reg [15:0] led_reg;
++  reg [31:0] seg_reg;
++
++  wire       apb_write = in_psel && in_penable && in_pwrite;
++  wire [3:0] reg_ofs   = in_paddr[3:0];
++  reg  [31:0] prdata_r;
++
++  function [7:0] seg_lut_active_low;
++    input [3:0] hex;
++    begin
++      // Bit order matches NVBoard vector binding:
++      // bit7..0 = A B C D E F G DP, active-low (0 lights).
++      case (hex)
++        4'h0: seg_lut_active_low = 8'h03;
++        4'h1: seg_lut_active_low = 8'h9f;
++        4'h2: seg_lut_active_low = 8'h25;
++        4'h3: seg_lut_active_low = 8'h0d;
++        4'h4: seg_lut_active_low = 8'h99;
++        4'h5: seg_lut_active_low = 8'h49;
++        4'h6: seg_lut_active_low = 8'h41;
++        4'h7: seg_lut_active_low = 8'h1f;
++        4'h8: seg_lut_active_low = 8'h01;
++        4'h9: seg_lut_active_low = 8'h09;
++        4'ha: seg_lut_active_low = 8'h11;
++        4'hb: seg_lut_active_low = 8'hc1;
++        4'hc: seg_lut_active_low = 8'h63;
++        4'hd: seg_lut_active_low = 8'h85;
++        4'he: seg_lut_active_low = 8'h61;
++        4'hf: seg_lut_active_low = 8'h71;
++        default: seg_lut_active_low = 8'hff;
++      endcase
++    end
++  endfunction
++
++  always @(*) begin
++    case (reg_ofs)
++      GPIO_LED_OFS: prdata_r = {16'h0, led_reg};
++      GPIO_SW_OFS:  prdata_r = {16'h0, gpio_in};
++      GPIO_SEG_OFS: prdata_r = seg_reg;
++      GPIO_RSV_OFS: prdata_r = 32'h0;
++      default:      prdata_r = 32'h0;
++    endcase
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      led_reg <= 16'h0000;
++      seg_reg <= 32'h0000_0000;
++    end else if (apb_write) begin
++      case (reg_ofs)
++        GPIO_LED_OFS: begin
++          if (in_pstrb[0]) led_reg[7:0]  <= in_pwdata[7:0];
++          if (in_pstrb[1]) led_reg[15:8] <= in_pwdata[15:8];
++        end
++        GPIO_SEG_OFS: begin
++          if (in_pstrb[0]) seg_reg[7:0]   <= in_pwdata[7:0];
++          if (in_pstrb[1]) seg_reg[15:8]  <= in_pwdata[15:8];
++          if (in_pstrb[2]) seg_reg[23:16] <= in_pwdata[23:16];
++          if (in_pstrb[3]) seg_reg[31:24] <= in_pwdata[31:24];
++        end
++        default: begin
++        end
++      endcase
++    end
++  end
++
++  assign in_pready  = in_psel && in_penable;
++  assign in_prdata  = prdata_r;
++  assign in_pslverr = 1'b0;
++
++  assign gpio_out   = led_reg;
++
++  assign gpio_seg_0 = seg_lut_active_low(seg_reg[3:0]);
++  assign gpio_seg_1 = seg_lut_active_low(seg_reg[7:4]);
++  assign gpio_seg_2 = seg_lut_active_low(seg_reg[11:8]);
++  assign gpio_seg_3 = seg_lut_active_low(seg_reg[15:12]);
++  assign gpio_seg_4 = seg_lut_active_low(seg_reg[19:16]);
++  assign gpio_seg_5 = seg_lut_active_low(seg_reg[23:20]);
++  assign gpio_seg_6 = seg_lut_active_low(seg_reg[27:24]);
++  assign gpio_seg_7 = seg_lut_active_low(seg_reg[31:28]);
++
+ endmodule
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 080d38f..ae7bf3a 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -16,4 +16,102 @@ module ps2_top_apb(
+   input         ps2_data
+ );
+ 
++  localparam [3:0] REG_DATA_OFS = 4'h0;
++  localparam integer FIFO_DEPTH = 8;
++  localparam integer FIFO_PTR_W = 3;
++
++  reg [2:0] ps2_clk_sync;
++  reg [3:0] bit_count;
++  reg [9:0] frame_buf;
++  reg       frame_valid;
++  reg [7:0] frame_data;
++
++  reg [7:0] fifo [0:FIFO_DEPTH-1];
++  reg [FIFO_PTR_W-1:0] w_ptr;
++  reg [FIFO_PTR_W-1:0] r_ptr;
++  reg [3:0] fifo_count;
++
++  reg [31:0] prdata_r;
++
++  wire ps2_fall = ps2_clk_sync[2] & ~ps2_clk_sync[1];
++
++  wire fifo_empty = (fifo_count == 4'd0);
++  wire fifo_full  = (fifo_count == FIFO_DEPTH);
++
++  wire apb_access = in_psel && in_penable;
++  wire apb_read_data = apb_access && !in_pwrite && (in_paddr[3:0] == REG_DATA_OFS);
++  wire pop_fire = apb_read_data && !fifo_empty;
++  wire push_fire = frame_valid && (!fifo_full || pop_fire);
++
++  always @(*) begin
++    if ((in_paddr[3:0] == REG_DATA_OFS) && !fifo_empty) begin
++      prdata_r = {24'h0, fifo[r_ptr]};
++    end else begin
++      prdata_r = 32'h0;
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      // Align synchronizer state to the external line level to avoid
++      // false edge detection right after reset.
++      ps2_clk_sync <= {3{ps2_clk}};
++      bit_count <= 4'd0;
++      frame_buf <= 10'b0;
++      frame_valid <= 1'b0;
++      frame_data <= 8'h00;
++    end else begin
++      ps2_clk_sync <= {ps2_clk_sync[1:0], ps2_clk};
++      frame_valid <= 1'b0;
++
++      if (ps2_fall) begin
++        if (bit_count == 4'd0) begin
++          // Start collecting only when a valid start bit (0) arrives.
++          if (ps2_data == 1'b0) begin
++            frame_buf[0] <= 1'b0;
++            bit_count <= 4'd1;
++          end
++        end else if (bit_count == 4'd10) begin
++          // Verify: start=0, stop=1, odd parity over {parity,data[7:0]}.
++          if ((frame_buf[0] == 1'b0) && (ps2_data == 1'b1) && (^frame_buf[9:1])) begin
++            frame_valid <= 1'b1;
++            frame_data <= frame_buf[8:1];
++          end
++          bit_count <= 4'd0;
++        end else begin
++          frame_buf[bit_count] <= ps2_data;
++          bit_count <= bit_count + 4'd1;
++        end
++      end
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      w_ptr <= {FIFO_PTR_W{1'b0}};
++      r_ptr <= {FIFO_PTR_W{1'b0}};
++      fifo_count <= 4'd0;
++    end else begin
++      if (push_fire) begin
++        fifo[w_ptr] <= frame_data;
++        w_ptr <= w_ptr + {{(FIFO_PTR_W-1){1'b0}}, 1'b1};
++      end
++
++      if (pop_fire) begin
++        r_ptr <= r_ptr + {{(FIFO_PTR_W-1){1'b0}}, 1'b1};
++      end
++
++      case ({push_fire, pop_fire})
++        2'b10: fifo_count <= fifo_count + 4'd1;
++        2'b01: fifo_count <= fifo_count - 4'd1;
++        default: begin
++        end
++      endcase
++    end
++  end
++
++  assign in_pready  = in_psel && in_penable;
++  assign in_prdata  = prdata_r;
++  assign in_pslverr = 1'b0;
++
+ endmodule
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e..c409e2f 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -41,6 +41,80 @@
+ `timescale              1ns/1ps
+ `default_nettype        none
+ 
++module PSRAM_ENTER_QPI (
++    input  wire       clk,
++    input  wire       rst_n,
++    input  wire       start,
++    output wire       done,
++    output reg        sck,
++    output reg        ce_n,
++    output wire [3:0] dout,
++    output wire       douten
++);
++    localparam [1:0] IDLE  = 2'b00;
++    localparam [1:0] PRIME = 2'b01;
++    localparam [1:0] SEND  = 2'b10;
++
++    reg [1:0] state, nstate;
++    reg [3:0] counter;
++    reg       prime_done;
++
++    wire [7:0] CMD_35H = 8'h35;
++
++    always @* begin
++      case (state)
++        IDLE: nstate = start ? PRIME : IDLE;
++        PRIME: nstate = prime_done ? SEND : PRIME;
++        SEND: nstate = done ? IDLE : SEND;
++        default: nstate = IDLE;
++      endcase
++    end
++
++    always @(posedge clk or negedge rst_n)
++      if (!rst_n) state <= IDLE;
++      else state <= nstate;
++
++    always @(posedge clk or negedge rst_n)
++      if (!rst_n)
++        ce_n <= 1'b1;
++      else if (state == SEND)
++        ce_n <= 1'b0;
++      else
++        ce_n <= 1'b1;
++
++    always @(posedge clk or negedge rst_n)
++      if (!rst_n)
++        sck <= 1'b0;
++      else if (state == PRIME && !prime_done)
++        sck <= ~sck;
++      else if (state == PRIME)
++        sck <= 1'b0;
++      else if (state == SEND)
++        sck <= ~sck;
++      else
++        sck <= 1'b0;
++
++    always @(posedge clk or negedge rst_n)
++      if (!rst_n)
++        counter <= 4'd0;
++      else if (state != SEND)
++        counter <= 4'd0;
++      else if (sck & ~done)
++        counter <= counter + 4'd1;
++
++    always @(posedge clk or negedge rst_n)
++      if (!rst_n)
++        prime_done <= 1'b0;
++      else if (state == IDLE)
++        prime_done <= 1'b0;
++      else if (state == PRIME && sck)
++        prime_done <= 1'b1;
++
++    assign done = (counter == 4'd8);
++    assign dout = (counter < 4'd8) ? {3'b000, CMD_35H[7 - counter]} : 4'h0;
++    assign douten = ~ce_n;
++endmodule
++
+ module PSRAM_READER (
+     input   wire            clk,
+     input   wire            rst_n,
+@@ -60,7 +134,8 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    // QPI (4-4-4): 2 cmd nibbles + 6 addr nibbles + 6 wait nibbles + 2*size data nibbles
++    wire [7:0]  FINAL_COUNT = 8'd13 + size * 2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -112,23 +187,25 @@ module PSRAM_READER (
+             //saddr <= {addr[23:2], 2'b0};
+             saddr <= {addr[23:0]};
+ 
+-    // Sample with the negedge of sck
+-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++    // Sample input data during data phase
++    wire[1:0] byte_index = {counter[7:1] - 8'd7}[1:0];
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
++        if(counter >= 8'd14 && counter <= FINAL_COUNT)
+             if(sck)
+-                data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+-
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
++                data[byte_index] <= {data[byte_index][3:0], din};
++
++    assign dout     =   (counter == 8'd0) ? CMD_EBH[7:4] :
++                        (counter == 8'd1) ? CMD_EBH[3:0] :
++                        (counter == 8'd2) ? saddr[23:20] :
++                        (counter == 8'd3) ? saddr[19:16] :
++                        (counter == 8'd4) ? saddr[15:12] :
++                        (counter == 8'd5) ? saddr[11:8]  :
++                        (counter == 8'd6) ? saddr[7:4]   :
++                        (counter == 8'd7) ? saddr[3:0]   :
+                         4'h0;
+ 
+-    assign douten   = (counter < 14);
++    // QPI command/address output only; wait/data phase are input from PSRAM
++    assign douten   = (counter < 8'd8);
+ 
+     assign done     = (counter == FINAL_COUNT+1);
+ 
+@@ -161,7 +238,8 @@ module PSRAM_WRITER (
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    // QPI (4-4-4): 2 cmd nibbles + 6 addr nibbles + 2*size data nibbles
++    wire[7:0]        FINAL_COUNT = 8'd7 + size*2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,20 +290,21 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
+-                        (counter == 14) ?   line[7:4]           :
+-                        (counter == 15) ?   line[3:0]           :
+-                        (counter == 16) ?   line[15:12]         :
+-                        (counter == 17) ?   line[11:8]          :
+-                        (counter == 18) ?   line[23:20]         :
+-                        (counter == 19) ?   line[19:16]         :
+-                        (counter == 20) ?   line[31:28]         :
++    assign dout     =   (counter == 8'd0)  ? CMD_38H[7:4] :
++                        (counter == 8'd1)  ? CMD_38H[3:0] :
++                        (counter == 8'd2)  ? saddr[23:20]  :
++                        (counter == 8'd3)  ? saddr[19:16]  :
++                        (counter == 8'd4)  ? saddr[15:12]  :
++                        (counter == 8'd5)  ? saddr[11:8]   :
++                        (counter == 8'd6)  ? saddr[7:4]    :
++                        (counter == 8'd7)  ? saddr[3:0]    :
++                        (counter == 8'd8)  ? line[7:4]     :
++                        (counter == 8'd9)  ? line[3:0]     :
++                        (counter == 8'd10) ? line[15:12]   :
++                        (counter == 8'd11) ? line[11:8]    :
++                        (counter == 8'd12) ? line[23:20]   :
++                        (counter == 8'd13) ? line[19:16]   :
++                        (counter == 8'd14) ? line[31:28]   :
+                         line[27:24];
+ 
+     assign douten   = (~ce_n);
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+index 7b5296d..357cb4d 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -54,12 +54,18 @@ module EF_PSRAM_CTRL_wb (
+     wire [3:0]  mw_dout;
+     wire        mw_doe;
+ 
++    wire        iq_sck;
++    wire        iq_ce_n;
++    wire [3:0]  iq_dout;
++    wire        iq_doe;
++    wire        iq_done;
++
+     // PSRAM Reader and Writer wires
+     wire        mr_rd;
+     wire        mr_done;
+     wire        mw_wr;
+     wire        mw_done;
+-
++    
+     //wire        doe;
+ 
+     // WB Control Signals
+@@ -68,6 +74,18 @@ module EF_PSRAM_CTRL_wb (
+     wire        wb_re           =   ~we_i & wb_valid;
+     //wire[3:0]   wb_byte_sel     =   sel_i & {4{wb_we}};
+ 
++
++    reg         init_done;
++    wire        init_running = ~init_done;
++
++    always @(posedge clk_i or posedge rst_i) begin
++      if (rst_i) begin
++        init_done <= 1'b0;
++      end else if (iq_done) begin
++        init_done <= 1'b1;
++      end
++    end
++
+     // The FSM
+     reg         state, nstate;
+     always @ (posedge clk_i or posedge rst_i)
+@@ -79,7 +97,9 @@ module EF_PSRAM_CTRL_wb (
+     always @* begin
+         case(state)
+             ST_IDLE :
+-                if(wb_valid)
++                if(init_running)
++                    nstate = ST_IDLE;
++                else if(wb_valid)
+                     nstate = ST_WAIT;
+                 else
+                     nstate = ST_IDLE;
+@@ -127,8 +147,19 @@ module EF_PSRAM_CTRL_wb (
+                         2'b00;
+                       */
+ 
+-    assign mr_rd    = ( (state==ST_IDLE ) & wb_re );
+-    assign mw_wr    = ( (state==ST_IDLE ) & wb_we );
++    assign mr_rd    = (state == ST_IDLE) & wb_re & init_done;
++    assign mw_wr    = (state == ST_IDLE) & wb_we & init_done;
++
++    PSRAM_ENTER_QPI IQ (
++        .clk(clk_i),
++        .rst_n(~rst_i),
++        .start(~init_done),
++        .done(iq_done),
++        .sck(iq_sck),
++        .ce_n(iq_ce_n),
++        .dout(iq_dout),
++        .douten(iq_doe)
++    );
+ 
+     PSRAM_READER MR (
+         .clk(clk_i),
+@@ -161,12 +192,12 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mw_doe)
+     );
+ 
+-    assign sck  = wb_we ? mw_sck  : mr_sck;
+-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
+-    assign dout = wb_we ? mw_dout : mr_dout;
+-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
++    assign sck  = init_running ? iq_sck : (wb_we ? mw_sck : mr_sck);
++    assign ce_n = init_running ? iq_ce_n : (wb_we ? mw_ce_n : mr_ce_n);
++    assign dout = init_running ? iq_dout : (wb_we ? mw_dout : mr_dout);
++    assign douten = init_running ? {4{iq_doe}} : (wb_we ? {4{mw_doe}} : {4{mr_doe}});
+ 
+     assign mw_din = din;
+     assign mr_din = din;
+-    assign ack_o = wb_we ? mw_done :mr_done ;
++    assign ack_o = init_running ? 1'b0 : (wb_we ? mw_done : mr_done);
+ endmodule
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index d9bdd88..0faad09 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -4,6 +4,202 @@ module psram(
+   inout [3:0] dio
+ );
+ 
+-  assign dio = 4'bz;
++  localparam [2:0] ST_CMD       = 3'd0;
++  localparam [2:0] ST_ADDR      = 3'd1;
++  localparam [2:0] ST_RD_DUMMY  = 3'd2;
++  localparam [2:0] ST_RD_DATA   = 3'd3;
++  localparam [2:0] ST_WR_DATA   = 3'd4;
++  localparam [2:0] ST_WAIT_END  = 3'd5;
++  localparam [2:0] ST_ERR       = 3'd6;
++
++  localparam [7:0] CMD_ENTER_QPI = 8'h35;
++  localparam [7:0] CMD_QIOR = 8'heb;
++  localparam [7:0] CMD_QIOW = 8'h38;
++  localparam [2:0] READ_DUMMY_NIBBLES = 3'd6;
++
++  reg [2:0] state;
++  reg qpi_mode;
++
++  reg [7:0] cmd;
++  reg [2:0] cmd_cnt;
++  reg       qpi_cmd_phase;
++
++  reg [23:0] addr;
++  reg [2:0] addr_nib_cnt;
++  reg [21:0] byte_addr;
++
++  reg [2:0] dummy_cnt;
++  reg nibble_phase;
++  reg [7:0] byte_buf;
++  reg seen_ce_high_clk;
++
++  reg [3:0] dio_out;
++  reg dio_oe;
++  wire [3:0] dio_in = dio;
++
++  // 4MB PSRAM storage (byte-addressable)
++  reg [7:0] mem [0:(1 << 22) - 1];
++
++  wire [7:0] cmd_spi_next = {cmd[6:0], dio_in[0]};
++  wire [7:0] cmd_qpi_next = {cmd[7:4], dio_in};
++  wire [23:0] addr_next = {addr[19:0], dio_in};
++
++  assign dio = dio_oe ? dio_out : 4'bz;
++
++  initial begin
++    state = ST_CMD;
++    qpi_mode = 1'b0;
++    cmd = 8'h00;
++    cmd_cnt = 3'd0;
++    qpi_cmd_phase = 1'b0;
++    addr = 24'h000000;
++    addr_nib_cnt = 3'd0;
++    byte_addr = 22'd0;
++    dummy_cnt = 3'd0;
++    nibble_phase = 1'b0;
++    byte_buf = 8'h00;
++    dio_out = 4'h0;
++    dio_oe = 1'b0;
++    seen_ce_high_clk = 1'b0;
++  end
++
++  // Datasheet requirement: at least one clock pulse with CE# HIGH before operations.
++  always @(posedge sck) begin
++    if (ce_n) seen_ce_high_clk <= 1'b1;
++  end
++
++  always @(posedge sck or posedge ce_n) begin
++    if (ce_n) begin
++      // ce_n is the transaction boundary; keep qpi_mode sticky.
++      state <= ST_CMD;
++      cmd <= 8'h00;
++      cmd_cnt <= 3'd0;
++      qpi_cmd_phase <= 1'b0;
++      addr <= 24'h000000;
++      addr_nib_cnt <= 3'd0;
++      byte_addr <= 22'd0;
++      dummy_cnt <= 3'd0;
++      nibble_phase <= 1'b0;
++      byte_buf <= 8'h00;
++      dio_out <= 4'h0;
++      dio_oe <= 1'b0;
++    end else begin
++      case (state)
++        ST_CMD: begin
++          if (!seen_ce_high_clk) begin
++            state <= ST_ERR;
++            $fwrite(32'h80000002,
++                    "Assertion failed: require at least one clock pulse while CE# is HIGH before operation\n");
++            $fatal;
++          end else
++          if (!qpi_mode) begin
++            cmd <= cmd_spi_next;
++            if (cmd_cnt == 3'd7) begin
++              cmd_cnt <= 3'd0;
++              if (cmd_spi_next == CMD_ENTER_QPI) begin
++                qpi_mode <= 1'b1;
++                state <= ST_WAIT_END;
++              end else begin
++                state <= ST_ERR;
++                $fwrite(32'h80000002,
++                        "Assertion failed: Unsupported PSRAM SPI command 0x%02x (expect 0x35 enter-QPI)\n",
++                        cmd_spi_next);
++                $fatal;
++              end
++            end else begin
++              cmd_cnt <= cmd_cnt + 3'd1;
++            end
++          end else begin
++            if (!qpi_cmd_phase) begin
++              cmd[7:4] <= dio_in;
++              qpi_cmd_phase <= 1'b1;
++            end else begin
++              cmd[3:0] <= dio_in;
++              qpi_cmd_phase <= 1'b0;
++              if (cmd_qpi_next == CMD_QIOR || cmd_qpi_next == CMD_QIOW) begin
++                state <= ST_ADDR;
++                addr <= 24'h000000;
++                addr_nib_cnt <= 3'd0;
++              end else begin
++                state <= ST_ERR;
++                $fwrite(32'h80000002,
++                        "Assertion failed: Unsupported PSRAM QPI command 0x%02x (only 0xEB/0x38)\n",
++                        cmd_qpi_next);
++                $fatal;
++              end
++            end
++          end
++        end
++
++        ST_ADDR: begin
++          addr <= addr_next;
++          if (addr_nib_cnt == 3'd5) begin
++            byte_addr <= addr_next[21:0];
++            nibble_phase <= 1'b0;
++            byte_buf <= 8'h00;
++            if (cmd == CMD_QIOR) begin
++              state <= ST_RD_DUMMY;
++              dummy_cnt <= 3'd0;
++              dio_oe <= 1'b0;
++            end else begin
++              state <= ST_WR_DATA;
++              dio_oe <= 1'b0;
++            end
++          end else begin
++            addr_nib_cnt <= addr_nib_cnt + 3'd1;
++          end
++        end
++
++        ST_RD_DUMMY: begin
++          if (dummy_cnt == (READ_DUMMY_NIBBLES - 1'b1)) begin
++            state <= ST_RD_DATA;
++            dummy_cnt <= 3'd0;
++            nibble_phase <= 1'b0;
++            dio_oe <= 1'b1;
++          end else begin
++            dummy_cnt <= dummy_cnt + 3'd1;
++          end
++        end
++
++        ST_RD_DATA: begin
++          dio_oe <= 1'b1;
++          if (!nibble_phase) begin
++            byte_buf <= mem[byte_addr];
++            dio_out <= mem[byte_addr][7:4];
++            nibble_phase <= 1'b1;
++          end else begin
++            dio_out <= byte_buf[3:0];
++            nibble_phase <= 1'b0;
++            // Wrap inside 1024-byte page: keep [21:10], increment [9:0].
++            byte_addr <= {byte_addr[21:10], byte_addr[9:0] + 10'd1};
++          end
++        end
++
++        ST_WR_DATA: begin
++          if (!nibble_phase) begin
++            byte_buf[7:4] <= dio_in;
++            nibble_phase <= 1'b1;
++          end else begin
++            byte_buf[3:0] <= dio_in;
++            mem[byte_addr] <= {byte_buf[7:4], dio_in};
++            nibble_phase <= 1'b0;
++            // Wrap inside 1024-byte page: keep [21:10], increment [9:0].
++            byte_addr <= {byte_addr[21:10], byte_addr[9:0] + 10'd1};
++          end
++        end
++
++        ST_WAIT_END: begin
++          // Keep idle until ce_n goes high and resets the per-transaction state.
++          dio_oe <= 1'b0;
++        end
++
++        default: begin
++          state <= ST_ERR;
++          $fwrite(32'h80000002, "Assertion failed: PSRAM entered invalid state\n");
++          $fatal;
++        end
++      endcase
++    end
++  end
+ 
+ endmodule
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 3613b23..25be912 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -11,6 +11,345 @@ module sdram(
+   inout [15:0] dq
+ );
+ 
+-  assign dq = 16'bz;
++  // --------------------------------------------------------------------------
++  // SDR command encoding (cs is handled separately)
++  // --------------------------------------------------------------------------
++  localparam CMD_NOP        = 3'b111;
++  localparam CMD_ACTIVE     = 3'b011;
++  localparam CMD_READ       = 3'b101;
++  localparam CMD_WRITE      = 3'b100;
++  localparam CMD_BURST_TERM = 3'b110;
++  localparam CMD_PRECHARGE  = 3'b010;
++  localparam CMD_REFRESH    = 3'b001;
++  localparam CMD_LOAD_MODE  = 3'b000;
++
++  // --------------------------------------------------------------------------
++  // MT48LC16M16A2-like logical geometry:
++  // 4 banks * 8192 rows * 512 columns * 16 bits = 32MB
++  // --------------------------------------------------------------------------
++  localparam BANKS = 4;
++  localparam ROW_BITS = 13;
++  localparam COL_BITS = 9;
++  localparam MEM_WORDS = BANKS * (1 << ROW_BITS) * (1 << COL_BITS);
++  localparam COL_MASK = (1 << COL_BITS) - 1;
++
++`ifndef SYNTHESIS
++`ifndef __ICARUS__
++  import "DPI-C" function int unsigned sdram_read16(input int unsigned word_addr);
++  import "DPI-C" function void sdram_write16(
++    input int unsigned word_addr,
++    input int unsigned data,
++    input int unsigned mask
++  );
++`endif
++`endif
++
++  // Per-bank activated row state.
++  reg [ROW_BITS-1:0] active_row [0:BANKS-1];
++  reg [BANKS-1:0] row_open;
++
++  // Mode register fields used by this model.
++  // mode_bl: burst length encoding, mode_cl: CAS latency.
++  reg [2:0] mode_bl;
++  reg [2:0] mode_cl;
++
++  // DQ tri-state control:
++  // - read path drives dq_out with dq_oe=1
++  // - otherwise dq is high-Z and write path samples dq_in
++  reg [15:0] dq_out;
++  reg dq_oe;
++  wire [15:0] dq_in = dq;
++  assign dq = dq_oe ? dq_out : 16'hzzzz;
++
++  // Debug counter used in fatal messages.
++  reg [31:0] cycle;
++
++  // READ transaction context (burst progression after READ command).
++  reg rd_pending;
++  reg [2:0] rd_delay;
++  reg [1:0] rd_bank;
++  reg [ROW_BITS-1:0] rd_row;
++  reg [COL_BITS-1:0] rd_col_base;
++  reg [3:0] rd_bl;
++  reg [3:0] rd_beats_left;
++  reg [3:0] rd_beat_idx;
++
++  // WRITE transaction context (remaining beats after WRITE command cycle).
++  reg wr_active;
++  reg [1:0] wr_bank;
++  reg [ROW_BITS-1:0] wr_row;
++  reg [COL_BITS-1:0] wr_col_base;
++  reg [3:0] wr_bl;
++  reg [3:0] wr_beats_left;
++  reg [3:0] wr_beat_idx;
++
++  // Decode mode register BL bits to number of beats.
++  // Unsupported BL codes return 0 and are rejected by command handling.
++  function [3:0] decode_bl;
++    input [2:0] bl_bits;
++    begin
++      case (bl_bits)
++        3'b000: decode_bl = 4'd1;
++        3'b001: decode_bl = 4'd2;
++        3'b010: decode_bl = 4'd4;
++        3'b011: decode_bl = 4'd8;
++        default: decode_bl = 4'd0; // unsupported
++      endcase
++    end
++  endfunction
++
++  // Compute current burst column from base + beat index.
++  // Address wraps within COL_BITS width.
++  function [COL_BITS-1:0] burst_col;
++    input [COL_BITS-1:0] base;
++    input [3:0] idx;
++    input [3:0] bl;
++    reg [COL_BITS-1:0] offs;
++    begin
++      case (bl)
++        4'd1: offs = {{(COL_BITS-1){1'b0}}, idx[0]};
++        4'd2: offs = {{(COL_BITS-1){1'b0}}, idx[0]};
++        4'd4: offs = {{(COL_BITS-2){1'b0}}, idx[1:0]};
++        4'd8: offs = {{(COL_BITS-3){1'b0}}, idx[2:0]};
++        default: offs = {{(COL_BITS-3){1'b0}}, idx[2:0]};
++      endcase
++      burst_col = (base + offs) & COL_MASK;
++    end
++  endfunction
++
++  // Flatten bank/row/col tuple to linear memory word index.
++  function integer word_index;
++    input [1:0] bank_i;
++    input [ROW_BITS-1:0] row_i;
++    input [COL_BITS-1:0] col_i;
++    begin
++      word_index = {8'b0, bank_i, row_i, col_i};
++    end
++  endfunction
++
++  function integer burst_word_index;
++    input [1:0] bank_i;
++    input [ROW_BITS-1:0] row_i;
++    input [COL_BITS-1:0] base_i;
++    input [3:0] idx_i;
++    input [3:0] bl_i;
++    begin
++      burst_word_index = word_index(bank_i, row_i, burst_col(base_i, idx_i, bl_i));
++    end
++  endfunction
++
++`ifndef SYNTHESIS
++`ifndef __ICARUS__
++  function [15:0] dpi_read_word;
++    input integer word_addr;
++    reg [31:0] data;
++    begin
++      data = sdram_read16(word_addr[31:0]);
++      dpi_read_word = data[15:0];
++    end
++  endfunction
++`endif
++`endif
++
++  wire [2:0] cmd = {ras, cas, we};
++  reg wr_commit_valid;
++  reg [31:0] wr_commit_addr;
++  reg [15:0] wr_commit_data;
++  reg [1:0] wr_commit_mask;
++
++  always @(posedge clk) begin
++    cycle <= cycle + 1;
++
++    // Default to not driving dq; read path explicitly enables it per beat.
++    dq_oe <= 1'b0;
++    wr_commit_valid <= 1'b0;
++
++`ifndef SYNTHESIS
++`ifndef __ICARUS__
++    if (wr_commit_valid) begin
++      sdram_write16(wr_commit_addr, {16'b0, wr_commit_data}, {30'b0, wr_commit_mask});
++    end
++`endif
++`endif
++
++    if (!cke) begin
++      // With CKE low, this behavioral model ignores command progression.
++    end else begin
++      // ----------------------------------------------------------------------
++      // WRITE data path:
++      // The WRITE command cycle consumes beat#0 separately below.
++      // This block handles remaining beats (beat#1 .. beat#N-1).
++      // ----------------------------------------------------------------------
++      if (wr_active && wr_beats_left != 0) begin
++        wr_commit_valid <= 1'b1;
++        wr_commit_addr <= burst_word_index(wr_bank, wr_row, wr_col_base, wr_beat_idx, wr_bl);
++        wr_commit_data <= dq_in;
++        wr_commit_mask <= ~dqm;
++
++        wr_beat_idx <= wr_beat_idx + 1;
++        wr_beats_left <= wr_beats_left - 1;
++        if (wr_beats_left == 1) begin
++          wr_active <= 1'b0;
++        end
++      end
++
++      // ----------------------------------------------------------------------
++      // READ data path:
++      // 1) wait rd_delay cycles (CL alignment),
++      // 2) then drive one 16-bit beat per cycle until burst complete.
++      // ----------------------------------------------------------------------
++      if (rd_pending) begin
++        if (rd_delay != 0) begin
++          rd_delay <= rd_delay - 1;
++        end else if (rd_beats_left != 0) begin
++`ifndef SYNTHESIS
++`ifndef __ICARUS__
++          dq_out <= dpi_read_word(burst_word_index(rd_bank, rd_row, rd_col_base, rd_beat_idx, rd_bl));
++`else
++          dq_out <= 16'h0;
++`endif
++`else
++          dq_out <= 16'h0;
++`endif
++          dq_oe <= 1'b1;
++          rd_beat_idx <= rd_beat_idx + 1;
++          rd_beats_left <= rd_beats_left - 1;
++          if (rd_beats_left == 1) begin
++            rd_pending <= 1'b0;
++          end
++        end
++      end
++
++      // ----------------------------------------------------------------------
++      // Command decode
++      // ----------------------------------------------------------------------
++      if (cs) begin
++        // COMMAND INHIBIT
++      end else begin
++        case (cmd)
++          CMD_NOP: begin
++            // no operation
++          end
++          CMD_ACTIVE: begin
++            active_row[ba] <= a;
++            row_open[ba] <= 1'b1;
++          end
++          CMD_READ: begin
++            // READ requires an already activated row on target bank.
++            if (!row_open[ba]) begin
++              $fatal(1, "[sdram] READ without ACTIVE at cycle=%0d bank=%0d row=%0d col=%0d", cycle, ba, a, a[8:0]);
++            end
++            if (decode_bl(mode_bl) == 0) begin
++              $fatal(1, "[sdram] Unsupported BL code=%0b at cycle=%0d", mode_bl, cycle);
++            end
++            if (mode_cl < 1 || mode_cl > 3) begin
++              $fatal(1, "[sdram] Unsupported CL=%0d at cycle=%0d", mode_cl, cycle);
++            end
++
++            rd_pending <= 1'b1;
++            // Align to controller sampling pipeline (sample_data0_q -> sample_data_q).
++            rd_delay <= (mode_cl[2:0] > 3'd1) ? (mode_cl[2:0] - 3'd2) : 3'd0;
++            rd_bank <= ba;
++            rd_row <= active_row[ba];
++            // A10 auto-precharge bit is intentionally ignored in this model.
++            rd_col_base <= a[8:0];
++            rd_bl <= decode_bl(mode_bl);
++            rd_beats_left <= decode_bl(mode_bl);
++            rd_beat_idx <= 4'd0;
++          end
++          CMD_WRITE: begin
++            // WRITE requires an already activated row on target bank.
++            if (!row_open[ba]) begin
++              $fatal(1, "[sdram] WRITE without ACTIVE at cycle=%0d bank=%0d row=%0d col=%0d", cycle, ba, a, a[8:0]);
++            end
++            if (decode_bl(mode_bl) == 0) begin
++              $fatal(1, "[sdram] Unsupported BL code=%0b at cycle=%0d", mode_bl, cycle);
++            end
++            wr_bank <= ba;
++            wr_row <= active_row[ba];
++            // A10 auto-precharge bit is intentionally ignored in this model.
++            wr_col_base <= a[8:0];
++            wr_bl <= decode_bl(mode_bl);
++
++            // In SDR SDRAM, the first write beat is sampled in the WRITE command cycle.
++            wr_commit_valid <= 1'b1;
++            wr_commit_addr <= burst_word_index(ba, active_row[ba], a[8:0], 4'd0, decode_bl(mode_bl));
++            wr_commit_data <= dq_in;
++            wr_commit_mask <= ~dqm;
++
++            if (decode_bl(mode_bl) > 1) begin
++              wr_active <= 1'b1;
++              wr_beats_left <= decode_bl(mode_bl) - 1;
++              wr_beat_idx <= 4'd1;
++            end else begin
++              wr_active <= 1'b0;
++              wr_beats_left <= 4'd0;
++              wr_beat_idx <= 4'd0;
++            end
++          end
++          CMD_BURST_TERM: begin
++            rd_pending <= 1'b0;
++            wr_active <= 1'b0;
++          end
++          CMD_PRECHARGE: begin
++            // A10 selects all-bank precharge; otherwise BA selects one bank.
++            if (a[10]) row_open <= {BANKS{1'b0}};
++            else row_open[ba] <= 1'b0;
++          end
++          CMD_REFRESH: begin
++            // Functional NOP in this model per lab requirement.
++          end
++          CMD_LOAD_MODE: begin
++            // Only BL and CL are modeled; other mode bits are ignored.
++            mode_bl <= a[2:0];
++            mode_cl <= a[6:4];
++            if (decode_bl(a[2:0]) == 0) begin
++              $fatal(1, "[sdram] Unsupported LOAD_MODE BL=%0b at cycle=%0d", a[2:0], cycle);
++            end
++            if (a[6:4] < 3'd1 || a[6:4] > 3'd3) begin
++              $fatal(1, "[sdram] Unsupported LOAD_MODE CL=%0d at cycle=%0d", a[6:4], cycle);
++            end
++          end
++          default: begin
++            $fatal(1, "[sdram] Illegal command cs/ras/cas/we=%b%b at cycle=%0d bank=%0d addr=%0h", cs, cmd, cycle, ba, a);
++          end
++        endcase
++      end
++    end
++  end
++
++  integer b;
++  initial begin
++    // Defaults aligned with current controller MODE_REG:
++    // BL=2 (001), CL=2 (010).
++    cycle = 0;
++    mode_bl = 3'b001;
++    mode_cl = 3'b010;
++
++    row_open = 0;
++
++    rd_pending = 1'b0;
++    rd_delay = 3'd0;
++    rd_bank = 2'd0;
++    rd_row = {ROW_BITS{1'b0}};
++    rd_col_base = {COL_BITS{1'b0}};
++    rd_bl = 4'd2;
++    rd_beats_left = 4'd0;
++    rd_beat_idx = 4'd0;
++    wr_active = 1'b0;
++    wr_bank = 2'd0;
++    wr_row = {ROW_BITS{1'b0}};
++    wr_col_base = {COL_BITS{1'b0}};
++    wr_bl = 4'd2;
++    wr_beats_left = 4'd0;
++    wr_beat_idx = 4'd0;
++
++    dq_out = 16'h0000;
++    dq_oe = 1'b0;
++
++    for (b = 0; b < BANKS; b = b + 1) begin
++      active_row[b] = {ROW_BITS{1'b0}};
++    end
++  end
+ 
+ endmodule
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d3751..dafef1c 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -48,18 +48,233 @@ assign in_prdata  = data[31:0];
+ 
+ `else
+ 
++localparam [4:0] SPI_TX0_OFS  = 5'h00;
++localparam [4:0] SPI_TX1_OFS  = 5'h04;
++localparam [4:0] SPI_RX0_OFS  = 5'h00;
++localparam [4:0] SPI_RX1_OFS  = 5'h04;
++localparam [4:0] SPI_CTRL_OFS = 5'h10;
++localparam [4:0] SPI_DIV_OFS  = 5'h14;
++localparam [4:0] SPI_SS_OFS   = 5'h18;
++
++localparam [31:0] SPI_CTRL_GO       = 32'h0000_0100;
++localparam [31:0] SPI_CTRL_IE       = 32'h0000_1000;
++localparam [31:0] SPI_CTRL_XIP_CFG  = 32'h0000_2440; // ASS | TX_NEG | CHAR_LEN(64)
++localparam [31:0] SPI_FLASH_CMD     = 32'h0300_0000;
++localparam [31:0] SPI_FLASH_DUMMY   = 32'h0000_0000;
++localparam [31:0] SPI_FLASH_SS      = 32'h0000_0001;
++localparam [31:0] SPI_DIV_FAST      = 32'h0000_0000;
++
++localparam [3:0] XIP_IDLE           = 4'd0;
++localparam [3:0] XIP_WR_DIV         = 4'd1;
++localparam [3:0] XIP_WR_SS          = 4'd2;
++localparam [3:0] XIP_WR_TX1         = 4'd3;
++localparam [3:0] XIP_WR_TX0         = 4'd4;
++localparam [3:0] XIP_WR_CTRL_GO     = 4'd5;
++localparam [3:0] XIP_WAIT_IRQ       = 4'd6;
++localparam [3:0] XIP_RD_RX1         = 4'd7;
++localparam [3:0] XIP_RD_RX0         = 4'd8;
++localparam [3:0] XIP_DONE           = 4'd9;
++
++wire is_flash_xip = (in_paddr >= flash_addr_start) && (in_paddr <= flash_addr_end);
++wire apb_access = in_psel && in_penable;
++wire is_xip_read_req = apb_access && is_flash_xip && !in_pwrite;
++wire is_xip_write_req = apb_access && is_flash_xip && in_pwrite;
++
++reg [3:0] xip_state;
++reg [23:0] xip_addr;
++reg [31:0] xip_rdata;
++reg [31:0] xip_req_addr;
++reg        xip_req_valid;
++
++reg  [4:0] xip_wb_adr;
++reg [31:0] xip_wb_dat_w;
++reg  [3:0] xip_wb_sel;
++reg        xip_wb_we;
++reg        xip_wb_stb;
++reg        xip_wb_cyc;
++
++wire [4:0] wb_adr_i;
++wire [31:0] wb_dat_i;
++wire [31:0] wb_dat_o;
++wire [3:0] wb_sel_i;
++wire wb_we_i;
++wire wb_stb_i;
++wire wb_cyc_i;
++wire wb_ack_o;
++wire wb_err_o;
++
++wire xip_busy = (xip_state != XIP_IDLE) && (xip_state != XIP_DONE);
++wire xip_resp_phase = (xip_state == XIP_DONE) && xip_req_valid;
++wire xip_master_sel = xip_busy || xip_resp_phase;
++wire apb_passthrough = !xip_master_sel && !is_flash_xip;
++
++assign wb_adr_i = xip_master_sel ? xip_wb_adr   : in_paddr[4:0];
++assign wb_dat_i = xip_master_sel ? xip_wb_dat_w : in_pwdata;
++assign wb_sel_i = xip_master_sel ? xip_wb_sel   : in_pstrb;
++assign wb_we_i  = xip_master_sel ? xip_wb_we    : in_pwrite;
++assign wb_stb_i = xip_master_sel ? xip_wb_stb   : in_psel;
++assign wb_cyc_i = xip_master_sel ? xip_wb_cyc   : in_penable;
++
++wire [31:0] xip_resp_data = xip_rdata;
++wire xip_resp_valid = xip_resp_phase;
++wire xip_resp_ready = apb_access && is_flash_xip && !in_pwrite &&
++                      xip_req_valid && (in_paddr == xip_req_addr);
++
++assign in_pready = apb_passthrough ? wb_ack_o :
++                   (is_xip_write_req ? 1'b1 :
++                   (xip_resp_valid && xip_resp_ready));
++assign in_prdata = apb_passthrough ? wb_dat_o :
++                   ((xip_resp_valid && xip_resp_ready) ? xip_resp_data : 32'b0);
++assign in_pslverr = apb_passthrough ? wb_err_o : is_xip_write_req;
++
++function [31:0] bswap32;
++  input [31:0] data;
++  begin
++    bswap32 = {data[7:0], data[15:8], data[23:16], data[31:24]};
++  end
++endfunction
++
++always @(*) begin
++  xip_wb_adr   = 5'b0;
++  xip_wb_dat_w = 32'b0;
++  xip_wb_sel   = 4'hf;
++  xip_wb_we    = 1'b0;
++  xip_wb_stb   = 1'b0;
++  xip_wb_cyc   = 1'b0;
++
++  case (xip_state)
++    XIP_WR_DIV: begin
++      xip_wb_adr   = SPI_DIV_OFS;
++      xip_wb_dat_w = SPI_DIV_FAST;
++      xip_wb_we    = 1'b1;
++      xip_wb_stb   = 1'b1;
++      xip_wb_cyc   = 1'b1;
++    end
++    XIP_WR_SS: begin
++      xip_wb_adr   = SPI_SS_OFS;
++      xip_wb_dat_w = SPI_FLASH_SS;
++      xip_wb_we    = 1'b1;
++      xip_wb_stb   = 1'b1;
++      xip_wb_cyc   = 1'b1;
++    end
++    XIP_WR_TX1: begin
++      xip_wb_adr   = SPI_TX1_OFS;
++      xip_wb_dat_w = SPI_FLASH_CMD | {8'b0, xip_addr};
++      xip_wb_we    = 1'b1;
++      xip_wb_stb   = 1'b1;
++      xip_wb_cyc   = 1'b1;
++    end
++    XIP_WR_TX0: begin
++      xip_wb_adr   = SPI_TX0_OFS;
++      xip_wb_dat_w = SPI_FLASH_DUMMY;
++      xip_wb_we    = 1'b1;
++      xip_wb_stb   = 1'b1;
++      xip_wb_cyc   = 1'b1;
++    end
++    XIP_WR_CTRL_GO: begin
++      xip_wb_adr   = SPI_CTRL_OFS;
++      xip_wb_dat_w = SPI_CTRL_XIP_CFG | SPI_CTRL_IE | SPI_CTRL_GO;
++      xip_wb_we    = 1'b1;
++      xip_wb_stb   = 1'b1;
++      xip_wb_cyc   = 1'b1;
++    end
++    XIP_RD_RX1: begin
++      xip_wb_adr = SPI_RX1_OFS;
++      xip_wb_we  = 1'b0;
++      xip_wb_stb = 1'b1;
++      xip_wb_cyc = 1'b1;
++    end
++    XIP_RD_RX0: begin
++      xip_wb_adr = SPI_RX0_OFS;
++      xip_wb_we  = 1'b0;
++      xip_wb_stb = 1'b1;
++      xip_wb_cyc = 1'b1;
++    end
++    default: begin
++    end
++  endcase
++end
++
++always @(posedge clock or posedge reset) begin
++  if (reset) begin
++    xip_state <= XIP_IDLE;
++    xip_addr <= 24'b0;
++    xip_rdata <= 32'b0;
++    xip_req_addr <= 32'b0;
++    xip_req_valid <= 1'b0;
++  end else begin
++    case (xip_state)
++      XIP_IDLE: begin
++        if (is_xip_read_req && !xip_req_valid) begin
++          xip_req_addr <= in_paddr;
++          xip_req_valid <= 1'b1;
++          xip_addr <= in_paddr[23:0];
++          xip_state <= XIP_WR_DIV;
++        end
++      end
++      XIP_WR_DIV: begin
++        if (wb_ack_o) xip_state <= XIP_WR_SS;
++      end
++      XIP_WR_SS: begin
++        if (wb_ack_o) xip_state <= XIP_WR_TX1;
++      end
++      XIP_WR_TX1: begin
++        if (wb_ack_o) xip_state <= XIP_WR_TX0;
++      end
++      XIP_WR_TX0: begin
++        if (wb_ack_o) xip_state <= XIP_WR_CTRL_GO;
++      end
++      XIP_WR_CTRL_GO: begin
++        if (wb_ack_o) xip_state <= XIP_WAIT_IRQ;
++      end
++      XIP_WAIT_IRQ: begin
++        if (spi_irq_out) xip_state <= XIP_RD_RX1;
++      end
++      XIP_RD_RX1: begin
++        if (wb_ack_o) begin
++          xip_state <= XIP_RD_RX0;
++        end
++      end
++      XIP_RD_RX0: begin
++        if (wb_ack_o) begin
++          xip_rdata <= bswap32(wb_dat_o);
++          xip_state <= XIP_DONE;
++        end
++      end
++      XIP_DONE: begin
++        if (xip_resp_ready) begin
++          xip_req_valid <= 1'b0;
++          xip_state <= XIP_IDLE;
++        end
++      end
++      default: begin
++        xip_state <= XIP_IDLE;
++      end
++    endcase
++  end
++end
++
++`ifndef SYNTHESIS
++always @(posedge clock) begin
++  if (!reset && is_xip_write_req) begin
++    $fwrite(32'h80000002, "Assertion failed: write to flash XIP space addr=%x data=%x\n", in_paddr, in_pwdata);
++    $fatal;
++  end
++end
++`endif
++
+ spi_top u0_spi_top (
+   .wb_clk_i(clock),
+   .wb_rst_i(reset),
+-  .wb_adr_i(in_paddr[4:0]),
+-  .wb_dat_i(in_pwdata),
+-  .wb_dat_o(in_prdata),
+-  .wb_sel_i(in_pstrb),
+-  .wb_we_i (in_pwrite),
+-  .wb_stb_i(in_psel),
+-  .wb_cyc_i(in_penable),
+-  .wb_ack_o(in_pready),
+-  .wb_err_o(in_pslverr),
++  .wb_adr_i(wb_adr_i),
++  .wb_dat_i(wb_dat_i),
++  .wb_dat_o(wb_dat_o),
++  .wb_sel_i(wb_sel_i),
++  .wb_we_i (wb_we_i),
++  .wb_stb_i(wb_stb_i),
++  .wb_cyc_i(wb_cyc_i),
++  .wb_ack_o(wb_ack_o),
++  .wb_err_o(wb_err_o),
+   .wb_int_o(spi_irq_out),
+ 
+   .ss_pad_o(spi_ss),
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 7132911..7d70109 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,7 +211,9 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
++`ifdef NPC_UART_STDOUT_RTL
+                 $write("%c", data_in);
++`endif
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -221,7 +223,9 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
++`ifdef NPC_UART_STDOUT_RTL
+                 $write("%c", data_in);
++`endif
+                 end
+         default: ;
+         endcase
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 5c74cfb..1b328f9 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -20,4 +20,114 @@ module vga_top_apb(
+   output        vga_valid
+ );
+ 
++  localparam [31:0] FB_BASE = 32'h2100_0000;
++  localparam [31:0] FB_END  = 32'h211f_ffff;
++
++  localparam integer H_SYNC   = 96;
++  localparam integer H_BACK   = 48;
++  localparam integer H_VISIBLE = 640;
++  localparam integer H_FRONT  = 16;
++  localparam integer H_TOTAL  = H_SYNC + H_BACK + H_VISIBLE + H_FRONT; // 800
++
++  localparam integer V_SYNC   = 2;
++  localparam integer V_BACK   = 33;
++  localparam integer V_VISIBLE = 480;
++  localparam integer V_FRONT  = 10;
++  localparam integer V_TOTAL  = V_SYNC + V_BACK + V_VISIBLE + V_FRONT; // 525
++
++  localparam integer H_ACTIVE_START = H_SYNC + H_BACK; // 144
++  localparam integer H_ACTIVE_END   = H_ACTIVE_START + H_VISIBLE; // 784
++  localparam integer V_ACTIVE_START = V_SYNC + V_BACK; // 35
++  localparam integer V_ACTIVE_END   = V_ACTIVE_START + V_VISIBLE; // 515
++
++  localparam integer FB_WORDS = H_VISIBLE * V_VISIBLE; // 307200
++
++  reg [31:0] fb_mem [0:FB_WORDS - 1];
++
++  reg [9:0] h_cnt;
++  reg [9:0] v_cnt;
++  reg [31:0] apb_rdata_r;
++  reg [31:0] scan_pixel_r;
++  integer i;
++
++  wire apb_access = in_psel && in_penable;
++  wire apb_write  = apb_access && in_pwrite;
++  wire apb_read   = apb_access && !in_pwrite;
++
++  wire apb_in_range = (in_paddr >= FB_BASE) && (in_paddr <= FB_END);
++  wire [31:0] apb_word_addr_w = (in_paddr - FB_BASE) >> 2;
++  wire apb_word_valid = apb_in_range && (apb_word_addr_w < FB_WORDS);
++  wire [18:0] apb_word_addr = apb_word_addr_w[18:0];
++
++  wire h_active = (h_cnt >= H_ACTIVE_START) && (h_cnt < H_ACTIVE_END);
++  wire v_active = (v_cnt >= V_ACTIVE_START) && (v_cnt < V_ACTIVE_END);
++  wire scan_valid = h_active && v_active;
++
++  wire [9:0] scan_x = h_cnt - 10'd144;
++  wire [9:0] scan_y = v_cnt - 10'd35;
++  wire [19:0] scan_addr_w = (scan_y * 10'd640) + scan_x;
++  wire [18:0] scan_addr = scan_addr_w[18:0];
++
++  initial begin
++    for (i = 0; i < FB_WORDS; i = i + 1) begin
++      fb_mem[i] = 32'h0;
++    end
++  end
++
++  always @(*) begin
++    apb_rdata_r = 32'h0;
++    if (apb_read && apb_word_valid) begin
++      apb_rdata_r = fb_mem[apb_word_addr];
++    end
++  end
++
++  always @(*) begin
++    scan_pixel_r = 32'h0;
++    if (scan_valid) begin
++      scan_pixel_r = fb_mem[scan_addr];
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      h_cnt <= 10'd0;
++      v_cnt <= 10'd0;
++    end else begin
++      if (h_cnt == H_TOTAL - 1) begin
++        h_cnt <= 10'd0;
++        if (v_cnt == V_TOTAL - 1) begin
++          v_cnt <= 10'd0;
++        end else begin
++          v_cnt <= v_cnt + 10'd1;
++        end
++      end else begin
++        h_cnt <= h_cnt + 10'd1;
++      end
++    end
++  end
++
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++    end else if (apb_write && apb_word_valid) begin
++      if (in_pstrb[0]) fb_mem[apb_word_addr][7:0]   <= in_pwdata[7:0];
++      if (in_pstrb[1]) fb_mem[apb_word_addr][15:8]  <= in_pwdata[15:8];
++      if (in_pstrb[2]) fb_mem[apb_word_addr][23:16] <= in_pwdata[23:16];
++      if (in_pstrb[3]) fb_mem[apb_word_addr][31:24] <= in_pwdata[31:24];
++    end
++  end
++
++  assign in_pready  = in_psel && in_penable;
++  assign in_prdata  = apb_rdata_r;
++  assign in_pslverr = 1'b0;
++
++  // Active-low sync pulses at the beginning of each line/frame.
++  assign vga_hsync = !(h_cnt < H_SYNC);
++  assign vga_vsync = !(v_cnt < V_SYNC);
++  assign vga_valid = scan_valid;
++
++  // Pixel format: 0x00RRGGBB (alpha/high byte ignored).
++  assign vga_r = scan_valid ? scan_pixel_r[23:16] : 8'h00;
++  assign vga_g = scan_valid ? scan_pixel_r[15:8]  : 8'h00;
++  assign vga_b = scan_valid ? scan_pixel_r[7:0]   : 8'h00;
++
+ endmodule
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195..ae60a97 100644
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_26030082 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_26030082)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a..2913155 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.34.1
+

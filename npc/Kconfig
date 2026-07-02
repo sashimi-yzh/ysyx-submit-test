@@ -1,0 +1,120 @@
+mainmenu "NPC Configuration Menu"
+
+menu "Build Options"
+
+choice
+  prompt "Host optimization level"
+  default CC_O2
+config CC_O0
+  bool "O0"
+config CC_O1
+  bool "O1"
+config CC_O2
+  bool "O2"
+config CC_O3
+  bool "O3"
+endchoice
+
+config CC_OPT
+  string
+  default "-O0" if CC_O0
+  default "-O1" if CC_O1
+  default "-O2" if CC_O2
+  default "-O3" if CC_O3
+
+config CC_DEBUG
+  bool "Enable host debug information"
+  default n
+
+choice
+  prompt "Verilator optimization level"
+  default VERILATOR_O3
+config VERILATOR_O0
+  bool "O0"
+config VERILATOR_O1
+  bool "O1"
+config VERILATOR_O2
+  bool "O2"
+config VERILATOR_O3
+  bool "O3"
+endchoice
+
+config VERILATOR_OPT
+  string
+  default "-O0" if VERILATOR_O0
+  default "-O1" if VERILATOR_O1
+  default "-O2" if VERILATOR_O2
+  default "-O3" if VERILATOR_O3
+
+config MAX_SIM_TIME
+  int "Maximum simulation cycles"
+  default 1000000000
+
+config MAX_NO_COMMIT_CYCLES
+  int "Maximum cycles without an instruction commit"
+  default 10000
+
+endmenu
+
+menu "Testing and Debugging"
+config TRACE
+  bool "Enable tracer"
+  default n
+
+config TRACE_START
+  depends on TRACE
+  int "When tracing is enabled (unit: number of instructions)"
+  default 0
+
+config TRACE_END
+  depends on TRACE
+  int "When tracing is disabled (unit: number of instructions)"
+  default 1000000
+
+config ITRACE
+  depends on TRACE
+  bool "Enable instruction tracer"
+  default n
+
+config ITRACE_COND
+  depends on ITRACE
+  string "Only trace instructions when the condition is true"
+  default "true"
+
+config FTRACE
+  depends on TRACE
+  bool "Enable function tracer (ftrace)"
+  default n
+
+config MTRACE
+  depends on TRACE
+  bool "Enable memory tracer (mtrace)"
+  default n
+
+config MTRACE_COND
+  depends on MTRACE
+  string "Only trace memory access when the condition is true"
+  default "true"
+
+config DTRACE
+  depends on TRACE
+  bool "Enable device trace (dtrace)"
+  default n
+
+config ETRACE
+  depends on TRACE
+  bool "Enable exception trace (etrace)"
+  default n
+
+config DIFFTEST
+  bool "Enable differential testing"
+  default n
+
+config WAVE
+  bool "Enable waveform"
+  default n
+
+config WATCHPOINT
+  bool "Enable watchpoint"
+  default y
+endmenu
