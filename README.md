@@ -7,3 +7,9 @@ bash init.sh subproject-name
 进行初始化, 具体请参考[实验讲义][lecture note].
 
 [lecture note]: https://ysyx.oscc.cc/docs/
+
+STUID - ysyx_26030082
+
+Original repo - https://github.com/ecall73/ysyx-workbench
+
+Original branch - ci
