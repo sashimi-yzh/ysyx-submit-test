@@ -1,0 +1,55 @@
+From fc4ccfd449cc8e39c8687871b7d87efad32bb5be Mon Sep 17 00:00:00 2001
+From: Sun Haoyi <2991339684@qq.com>
+Date: Tue, 14 Jul 2026 14:15:37 +0800
+Subject: [PATCH 2/3] fix
+
+---
+ bsp/abstract-machine/extra-soc.ld         | 3 +++
+ bsp/abstract-machine/integrate-am-apps.py | 4 ++--
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra-soc.ld b/bsp/abstract-machine/extra-soc.ld
+index e68670000..e84a1e549 100644
+--- a/bsp/abstract-machine/extra-soc.ld
++++ b/bsp/abstract-machine/extra-soc.ld
+@@ -14,11 +14,13 @@ SECTIONS {
+   .init : {
+     *(entry)
+     *(.init) 
++    . = ALIGN(4);
+   } > flash : init
+ 
+   .init2 : {
+     _init2_start = .;
+     *(.init2)
++    . = ALIGN(4);
+   } > sram AT> flash : init2
+   _init2_end = .;
+   _init2_lma = LOADADDR(.init2);
+@@ -97,6 +99,7 @@ SECTIONS {
+     *(.bss*)
+     *(.sbss*)
+     *(.scommon)
++    . = ALIGN(4);
+   } > sdram : data
+   _bss_end = .;
+   _heap_start = .;
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 9bf4c9c59..7701406cf 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -8,9 +8,9 @@ AM_HOME = Path(os.environ["AM_HOME"])
+ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+-#   AM_KERNELS_HOME / "benchmarks" / "microbench",
++  AM_KERNELS_HOME / "benchmarks" / "microbench",
+ #   AM_KERNELS_HOME / "kernels" / "typing-game",
+-#   AM_KERNELS_HOME / "kernels" / "snake",
++  AM_KERNELS_HOME / "kernels" / "snake",
+ #   AM_KERNELS_HOME / "kernels" / "rt-halt",
+ #   AM_KERNELS_HOME / "kernels" / "rt-kbdtest",
+ #   AM_KERNELS_HOME / ".." / "fceux-am",
+-- 
+2.43.0
+

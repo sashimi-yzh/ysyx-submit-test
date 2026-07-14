@@ -1,0 +1,12 @@
+!**
+*.fst
+build
+yosys-sta
+.github
+.metals
+.vscode
+*.vcd
+*.out
+out
+*.bz2
+

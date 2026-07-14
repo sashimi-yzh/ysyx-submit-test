@@ -1,0 +1,100 @@
+package top
+import chisel3._
+import chisel3.util._
+
+class IFU1to2 extends Bundle {
+  val pc       = UInt(32.W)
+  val pc4      = UInt(32.W)
+  val dpic_tag = UInt(8.W)
+
+}
+
+class IFU1(cfg: CacheConfig) extends Module {
+  val io  = IO(new Bundle {
+    val out        = Decoupled(new IFU1to2)
+    val redirectEn = Input(Bool())
+    val redirectPc = Input(UInt(32.W))
+    val sram       = Flipped(new SRAMIO(cfg))
+  })
+  // val pc  = RegInit(0x30000000.U(32.W))
+  val pc  = RegInit("h80000000".U(32.W))
+  val pc4 = WireInit((pc + 4.U)(31, 0))
+
+  val dpic_tagReg = RegInit(0.U(8.W))
+
+  io.out.bits.pc       := pc
+  io.out.bits.pc4      := pc4
+  io.out.bits.dpic_tag := dpic_tagReg
+  io.out.valid         := false.B
+
+  when(io.redirectEn) {
+    pc := io.redirectPc
+  }.otherwise {
+    io.out.valid := true.B
+    when(io.out.fire ) {
+      pc          := pc4
+      dpic_tagReg := dpic_tagReg + 1.U
+    }
+  }
+
+  val tagSRAMs = Seq.fill(cfg.numWays) {
+    SRAM(
+      size = cfg.numGroups,
+      tpe = UInt(cfg.tagW.W),
+      numReadPorts = 1,
+      numWritePorts = 1,
+      numReadwritePorts = 0
+    )
+  }
+
+  val tagPorts  = tagSRAMs.map(_.readPorts(0))
+  val tagWPorts = tagSRAMs.map(_.writePorts(0))
+
+  val instSRAMs = Seq.fill(cfg.numWays) {
+    SRAM(
+      size = cfg.cacheSizeB / cfg.numWays,
+      tpe = UInt(32.W),
+      numReadPorts = 1,
+      numWritePorts = 1,
+      numReadwritePorts = 0
+    )
+  }
+
+  val instWPorts = instSRAMs.map(_.writePorts(0))
+  val instPorts  = instSRAMs.map(_.readPorts(0))
+
+  // PC[tag|index|offset]
+  val offset = pc(cfg.offsetW - 1, 0)
+  val index  = if (cfg.indexW > 0) pc(cfg.offsetW + cfg.indexW - 1, cfg.offsetW) else 0.U
+  val tag    = pc(31, cfg.offsetW + cfg.indexW)
+
+  val instRaddr = pc(cfg.offsetW + cfg.indexW - 1, 2)
+
+  // 读
+  for (i <- 0 until cfg.numWays) {
+    instPorts(i).address := instRaddr
+    instPorts(i).enable  := io.out.valid || io.sram.wen
+    io.sram.wayInsts(i)  := instPorts(i).data
+    instWPorts(i).enable := false.B
+    instWPorts(i).data   := io.sram.wInst
+
+    tagPorts(i).address := index
+    tagPorts(i).enable  := io.out.valid || io.sram.wen
+    io.sram.wayTags(i)  := tagPorts(i).data
+    tagWPorts(i).enable := false.B
+    tagWPorts(i).data   := io.sram.wTag
+
+    instWPorts(i).address := Cat(index, io.sram.refillOffset(cfg.offsetW - 1, 2))
+    tagWPorts(i).address  := index
+    when(io.sram.wen) {
+      io.out.valid := false.B
+      when(io.sram.replaceWay === i.U) {
+        instWPorts(i).enable := true.B
+
+        tagWPorts(i).enable := true.B
+      }
+
+    }
+  }
+
+}

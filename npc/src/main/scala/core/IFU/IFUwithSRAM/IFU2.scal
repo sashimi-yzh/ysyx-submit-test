@@ -1,0 +1,147 @@
+package top
+import chisel3._
+import chisel3.util._
+
+class IFU2IDU extends IFU1to2 {
+  val inst     = UInt(32.W)
+  val excValid = Bool()
+  val excType  = ExceptionType()
+}
+
+case class CacheConfig(cacheSizeB: Int = 32, blockSizeB: Int = 4, assoc: Int = 1) {
+  val numBlocks     = cacheSizeB / blockSizeB
+  val numGroups     = numBlocks / assoc
+  val wordsPerBlock = blockSizeB / 4
+
+  val offsetW = log2Ceil(blockSizeB)
+  val indexW  = log2Ceil(numGroups)
+  val wayIdxW = log2Ceil(assoc)
+  val tagW    = 32 - offsetW - indexW
+  val numWays = assoc
+}
+
+class SRAMIO(cfg: CacheConfig) extends Bundle {
+  val wayTags  = Input(Vec(cfg.numWays, UInt(cfg.tagW.W)))
+  val wayInsts = Input(Vec(cfg.numWays, UInt(32.W)))
+
+  val replaceWay   = Output(UInt())
+  val refillOffset = Output(UInt(cfg.offsetW.W))
+  val wInst        = Output(UInt(32.W))
+  val wTag         = Output(UInt(cfg.tagW.W))
+  val wen          = Output(Bool())
+}
+
+class IFU2(cfg: CacheConfig) extends Module {
+  val io   = IO(new Bundle {
+    val axi = new AXI4IO
+    val out = Decoupled(new IFU2IDU)
+    val in  = Flipped(Decoupled(new IFU1to2))
+
+    val fenceiValid = Input(Bool())
+
+    val dpic_miss = Output(Bool())
+
+    val sram = new SRAMIO(cfg)
+
+  })
+  val pc   = io.in.bits.pc
+  val inst = io.out.bits.inst
+
+  io.dpic_miss := false.B
+
+  val index = if (cfg.indexW > 0) pc(cfg.offsetW + cfg.indexW - 1, cfg.offsetW) else 0.U
+  val tag   = pc(31, cfg.offsetW + cfg.indexW)
+
+  // 读取cache
+  val validArr = RegInit(VecInit(Seq.fill(cfg.numGroups)(VecInit(Seq.fill(cfg.assoc)(false.B)))))
+
+  val wayHitsOH = (0 until cfg.assoc).map(i => validArr(index)(i) && io.sram.wayTags(i) === tag)
+  inst := Mux1H(wayHitsOH, io.sram.wayInsts)
+  val hit = VecInit(wayHitsOH).asUInt.orR
+
+  // 替换策略
+  val plruBits   =
+    if (cfg.assoc > 1)
+      Some(RegInit(VecInit(Seq.fill(cfg.numGroups)(VecInit(Seq.fill(cfg.assoc - 1)(false.B))))))
+    else None
+  val wayHitIdx  = OHToUInt(wayHitsOH)
+  val replaceWay = if (cfg.assoc == 1) { 0.U }
+  else { PLRU.victim(plruBits.get(index)) }
+
+  // 状态机
+  object State extends ChiselEnum {
+    val sIdle, sArWait, sRWait = Value
+  }
+  val state = RegInit(State.sIdle)
+  val refillOffset = Reg(UInt(cfg.offsetW.W))
+
+  DriveZeroSinks(io.axi)
+  io.axi.ar.burst := "b01".U  // INCR
+  io.axi.ar.size  := "b010".U // 4字节
+  io.axi.ar.addr  := Cat(pc(31, cfg.offsetW), 0.U(cfg.offsetW.W))
+  io.axi.ar.valid := state === State.sArWait
+  io.axi.ar.len   := (cfg.wordsPerBlock - 1).U
+  io.axi.r.ready  := state === State.sRWait
+
+  io.out.bits.excType := ExceptionType.InstructionAccessFault
+  val excValidReg = RegInit(false.B)
+  io.out.bits.excValid := excValidReg
+  BundleConnect(io.in.bits, io.out.bits)
+  io.out.valid         := false.B
+  io.in.ready          := false.B
+
+  io.sram.replaceWay   := replaceWay
+  io.sram.wInst        := io.axi.r.data
+  io.sram.wTag         := tag
+  io.sram.refillOffset := refillOffset
+  io.sram.wen          := false.B
+
+  switch(state) {
+    is(State.sIdle) {
+      io.out.valid := io.in.valid
+      io.in.ready  := true.B
+
+      when(io.out.ready) {
+        excValidReg := false.B
+      }
+      when(hit) {
+        if (cfg.assoc > 1) PLRU.access(plruBits.get(index), wayHitIdx)
+
+      }.elsewhen(io.in.valid) {
+        io.dpic_miss                := true.B
+        io.out.valid                := false.B
+        io.in.ready                 := false.B
+        refillOffset                := 0.U
+        validArr(index)(replaceWay) := false.B
+        state                       := State.sArWait
+      }
+    }
+    is(State.sArWait) {
+      when(io.axi.ar.ready) {
+        state := State.sRWait
+      }
+    }
+    is(State.sRWait) {
+      when(io.axi.r.valid) {
+        refillOffset := refillOffset + 4.U
+        io.sram.wen  := true.B
+        when(io.axi.r.last) {
+          validArr(index)(replaceWay) := true.B
+          if (cfg.assoc > 1) PLRU.access(plruBits.get(index), replaceWay)
+          state                       := State.sIdle
+
+        }
+        when(io.axi.r.resp =/= 0.U) {
+          excValidReg := true.B
+        }
+
+      }
+    }
+
+  }
+
+  when(io.fenceiValid) {
+    validArr := 0.U.asTypeOf(validArr)
+  }
+
+}
