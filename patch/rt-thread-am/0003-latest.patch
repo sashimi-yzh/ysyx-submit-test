@@ -1,0 +1,127 @@
+From f35b67b5b776bb03608eb5504a51171b0581472e Mon Sep 17 00:00:00 2001
+From: 231180181-An Runsen <2634032821@qq.com>
+Date: Sun, 31 May 2026 16:31:25 +0800
+Subject: [PATCH 3/5] latest
+
+---
+ bsp/abstract-machine/Makefile         |  2 +
+ bsp/abstract-machine/extra_ysyxsoc.ld | 57 +++++++++++++++++++++++++++
+ bsp/abstract-machine/src/context.c    |  1 -
+ bsp/abstract-machine/src/uart.c       |  5 ++-
+ 4 files changed, 63 insertions(+), 2 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra_ysyxsoc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..96ecce089 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -9,6 +9,8 @@ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+ LDFLAGS += -T extra.ld
++# LDFLAGS += -T extra_ysyxsoc.ld
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra_ysyxsoc.ld b/bsp/abstract-machine/extra_ysyxsoc.ld
+new file mode 100644
+index 000000000..697294d82
+--- /dev/null
++++ b/bsp/abstract-machine/extra_ysyxsoc.ld
+@@ -0,0 +1,57 @@
++MEMORY {
++  mrom : ORIGIN = 0x20000000, LENGTH = 4K
++  flash : ORIGIN = 0x30000000, LENGTH = 16M
++  psram : ORIGIN = 0x80000000, LENGTH = 4M
++  sram : ORIGIN = 0x0f000000, LENGTH = 8K
++  sdram : ORIGIN = 0xa0000000, LENGTH = 32M
++}
++
++SECTIONS {
++  .data.extra : ALIGN(8){
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } > sdram AT > flash :data
++
++  _data_extra_lma = LOADADDR(.data.extra);
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra : ALIGN(8){
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > sdram AT > flash :bss
++
++  _bss_extra_lma = LOADADDR(.bss.extra);
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index a563f3c84..9633dc9eb 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -56,7 +56,6 @@ static void wrapper(void *parameter) {
+ 
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-
+   //align stack_addr to 4 bytes
+   stack_addr = (rt_uint8_t*)((rt_ubase_t)stack_addr & ~0x3);
+ 
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..0de7e0268 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  int ch = (int32_t)(int8_t)io_read(AM_UART_RX).data;
++  // int ch = -1;
++  return (*p != '\0') ? *(p ++) : ch;
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

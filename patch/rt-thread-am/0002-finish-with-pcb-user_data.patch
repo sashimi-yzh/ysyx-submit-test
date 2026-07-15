@@ -1,0 +1,131 @@
+From a9ec6be103555297b2ab5b5c0280ba288a5f77e2 Mon Sep 17 00:00:00 2001
+From: 231180181-An Runsen <2634032821@qq.com>
+Date: Mon, 20 Apr 2026 21:36:48 +0800
+Subject: [PATCH 2/5] finish with pcb->user_data
+
+---
+ bsp/abstract-machine/src/context.c | 86 +++++++++++++++---------------
+ 1 file changed, 42 insertions(+), 44 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 572ed4fb1..a563f3c84 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,26 +2,23 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-static volatile rt_ubase_t rt_switch_from = 0;
+-static volatile rt_ubase_t rt_switch_to = 0;
+-
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-    case EVENT_YIELD:
+-      if (rt_switch_from != 0) {
+-        *(rt_ubase_t *)rt_switch_from = (rt_ubase_t)c;
+-        rt_switch_from = 0;
+-      }
++    case EVENT_YIELD: {
++      rt_thread_t self= rt_thread_self();
++      rt_ubase_t *args = (void*)self->user_data;
++      Context** from = (Context**)args[0];
++      Context** to = (Context**)args[1];
++      if (from!=NULL)
++        *from = c;
++      c = *to;
++      break;
++    }
+ 
+-      if (rt_switch_to != 0) {
+-        Context *next = (Context *)(*(rt_ubase_t *)rt_switch_to);
+-        rt_switch_to = 0;
+-        return next;
+-      }
+-      return c;
+-    default:
+-      printf("Unhandled event ID = %d\n", e.event);
+-      assert(0);
++    case EVENT_IRQ_TIMER:{
++      break;
++    }
++    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+@@ -30,44 +27,45 @@ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  rt_switch_from = 0;
+-  rt_switch_to = to;
+-  yield();
+-}
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  rt_switch_from = from;
+-  rt_switch_to = to;
++  rt_thread_t self= rt_thread_self();
++  rt_ubase_t prev_user_data = self->user_data;
++  rt_ubase_t user_data[2] = {from, to};
++  self->user_data = (rt_ubase_t)user_data;
+   yield();
++  self->user_data = prev_user_data;
+ }
+ 
+-void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+-  (void)context;
+-  (void)to_thread;
+-  rt_hw_context_switch(from, to);
++void rt_hw_context_switch_to(rt_ubase_t to) {
++  rt_hw_context_switch(0, to);
+ }
+ 
+-static void wrapper(void *tentry, void *parameter, void *texit) {
+-  void (*entry)(void *) = (void (*)(void *))tentry;
+-  void (*exit)(void) = (void (*)(void))texit;
++void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
++  assert(0);
++}
+ 
+-  entry(parameter);
+-  exit();
+ 
+-  while (1);
++static void wrapper(void *parameter) {
++  uintptr_t *args = parameter;
++  void (*entry)() = (void*)args[1];
++  entry(args[0]);
++  void (*exit)() = (void*)args[2];
++  exit(); 
+ }
+ 
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  stack_addr = (rt_uint8_t *)((rt_ubase_t)stack_addr & ~((rt_ubase_t)sizeof(uintptr_t) - 1));
+ 
+-  Context *ctx = (Context *)(stack_addr - sizeof(Context));
+-  memset(ctx, 0, sizeof(Context));
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+ 
+-  ctx->mepc = (uintptr_t)wrapper;
+-  ctx->gpr[10] = (uintptr_t)tentry;
+-  ctx->gpr[11] = (uintptr_t)parameter;
+-  ctx->gpr[12] = (uintptr_t)texit;
++  //align stack_addr to 4 bytes
++  stack_addr = (rt_uint8_t*)((rt_ubase_t)stack_addr & ~0x3);
+ 
+-  return (rt_uint8_t *)ctx;
+-}
++  //3 args, each args is 4 bytes
++  uintptr_t *args = (void*)(stack_addr-12);
++  stack_addr-=12;
++  args[0]=(uintptr_t)parameter;
++  args[1]=(uintptr_t)tentry;
++  args[2]=(uintptr_t)texit;
++  Context* c = kcontext((Area){0, stack_addr}, wrapper, args);
++  return (rt_uint8_t*)c;
++}
+\ No newline at end of file
+-- 
+2.34.1
+

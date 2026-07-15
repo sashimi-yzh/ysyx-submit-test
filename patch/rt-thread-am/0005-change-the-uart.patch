@@ -1,0 +1,28 @@
+From 1fbb724417ae35e1f8f127682e40c9abedc46b5e Mon Sep 17 00:00:00 2001
+From: Runsen An <2634032821@qq.com>
+Date: Thu, 11 Jun 2026 19:57:19 +0800
+Subject: [PATCH 5/5] change the uart
+
+---
+ bsp/abstract-machine/src/uart.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 0de7e0268..ab8ea5783 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -38,10 +38,8 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   int ch = (int32_t)(int8_t)io_read(AM_UART_RX).data;
+-  // int ch = -1;
+-  return (*p != '\0') ? *(p ++) : ch;
++  return ch;
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

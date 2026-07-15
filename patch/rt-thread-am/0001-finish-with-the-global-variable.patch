@@ -1,0 +1,93 @@
+From 8f8dc0ff83f9907ce8ff35ca6ea7865e6b68e9ac Mon Sep 17 00:00:00 2001
+From: 231180181-An Runsen <2634032821@qq.com>
+Date: Mon, 20 Apr 2026 20:11:15 +0800
+Subject: [PATCH 1/5] finish with the global variable
+
+---
+ bsp/abstract-machine/src/context.c | 54 ++++++++++++++++++++++++++----
+ 1 file changed, 48 insertions(+), 6 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..572ed4fb1 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,9 +2,26 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++static volatile rt_ubase_t rt_switch_from = 0;
++static volatile rt_ubase_t rt_switch_to = 0;
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++    case EVENT_YIELD:
++      if (rt_switch_from != 0) {
++        *(rt_ubase_t *)rt_switch_from = (rt_ubase_t)c;
++        rt_switch_from = 0;
++      }
++
++      if (rt_switch_to != 0) {
++        Context *next = (Context *)(*(rt_ubase_t *)rt_switch_to);
++        rt_switch_to = 0;
++        return next;
++      }
++      return c;
++    default:
++      printf("Unhandled event ID = %d\n", e.event);
++      assert(0);
+   }
+   return c;
+ }
+@@ -14,18 +31,43 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_switch_from = 0;
++  rt_switch_to = to;
++  yield();
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_switch_from = from;
++  rt_switch_to = to;
++  yield();
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+-  assert(0);
++  (void)context;
++  (void)to_thread;
++  rt_hw_context_switch(from, to);
++}
++
++static void wrapper(void *tentry, void *parameter, void *texit) {
++  void (*entry)(void *) = (void (*)(void *))tentry;
++  void (*exit)(void) = (void (*)(void))texit;
++
++  entry(parameter);
++  exit();
++
++  while (1);
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  stack_addr = (rt_uint8_t *)((rt_ubase_t)stack_addr & ~((rt_ubase_t)sizeof(uintptr_t) - 1));
++
++  Context *ctx = (Context *)(stack_addr - sizeof(Context));
++  memset(ctx, 0, sizeof(Context));
++
++  ctx->mepc = (uintptr_t)wrapper;
++  ctx->gpr[10] = (uintptr_t)tentry;
++  ctx->gpr[11] = (uintptr_t)parameter;
++  ctx->gpr[12] = (uintptr_t)texit;
++
++  return (rt_uint8_t *)ctx;
+ }
+-- 
+2.34.1
+

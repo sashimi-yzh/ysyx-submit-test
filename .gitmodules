@@ -1,0 +1,3 @@
+[submodule "npc/csrc/capstone/repo"]
+	path = npc/csrc/capstone/repo
+	url = git@github.com:capstone-engine/capstone.git

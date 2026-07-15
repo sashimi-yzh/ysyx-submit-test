@@ -1,0 +1,42 @@
+From 2b983a0d938c8dbdbb1ed67cc855c5b3ccdebdab Mon Sep 17 00:00:00 2001
+From: 231180181-An Runsen <2634032821@qq.com>
+Date: Tue, 2 Jun 2026 13:40:45 +0800
+Subject: [PATCH 2/2] delete the write func in uart
+
+---
+ perip/uart16550/rtl/uart_tfifo.v | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index b6e49486..d43f7432 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,9 +211,9 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
+-                `ifndef SYNTHESIS
+-                    $write("%c", data_in);
+-                `endif
++                // `ifndef SYNTHESIS
++                //     $write("%c", data_in);
++                // `endif
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -223,9 +223,9 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
+-                `ifndef SYNTHESIS
+-                    $write("%c", data_in);
+-                `endif
++                // `ifndef SYNTHESIS
++                //     $write("%c", data_in);
++                // `endif
+                 end
+         default: ;
+         endcase
+-- 
+2.34.1
+
