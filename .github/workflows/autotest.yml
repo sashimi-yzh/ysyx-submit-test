@@ -6,6 +6,7 @@ on:
 
 permissions:
   issues: write
+  actions: write
 
 env:
   OSS_CAD_SUITE_RELEASE_TAG: 2025-11-24
