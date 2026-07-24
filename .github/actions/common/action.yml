@@ -30,6 +30,23 @@ runs:
         path: oss-cad-suite
         key: ${{ runner.os }}-oss-cad-suite-${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
 
+    # - name: Download oss-cad-suite
+    #   if: steps.oss-cad-suite-cache.outputs.cache-hit != 'true'
+    #   shell: bash
+    #   env:
+    #     GH_TOKEN: ${{ github.token }}
+    #   run: |
+    #     TAG=${{ env.OSS_CAD_SUITE_RELEASE_TAG }}
+    #     echo "oss-cad-suite cache missed. Downloading and extracting release $TAG"
+    #     ASSET_NAME=$(gh release view "$TAG" \
+    #       --repo YosysHQ/oss-cad-suite-build \
+    #       --json assets \
+    #       --jq '.assets[] | select(.name | contains("linux-x64")) | .name')
+    #     gh release download "$TAG" \
+    #       --repo YosysHQ/oss-cad-suite-build \
+    #       --pattern "$ASSET_NAME"
+    #     tar xf "$ASSET_NAME"
+
     - name: Install Mill
       shell: bash
       run: |
@@ -63,6 +80,14 @@ runs:
         OSS_CAD_SUITE_BIN_PATH=`pwd`/oss-cad-suite/bin
         echo "PATH=$PATH:$OSS_CAD_SUITE_BIN_PATH" >> $GITHUB_ENV
 
+    # - name: Verify oss-cad-suite
+    #   shell: bash
+    #   run: |
+    #     command -v verilator
+    #     command -v yosys
+    #     verilator --version
+    #     yosys -V
+
       # TODO: 优化 apt 安装速度，缓存 /usr/bin 较为麻烦
       # 考虑安装到 workspace 目录下缓存，或者使用 docker 镜像等
     - name: Install RISC-V toolchain
@@ -90,5 +115,4 @@ runs:
         cd rt-thread-am
         git am $YSYX_HOME/patch/rt-thread-am/*
         cd $YSYX_HOME
-
 
