@@ -35,3 +35,9 @@ webrtcICEServers2:
 # Appendix
 * [lecture note](https://ysyx.oscc.cc/docs/)
 * [mediamtx.yml](https://github.com/bluenviron/mediamtx/blob/main/mediamtx.yml)
+
+STUID - ysyx_25060161
+
+Original repo - https://github.com/WuShFeng/ysyx
+
+Original branch - pa4
