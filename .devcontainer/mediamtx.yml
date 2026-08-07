@@ -1,0 +1,8 @@
+webrtcICEServers2:
+  - url: turn:turn.wushf.top:3478
+    username: wushf
+    password: wushf
+
+paths:
+  audio:
+    source: publisher

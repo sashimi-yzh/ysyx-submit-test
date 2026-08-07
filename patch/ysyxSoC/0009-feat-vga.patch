@@ -1,0 +1,128 @@
+From 639aca39fcc0b2f3114ac4f4c20baa46b9509843 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 16 Jul 2026 15:22:20 +0800
+Subject: [PATCH 09/24] =?UTF-8?q?feat:=20=E6=B7=BB=E5=8A=A0vga=E6=8E=A7?=
+ =?UTF-8?q?=E5=88=B6=E5=99=A8=E6=94=AF=E6=8C=81?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/VGA.scala | 80 +++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 65 insertions(+), 15 deletions(-)
+
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index 6724bc38..2a90af6e 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -9,9 +9,9 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ 
+ class VGAIO extends Bundle {
+-  val r = Output(UInt(8.W))
+-  val g = Output(UInt(8.W))
+-  val b = Output(UInt(8.W))
++  val r     = Output(UInt(8.W))
++  val g     = Output(UInt(8.W))
++  val b     = Output(UInt(8.W))
+   val hsync = Output(Bool())
+   val vsync = Output(Bool())
+   val valid = Output(Bool())
+@@ -20,8 +20,8 @@ class VGAIO extends Bundle {
+ class VGACtrlIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Bool())
+-  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-  val vga = new VGAIO
++  val in    = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++  val vga   = new VGAIO
+ }
+ 
+ class vga_top_apb extends BlackBox {
+@@ -30,23 +30,73 @@ class vga_top_apb extends BlackBox {
+ 
+ class vgaChisel extends Module {
+   val io = IO(new VGACtrlIO)
++
++  val W  = 640
++  val H  = 480
++  val fb = SyncReadMem(W * H, UInt(24.W))
++  def fbAddr(row: UInt, col: UInt): UInt = row * W.U + col
++
++  val hcnt = RegInit(0.U(10.W))
++  val vcnt = RegInit(0.U(10.W))
++
++  val hLast = hcnt === W.U
++  val vLast = vcnt === H.U
++  val hSync = hcnt === W.U
++  val vSync = vcnt === H.U && hcnt === W.U
++  val hVis  = hcnt < W.U
++  val vVis  = vcnt < H.U
++
++  val rdAddr = fbAddr(vcnt, hcnt)
++
++  val visReg   = RegNext(hVis && vVis)
++  val hsyncReg = RegNext(!hSync)
++  val vsyncReg = RegNext(!vSync)
++
++  val rdData = fb.read(rdAddr)
++
++  io.vga.r     := rdData(23, 16)
++  io.vga.g     := rdData(15, 8)
++  io.vga.b     := rdData(7, 0)
++  io.vga.valid := visReg
++  io.vga.hsync := hsyncReg
++  io.vga.vsync := vsyncReg
++
++  when(hLast) {
++    hcnt := 0.U
++    when(vLast) {
++      vcnt := 0.U
++    }.otherwise {
++      vcnt := vcnt + 1.U
++    }
++  }.otherwise {
++    hcnt := hcnt + 1.U
++  }
++
++  val wrEn    = io.in.psel && io.in.penable && io.in.pwrite
++  val wrAddr  = io.in.paddr(20, 2)
++  val inRange = wrAddr < (W * H).U
++  when(wrEn && inRange) {
++    fb.write(wrAddr, io.in.pwdata(23, 0))
++  }
++
++  io.in.pready  := true.B
++  io.in.pslverr := false.B
++  io.in.prdata  := 0.U
+ }
+ 
+-class APBVGA(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBVGA(
++  address:    Seq[AddressSet]
++)(
++  implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(Seq(APBSlavePortParameters(Seq(APBSlaveParameters(address = address, executable = true, supportsRead = true, supportsWrite = true)), beatBytes = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
++    val (in, _)    = node.in(0)
+     val vga_bundle = IO(new VGAIO)
+ 
+-    val mvga = Module(new vga_top_apb)
++    val mvga = Module(new vgaChisel)
+     mvga.io.clock := clock
+     mvga.io.reset := reset
+     mvga.io.in <> in
+-- 
+2.53.0
+

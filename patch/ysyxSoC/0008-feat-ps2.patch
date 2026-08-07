@@ -1,0 +1,122 @@
+From 7953f339a39ddd2a7c667476dd2af99e861324db Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 16 Jul 2026 10:53:18 +0800
+Subject: [PATCH 08/24] =?UTF-8?q?feat:=20ps2=E9=94=AE=E7=9B=98=E6=94=AF?=
+ =?UTF-8?q?=E6=8C=81?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/Keyboard.scala | 75 +++++++++++++++++++++++++++++++--------
+ 1 file changed, 61 insertions(+), 14 deletions(-)
+
+diff --git a/src/device/Keyboard.scala b/src/device/Keyboard.scala
+index 5bd7f5b4..3766a951 100644
+--- a/src/device/Keyboard.scala
++++ b/src/device/Keyboard.scala
+@@ -9,15 +9,15 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ 
+ class PS2IO extends Bundle {
+-  val clk = Input(Bool())
++  val clk  = Input(Bool())
+   val data = Input(Bool())
+ }
+ 
+ class PS2CtrlIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Bool())
+-  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-  val ps2 = new PS2IO
++  val in    = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++  val ps2   = new PS2IO
+ }
+ 
+ class ps2_top_apb extends BlackBox {
+@@ -25,24 +25,71 @@ class ps2_top_apb extends BlackBox {
+ }
+ 
+ class ps2Chisel extends Module {
+-  val io = IO(new PS2CtrlIO)
++  val io   = IO(new PS2CtrlIO)
++  val fifo = RegInit(VecInit(Seq.fill(8)(0.U(8.W))))
++  val wptr = RegInit(0.U(3.W))
++  val rptr = RegInit(0.U(3.W))
++  val fcnt = RegInit(0.U(4.W))
++  io.in.pready  := true.B
++  io.in.pslverr := false.B
++  io.in.prdata  := Cat(0.U(24.W), Mux(fcnt === 0.U, 0.U(8.W), fifo(rptr)))
++  withClockAndReset(io.clock, io.reset.asBool) {
++    val clk_d       = RegNext(io.ps2.clk, false.B)
++    val clk_falling = clk_d && !io.ps2.clk
++    val bitCnt      = RegInit(0.U(4.W))
++    val shiftReg    = RegInit(0.U(8.W))
++    val rxParity    = RegInit(false.B)
++
++    when(clk_falling) {
++      when(bitCnt === 0.U) {
++        when(!io.ps2.data) {
++          bitCnt   := 1.U
++          shiftReg := 0.U
++          rxParity := false.B
++        }
++      }.elsewhen(bitCnt >= 1.U && bitCnt <= 8.U) {
++        shiftReg := Cat(io.ps2.data, shiftReg(7, 1))
++        rxParity := rxParity ^ io.ps2.data
++        bitCnt   := bitCnt + 1.U
++      }.elsewhen(bitCnt === 9.U) {
++        rxParity := rxParity ^ io.ps2.data
++        bitCnt   := bitCnt + 1.U
++      }.elsewhen(bitCnt === 10.U) {
++        when(io.ps2.data && rxParity) {
++          fifo(wptr) := shiftReg
++          wptr       := wptr + 1.U
++          when(fcnt === 8.U) {
++            rptr := rptr + 1.U
++          }.otherwise {
++            fcnt := fcnt + 1.U
++          }
++        }
++        bitCnt := 0.U
++      }
++    }
++
++    val apbAccess = io.in.psel && io.in.penable && !io.in.pwrite
++    when(apbAccess && fcnt =/= 0.U) {
++      rptr := rptr + 1.U
++      fcnt := fcnt - 1.U
++    }
++
++  }
+ }
+ 
+-class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBKeyboard(
++  address:    Seq[AddressSet]
++)(
++  implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(Seq(APBSlavePortParameters(Seq(APBSlaveParameters(address = address, executable = true, supportsRead = true, supportsWrite = true)), beatBytes = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
++    val (in, _)    = node.in(0)
+     val ps2_bundle = IO(new PS2IO)
+ 
+-    val mps2 = Module(new ps2_top_apb)
++    val mps2 = Module(new ps2Chisel)
+     mps2.io.clock := clock
+     mps2.io.reset := reset
+     mps2.io.in <> in
+-- 
+2.53.0
+

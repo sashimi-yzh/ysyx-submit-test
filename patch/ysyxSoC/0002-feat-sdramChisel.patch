@@ -1,0 +1,28 @@
+From 274cf361c3ffda081a20816aea7ea2adb1d204ec Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Sun, 12 Jul 2026 14:04:48 +0800
+Subject: [PATCH 02/24] =?UTF-8?q?feat:=20=E6=94=B9=E7=94=A8sdramChisel?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/SoC.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/SoC.scala b/src/SoC.scala
+index a86a9498..e82b3ad1 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -142,7 +142,7 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+ 
+     val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+-    val sdram = Module(new sdram)
++    val sdram = Module(new sdramChisel)
+     sdram.io <> masic.sdram
+ 
+     val externalPins = IO(new Bundle{
+-- 
+2.53.0
+

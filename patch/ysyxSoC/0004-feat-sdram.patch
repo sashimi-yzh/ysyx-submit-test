@@ -1,0 +1,313 @@
+From 9c533093119b225e4a13f9e6f0c181512691fe73 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Mon, 13 Jul 2026 16:40:49 +0800
+Subject: [PATCH 04/24] =?UTF-8?q?feat:=20=E5=AE=9E=E7=8E=B0sdram=E9=A2=97?=
+ =?UTF-8?q?=E7=B2=92=E6=A8=A1=E5=9E=8B?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .scalafmt.conf         |  31 ++++++
+ src/device/SDRAM.scala | 217 ++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 225 insertions(+), 23 deletions(-)
+ create mode 100644 .scalafmt.conf
+
+diff --git a/.scalafmt.conf b/.scalafmt.conf
+new file mode 100644
+index 00000000..11d41dfe
+--- /dev/null
++++ b/.scalafmt.conf
+@@ -0,0 +1,31 @@
++version = 3.7.15
++runner.dialect = scala213
++
++maxColumn = 200
++align.preset = most
++indent.defnSite = 2
++assumeStandardLibraryStripMargin = true
++align.stripMargin = false
++docstrings.style = SpaceAsterisk
++lineEndings = preserve
++includeCurlyBraceInSelectChains = false
++danglingParentheses.preset = true
++
++align.tokens."+" = [ {
++    code = ":"
++    }]
++
++    newlines.beforeCurlyLambdaParams = "never"
++    newlines.alwaysBeforeMultilineDef = false
++    newlines.implicitParamListModifierForce = [before]
++
++    verticalMultiline.atDefnSite = true
++
++    optIn.annotationNewlines = true
++
++rewrite.rules = [SortImports, PreferCurlyFors, AvoidInfix]
++fileOverride {
++  "glob:**/build.mill/**" {
++     runner.dialect = scala3
++  }
++}
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index a823c718..6da4ae72 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -27,7 +27,11 @@ class sdram_top_axi extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Bool())
+-    val in = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
++    val in    = Flipped(
++      new AXI4Bundle(
++        AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)
++      )
++    )
+     val sdram = new SDRAMIO
+   })
+ }
+@@ -36,7 +40,8 @@ class sdram_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Bool())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++    val in    =
++      Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+     val sdram = new SDRAMIO
+   })
+ }
+@@ -46,24 +51,178 @@ class sdram extends BlackBox {
+ }
+ 
+ class sdramChisel extends RawModule {
+-  val io = IO(Flipped(new SDRAMIO))
++  val bankBits = 2
++  val colBits  = 9
++  val rowBits  = 13
++  val bankNum  = 1 << bankBits
++  val colNum   = 1 << colBits
++  val rowNum   = 1 << rowBits
++  val io       = IO(Flipped(new SDRAMIO))
++
++  // {bank[1:0], row[12:0], col[8:0]}
++  val mem = Mem(1 << 24, UInt(16.W))
++
++  val dout   = Wire(UInt(16.W))
++  val out_en = Wire(Bool())
++  val din    = TriStateInBuf(io.dq, dout, out_en)
++  dout   := 0.U
++  out_en := false.B
++
++  val CMD_NOP        = "b0111".U(4.W)
++  val CMD_ACTIVE     = "b0011".U(4.W)
++  val CMD_READ       = "b0101".U(4.W)
++  val CMD_WRITE      = "b0100".U(4.W)
++  val CMD_PRECHARGE  = "b0010".U(4.W)
++  val CMD_REFRESH    = "b0001".U(4.W)
++  val CMD_LOAD_MODE  = "b0000".U(4.W)
++  val CMD_BURST_TERM = "b0110".U(4.W)
++
++  val cmd = Cat(io.cs, io.ras, io.cas, io.we)
++
++  withClockAndReset(io.clk.asClock, false.B.asAsyncReset) {
++    val modeReg  = RegInit("b00_0_00_010_0_001".U(13.W))
++    val casLat   = modeReg(6, 4)
++    val blRaw    = modeReg(2, 0)
++    val burstLen = (1.U(4.W) << blRaw) // 001→2, 010→4, 011→8
++
++    val bankOpen   = RegInit(VecInit(Seq.fill(bankNum)(false.B)))
++    val activeRow_ = RegInit(VecInit(Seq.fill(bankNum)(0.U(13.W))))
++    class ReadMeta extends Bundle {
++      val valid = Bool()
++      val bank  = UInt(bankBits.W)
++      val row   = UInt(rowBits.W)
++      val col   = UInt(colBits.W)
++    }
++
++    val burstActive  = RegInit(false.B)
++    val burstCnt     = RegInit(0.U(8.W))
++    val burstIsRead  = RegInit(false.B)
++    val burstBank    = RegInit(0.U(2.W))
++    val burstRow     = RegInit(0.U(13.W))
++    val burstCol     = RegInit(0.U(9.W))
++    val readMetaFifo = RegInit(VecInit(Seq.fill(4)(0.U.asTypeOf(new ReadMeta))))
++    val newMeta      = Wire(new ReadMeta)
++
++    readMetaFifo  := newMeta +: readMetaFifo.init
++    newMeta.valid := Mux(cmd === CMD_READ, true.B, 0.U)
++    newMeta.bank  := Mux(cmd === CMD_READ, io.ba, 0.U)
++    newMeta.row   := Mux(cmd === CMD_READ, activeRow_(io.ba), 0.U)
++    newMeta.col   := Mux(cmd === CMD_READ, io.a(8, 0), 0.U)
++
++    out_en := false.B
++    dout   := 0.U
++
++    when(!burstActive && readMetaFifo(casLat - 1.U).valid) {
++      val pipeIdx = casLat - 1.U
++      out_en := true.B
++      dout   := mem.read(Cat(readMetaFifo(pipeIdx).bank, readMetaFifo(pipeIdx).row, readMetaFifo(pipeIdx).col))
++      when(burstLen > 1.U) {
++        burstActive := true.B
++        burstIsRead := true.B
++        burstCnt    := burstLen - 1.U
++        burstBank   := readMetaFifo(pipeIdx).bank
++        burstRow    := readMetaFifo(pipeIdx).row
++        burstCol    := readMetaFifo(pipeIdx).col
++      }
++    }
++    when(burstActive) {
++      when(burstCnt > 0.U) {
++        val nextCol = burstCol + 1.U
++        burstCol := nextCol
++        burstCnt := burstCnt - 1.U
++        when(burstIsRead) {
++          out_en := true.B
++          dout   := mem.read(Cat(burstBank, burstRow, nextCol))
++        }.otherwise {
++          val addr    = Cat(burstBank, burstRow, nextCol)
++          val oldData = mem.read(addr)
++          val newData = Cat(
++            Mux(io.dqm(1), oldData(15, 8), din(15, 8)),
++            Mux(io.dqm(0), oldData(7, 0), din(7, 0))
++          )
++          mem.write(addr, newData)
++        }
++      }.otherwise {
++        burstActive := false.B
++      }
++    }
++    when(io.cke) {
++      switch(cmd) {
++        is(CMD_LOAD_MODE) {
++          modeReg := io.a
++        }
++
++        is(CMD_ACTIVE) {
++          bankOpen(io.ba)   := true.B
++          activeRow_(io.ba) := io.a(12, 0)
++        }
++
++        is(CMD_READ) {}
++
++        is(CMD_WRITE) {
++          val b   = io.ba
++          val row = activeRow_(b)
++          when(bankOpen(b)) {
++            val addr    = Cat(b, row, io.a(8, 0))
++            val oldData = mem.read(addr)
++            val newData = Cat(
++              Mux(io.dqm(1), oldData(15, 8), din(15, 8)),
++              Mux(io.dqm(0), oldData(7, 0), din(7, 0))
++            )
++            mem.write(addr, newData)
++            when(burstLen > 1.U) {
++              burstActive := true.B
++              burstIsRead := false.B
++              burstCnt    := burstLen - 1.U
++              burstBank   := b
++              burstRow    := row
++              burstCol    := io.a(8, 0)
++            }
++          }
++        }
++
++        is(CMD_PRECHARGE) {
++          when(io.a(10)) {
++            for (i <- 0 until bankNum) { bankOpen(i) := false.B }
++          }.otherwise {
++            bankOpen(io.ba) := false.B
++          }
++        }
++
++        is(CMD_REFRESH) {}
++
++        is(CMD_BURST_TERM) { burstActive := false.B }
++      }
++    }
++  }
+ }
+ 
+-class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
++class AXI4SDRAM(
++  address:    Seq[AddressSet]
++)(
++  implicit p: Parameters)
++    extends LazyModule {
+   val beatBytes = 4
+-  val node = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
+-    Seq(AXI4SlaveParameters(
+-        address       = address,
+-        executable    = true,
+-        supportsWrite = TransferSizes(1, beatBytes),
+-        supportsRead  = TransferSizes(1, beatBytes),
+-        interleavedId = Some(0))
+-    ),
+-    beatBytes  = beatBytes)))
++  val node      = AXI4SlaveNode(
++    Seq(
++      AXI4SlavePortParameters(
++        Seq(
++          AXI4SlaveParameters(
++            address = address,
++            executable = true,
++            supportsWrite = TransferSizes(1, beatBytes),
++            supportsRead = TransferSizes(1, beatBytes),
++            interleavedId = Some(0)
++          )
++        ),
++        beatBytes = beatBytes
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
++    val (in, _)      = node.in(0)
+     val sdram_bundle = IO(new SDRAMIO)
+ 
+     val msdram = Module(new sdram_top_axi)
+@@ -74,18 +233,30 @@ class AXI4SDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyMo
+   }
+ }
+ 
+-class APBSDRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBSDRAM(
++  address:    Seq[AddressSet]
++)(
++  implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(
++    Seq(
++      APBSlavePortParameters(
++        Seq(
++          APBSlaveParameters(
++            address = address,
++            executable = true,
++            supportsRead = true,
++            supportsWrite = true
++          )
++        ),
++        beatBytes = 4
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
++    val (in, _)      = node.in(0)
+     val sdram_bundle = IO(new SDRAMIO)
+ 
+     val msdram = Module(new sdram_top_apb)
+-- 
+2.53.0
+

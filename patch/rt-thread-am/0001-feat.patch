@@ -1,0 +1,85 @@
+From 4e6d61535e8b250f0796d05330bfb321c7b83233 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Wed, 8 Jul 2026 18:54:48 +0800
+Subject: [PATCH 01/11] =?UTF-8?q?feat:=20=E6=94=AF=E6=8C=81=E5=88=9B?=
+ =?UTF-8?q?=E5=BB=BA=E4=B8=8A=E4=B8=8B=E6=96=87?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/context.c | 49 ++++++++++++++++++++----------
+ 1 file changed, 33 insertions(+), 16 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829..1f31eb4 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -1,31 +1,48 @@
++#include "rtdef.h"
+ #include <am.h>
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-static Context* ev_handler(Event e, Context *c) {
++static Context *ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++  default:
++    printf("Unhandled event ID = %d\n", e.event);
++    assert(0);
+   }
+   return c;
+ }
+ 
+-void __am_cte_init() {
+-  cte_init(ev_handler);
+-}
++void __am_cte_init() { cte_init(ev_handler); }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
+-}
++void rt_hw_context_switch_to(rt_ubase_t to) { assert(0); }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
+-}
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) { assert(0); }
+ 
+-void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
++void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from,
++                                    rt_ubase_t to,
++                                    struct rt_thread *to_thread) {
+   assert(0);
+ }
+-
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++typedef struct WarpContext {
++  void (*tentry)(void *);
++  void *parameter;
++  void (*texit)(void);
++} WarpContext;
++static void warp(WarpContext *context) {
++  context->tentry(context->parameter);
++  context->texit();
++}
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter,
++                             rt_uint8_t *stack_addr, void *texit) {
++  stack_addr =
++      (rt_uint8_t *)(((uintptr_t)stack_addr + sizeof(rt_uint8_t *) - 1) &
++                     ~(sizeof(rt_uint8_t *) - 1));
++  stack_addr -= sizeof(WarpContext);
++  WarpContext *context = (WarpContext *)stack_addr;
++  context->tentry = tentry;
++  context->parameter = parameter;
++  context->texit = texit;
++  return (rt_uint8_t *)kcontext(
++      (Area){.start = stack_addr - sizeof(Area), .end = stack_addr},
++      (void *)warp, context);
+ }
+-- 
+2.53.0
+

@@ -1,0 +1,29 @@
+From 9c4c0dd16c30075a8cbdbc75b8d1289c5304e3c8 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Fri, 24 Jul 2026 23:09:57 +0800
+Subject: [PATCH 19/24] =?UTF-8?q?fix:=20=E6=81=A2=E5=A4=8Daxi=E7=AA=81?=
+ =?UTF-8?q?=E5=8F=91?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/Top.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.53.0
+

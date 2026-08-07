@@ -1,0 +1,26 @@
+services:
+  dev:
+    image: ghcr.io/wushfeng/devcontainer-ysyx:main
+    privileged: true
+    ports:
+      - "6080:6080" # noVNC
+    command: [ "tail", "-f", "/dev/null" ]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ysyx
+  # mediamtx:
+  #   build:
+  #     context: .
+  #     dockerfile: mediamtx.Dockerfile
+  #   ports:
+  #     - "8554:8554" # RTSP
+  #     #   - "8888:8888" # HTTP
+  #     - "8889:8889" # WebRTC
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   networks:
+  #     - ysyx
+
+networks:
+  ysyx:

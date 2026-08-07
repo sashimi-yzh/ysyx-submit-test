@@ -1,0 +1,57 @@
+//| mill-version: 1.1.7
+package build
+
+import mill._
+import mill.scalalib.scalafmt.ScalafmtModule
+import mill.scalalib.TestModule.ScalaTest
+import mill.scalalib._
+
+object `package` extends ScalaModule with ScalafmtModule { m =>
+  override def scalaVersion = "2.13.18"
+  override def sources = Task.Sources(super.moduleDir / "src" / "scala")
+  override def scalacOptions = Seq(
+    "-language:reflectiveCalls",
+    "-deprecation",
+    "-feature",
+    "-Xcheckinit"
+  )
+
+  override def mvnDeps             = Seq(mvn"org.chipsalliance::chisel:7.13.0")
+  override def scalacPluginMvnDeps = Seq(mvn"org.chipsalliance:::chisel-plugin:7.13.0")
+
+  override def moduleDeps = super.moduleDeps ++ Seq(diplomacy)
+
+  object cde extends ScalaModule {
+    override def scalaVersion = "2.13.18"
+    override def sources = Task.Sources(m.moduleDir / "dependencies" / "cde" / "cde" / "src")
+  }
+
+  object diplomacy extends ScalaModule {
+    override def scalaVersion = "2.13.18"
+    override def sources = Task.Sources(m.moduleDir / "dependencies" / "diplomacy" / "diplomacy" / "src")
+
+    override def moduleDeps = super.moduleDeps ++ Seq(cde)
+
+    override def mvnDeps = Seq(
+      mvn"org.chipsalliance::chisel:7.11.0",
+      mvn"com.lihaoyi::sourcecode:0.3.1"
+    )
+    override def scalacPluginMvnDeps = Seq(
+      mvn"org.chipsalliance:::chisel-plugin:7.11.0"
+    )
+
+    override def scalacOptions = super.scalacOptions() ++ Seq(
+      "-language:reflectiveCalls",
+      "-deprecation",
+      "-feature"
+    )
+  }
+
+  object test extends ScalaTests with TestModule.ScalaTest with ScalafmtModule {
+    override def mvnDeps = m.mvnDeps() ++ Seq(
+      mvn"org.scalatest::scalatest::3.2.19",
+      // for formal flow in future
+      mvn"edu.berkeley.cs::chiseltest:6.0.0"
+    )
+  }
+}

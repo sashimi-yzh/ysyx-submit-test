@@ -1,0 +1,26 @@
+From 30c2fe59e82e6953f7ca56f95670f774aea061cc Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Fri, 10 Jul 2026 12:56:03 +0800
+Subject: [PATCH 05/11] =?UTF-8?q?fix:=20=E5=B0=86bsp=E5=8A=A0=E5=85=A5giti?=
+ =?UTF-8?q?gnore?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .gitignore | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/.gitignore b/.gitignore
+index 558b09f..e209302 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -51,3 +51,4 @@ tags
+ CMakeLists.txt
+ cmake-build-debug
+ *.mk
++bsp
+\ No newline at end of file
+-- 
+2.53.0
+

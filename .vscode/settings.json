@@ -1,0 +1,9 @@
+{
+    "files.watcherExclude": {
+        "**/build/**": true,
+        "**/out/**": true,
+        "npc/*.vcd": true,
+        "**/.*/**": true,
+        "**/target/**": true
+    }
+}

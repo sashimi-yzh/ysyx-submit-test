@@ -1,0 +1,127 @@
+From b4761edc98c3bc60b5e2fa5d835397dcbd38f5b1 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Wed, 15 Jul 2026 01:41:01 +0800
+Subject: [PATCH 06/11] =?UTF-8?q?feat:=20rtthread=E6=94=AF=E6=8C=81?=
+ =?UTF-8?q?=E4=BB=8Euart=E8=AF=BB=E5=8F=96=E5=91=BD=E4=BB=A4?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/extra.ld   |  4 +--
+ bsp/abstract-machine/src/uart.c | 45 ++++++++++++++++++---------------
+ 2 files changed, 26 insertions(+), 23 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 4cec7b5..6e02ccf 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -29,7 +29,7 @@ SECTIONS {
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+     _edata_extra = .;
+-  } > psram AT > flash
++  } > sdram AT > flash
+   _data_extra_load_start = LOADADDR(.data.extra);
+ }
+ INSERT BEFORE .data;
+@@ -45,7 +45,7 @@ SECTIONS {
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+     _ebss_extra = .;
+-  } > psram AT > flash
++  } > sdram AT > flash
+   _bss_extra_load_start = LOADADDR(.bss.extra);
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb866..1d71ff9 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -7,10 +7,10 @@
+  * Date           Author       Notes
+  */
+ 
+-#include <rtdevice.h>
+-#include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <rtdevice.h>
++#include <rtthread.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -19,15 +19,17 @@ struct device_uart {
+   rt_uint32_t irqno;
+ };
+ 
+-static void *uart0_base = (void*)0x10000000;
++static void *uart0_base = (void *)0x10000000;
+ static struct rt_serial_device serial0;
+ static struct device_uart uart0;
+ 
+-static rt_err_t _uart_configure(struct rt_serial_device *serial, struct serial_configure *cfg) {
++static rt_err_t _uart_configure(struct rt_serial_device *serial,
++                                struct serial_configure *cfg) {
+   return (RT_EOK);
+ }
+ 
+-static rt_err_t _uart_control(struct rt_serial_device *serial, int cmd, void *arg) {
++static rt_err_t _uart_control(struct rt_serial_device *serial, int cmd,
++                              void *arg) {
+   return (RT_EOK);
+ }
+ 
+@@ -37,17 +39,20 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmem"
++                         "check\nutest_list\n";
++  if (*p) {
++    return *p++;
++  }
++  AM_UART_RX_T buf;
++  ioe_read(AM_UART_RX, &buf);
++  return buf.data;
+ }
+ 
+-const struct rt_uart_ops _uart_ops = {
+-  _uart_configure,
+-  _uart_control,
+-  _uart_putc,
+-  _uart_getc,
+-  // TODO: add DMA support
+-  RT_NULL};
++const struct rt_uart_ops _uart_ops = {_uart_configure, _uart_control,
++                                      _uart_putc, _uart_getc,
++                                      // TODO: add DMA support
++                                      RT_NULL};
+ 
+ /*
+  * UART Initiation
+@@ -66,14 +71,12 @@ int rt_hw_uart_init(void) {
+   uart->hw_base = (rt_ubase_t)uart0_base;
+   uart->irqno = 0x0a;
+ 
+-  rt_hw_serial_register(serial,
+-      RT_CONSOLE_DEVICE_NAME,
+-      RT_DEVICE_FLAG_STREAM | RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX,
+-      uart);
++  rt_hw_serial_register(serial, RT_CONSOLE_DEVICE_NAME,
++                        RT_DEVICE_FLAG_STREAM | RT_DEVICE_FLAG_RDWR |
++                            RT_DEVICE_FLAG_INT_RX,
++                        uart);
+   return 0;
+ }
+ 
+ /* WEAK for SDK 0.5.6 */
+-rt_weak void uart_debug_init(int uart_channel)
+-{
+-}
++rt_weak void uart_debug_init(int uart_channel) {}
+-- 
+2.53.0
+

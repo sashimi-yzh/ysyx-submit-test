@@ -1,0 +1,34 @@
+From 7d3a6a259ed8bbb442e1443793d1136e2c441c87 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Wed, 5 Aug 2026 05:34:28 +0800
+Subject: [PATCH 10/11] =?UTF-8?q?fix:=20=E9=BB=98=E8=AE=A4=E4=B8=8D?=
+ =?UTF-8?q?=E9=9B=86=E6=88=90CI=E4=B8=AD=E4=B8=8D=E5=AD=98=E5=9C=A8?=
+ =?UTF-8?q?=E7=9A=84=E6=B5=8B=E8=AF=95=E7=94=A8=E4=BE=8B?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/integrate-am-apps.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index c72936d..12d29cc 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -9,9 +9,9 @@ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+-  AM_KERNELS_HOME / "kernels" / "typing-game",
+-  AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / "kernels" / "litenes",
++#   AM_KERNELS_HOME / "kernels" / "typing-game",
++#   AM_KERNELS_HOME / "kernels" / "snake",
++#   AM_KERNELS_HOME / "kernels" / "litenes",
+ #   AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+-- 
+2.53.0
+

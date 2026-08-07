@@ -1,0 +1,76 @@
+From b548ca89ce494009fddffc6ca02a55a3783f31a6 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Fri, 17 Jul 2026 16:55:13 +0800
+Subject: [PATCH 11/24] =?UTF-8?q?feat:=20=E6=A0=A1=E5=87=86=E8=AE=BF?=
+ =?UTF-8?q?=E5=AD=98=E5=BB=B6=E8=BF=9F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/APBDelayer.scala | 49 +++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 47 insertions(+), 2 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index d50414c7..59c271a6 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -21,8 +21,53 @@ class apb_delayer extends BlackBox {
+ }
+ 
+ class APBDelayerChisel(val r: Double = 9.77725, val s: Int = 256) extends Module {
+-  val io = IO(new APBDelayerIO)
+-  io.out <> io.in
++  val io                                       = IO(new APBDelayerIO)
++  val sIdle :: sWaitPerip :: sSyncDelay :: Nil = Enum(3)
++  val state                                    = RegInit(sIdle)
++  val counter                                  = Reg(UInt(32.W))
++  val increament                               = ((r - 1) * s).toInt.asUInt
++  val shift                                    = log2Ceil(s).asUInt
++  val preadyLatch                              = Reg(Bool())
++  val pslverrLatch                             = Reg(Bool())
++  val prdataLatch                              = Reg(UInt(32.W))
++  state          := MuxLookup(state, sIdle)(
++    Seq(
++      sIdle      -> Mux(io.in.psel & io.in.penable, sWaitPerip, sIdle),
++      sWaitPerip -> Mux(io.out.pready | io.in.pslverr, sSyncDelay, sWaitPerip),
++      sSyncDelay -> Mux(counter === 0.U, sIdle, sSyncDelay)
++    )
++  )
++  io.out.psel    := Mux(state === sIdle | state === sWaitPerip, io.in.psel, false.B)
++  io.out.penable := Mux(state === sIdle | state === sWaitPerip, io.in.penable, false.B)
++  io.out.pwrite  := io.in.pwrite
++  io.out.paddr   := io.in.paddr
++  io.out.pprot   := io.in.pprot
++  io.out.pwdata  := io.in.pwdata
++  io.out.pstrb   := io.in.pstrb
++  io.in.pready   := Mux(state === sSyncDelay & counter === 0.U, preadyLatch, false.B)
++  io.in.pslverr  := Mux(state === sSyncDelay & counter === 0.U, pslverrLatch, false.B)
++  io.in.prdata   := Mux(state === sSyncDelay & counter === 0.U, prdataLatch, 0.U)
++
++  switch(state) {
++    is(sIdle) {
++      when(io.in.psel & io.in.penable) {
++        counter := 0.U
++      }
++    }
++    is(sWaitPerip) {
++      when(io.out.pready | io.out.pslverr) {
++        counter      := counter >> shift
++        preadyLatch  := io.out.pready
++        pslverrLatch := io.out.pslverr
++        prdataLatch  := io.out.prdata
++      }.otherwise({
++        counter := counter + increament;
++      })
++    }
++    is(sSyncDelay) {
++      counter := counter - 1.U
++    }
++  }
+ }
+ 
+ class APBDelayerWrapper(
+-- 
+2.53.0
+

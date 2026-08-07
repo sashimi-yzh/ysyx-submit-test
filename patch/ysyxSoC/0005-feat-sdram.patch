@@ -1,0 +1,484 @@
+From d6219c62b8cbac60c932795a303ef7920dc0d9b8 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Mon, 13 Jul 2026 21:12:09 +0800
+Subject: [PATCH 05/24] =?UTF-8?q?feat:=20sdram=E4=BD=8D=E6=89=A9=E5=B1=95?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi.v      |  6 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 95 ++++++--------------
+ perip/sdram/sdram.v                          |  6 +-
+ perip/sdram/sdram_top_apb.v                  |  8 +-
+ perip/sdram/sdram_top_axi.v                  |  8 +-
+ src/device/SDRAM.scala                       | 80 ++++++++++++-----
+ 6 files changed, 103 insertions(+), 100 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f58..e743eb16 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cedbf77b..ed254cca 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -42,7 +42,7 @@ module sdram_axi_core
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_accept_o
+@@ -55,10 +55,10 @@ module sdram_axi_core
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -76,7 +76,7 @@ parameter SDRAM_READ_LATENCY     = 2;
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+@@ -93,8 +93,8 @@ localparam CMD_PRECHARGE     = 4'b0010;
+ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+-// Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++// Mode: Burst Length = 1, CAS=2
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -105,14 +105,13 @@ localparam STATE_ACTIVATE    = 4'd3;
+ localparam STATE_READ        = 4'd4;
+ localparam STATE_READ_WAIT   = 4'd5;
+ localparam STATE_WRITE0      = 4'd6;
+-localparam STATE_WRITE1      = 4'd7;
+ localparam STATE_PRECHARGE   = 4'd8;
+ localparam STATE_REFRESH     = 4'd9;
+ 
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -159,10 +158,6 @@ reg [SDRAM_DQM_W-1:0]  dqm_q;
+ reg                    cke_q;
+ reg [SDRAM_BANK_W-1:0] bank_q;
+ 
+-// Buffer half word during read and write commands
+-reg [SDRAM_DATA_W-1:0] data_buffer_q;
+-reg [SDRAM_DQM_W-1:0]  dqm_buffer_q;
+-
+ wire [SDRAM_DATA_W-1:0] sdram_data_in_w;
+ 
+ reg                    refresh_q;
+@@ -283,13 +278,6 @@ begin
+     // STATE_WRITE0
+     //-----------------------------------------
+     STATE_WRITE0 :
+-    begin
+-        next_state_r = STATE_WRITE1;
+-    end
+-    //-----------------------------------------
+-    // STATE_WRITE1
+-    //-----------------------------------------
+-    STATE_WRITE1 :
+     begin
+         next_state_r = STATE_IDLE;
+ 
+@@ -460,19 +448,21 @@ else if (state_q == STATE_REFRESH)
+ // Input sampling
+ //-----------------------------------------------------------------
+ 
+-reg [SDRAM_DATA_W-1:0] sample_data0_q;
++reg [SDRAM_DATA_W-1:0] sample_data_q;
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+-    sample_data0_q <= {SDRAM_DATA_W{1'b0}};
++    sample_data_q <= {SDRAM_DATA_W{1'b0}};
+ else
+-    sample_data0_q <= sdram_data_in_w;
++    sample_data_q <= sdram_data_in_w;
+ 
+-reg [SDRAM_DATA_W-1:0] sample_data_q;
++reg [SDRAM_DATA_W-1:0] rd_data_q;
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+-    sample_data_q <= {SDRAM_DATA_W{1'b0}};
+-else
+-    sample_data_q <= sample_data0_q;
++    rd_data_q <= {SDRAM_DATA_W{1'b0}};
++else if (rd_q[SDRAM_READ_LATENCY])
++    rd_data_q <= sample_data_q;
++
++assign ram_read_data_w = rd_data_q;
+ 
+ //-----------------------------------------------------------------
+ // Command Output
+@@ -483,13 +473,12 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+     dqm_q           <= {SDRAM_DQM_W{1'b0}};
+     data_rd_en_q    <= 1'b1;
+-    dqm_buffer_q    <= {SDRAM_DQM_W{1'b0}};
+ 
+     for (idx=0;idx<SDRAM_BANKS;idx=idx+1)
+         active_row_q[idx] <= {SDRAM_ROW_W{1'b0}};
+@@ -605,7 +594,7 @@ begin
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+-        // Read mask (all bytes in burst)
++        // Read mask
+         dqm_q       <= {SDRAM_DQM_W{1'b0}};
+     end
+     //-----------------------------------------
+@@ -616,63 +605,38 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w[31:0];
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w[3:0];
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+-    //-----------------------------------------
+-    // STATE_WRITE1
+-    //-----------------------------------------
+-    STATE_WRITE1 :
+-    begin
+-        // Burst continuation
+-        command_q   <= CMD_NOP;
+-
+-        data_q      <= data_buffer_q;
+-
+-        // Disable auto precharge (auto close of row)
+-        addr_q[AUTO_PRECHARGE]  <= 1'b0;
+-
+-        // Write mask
+-        dqm_q       <= dqm_buffer_q;
+-    end
+     endcase
+ end
+ 
+ //-----------------------------------------------------------------
+ // Record read events
+ //-----------------------------------------------------------------
+-reg [SDRAM_READ_LATENCY+1:0]  rd_q;
++reg [SDRAM_READ_LATENCY:0]  rd_q;
+ 
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+-    rd_q    <= {(SDRAM_READ_LATENCY+2){1'b0}};
++    rd_q    <= {(SDRAM_READ_LATENCY+1){1'b0}};
+ else
+-    rd_q    <= {rd_q[SDRAM_READ_LATENCY:0], (state_q == STATE_READ)};
++    rd_q    <= {rd_q[SDRAM_READ_LATENCY-1:0], (state_q == STATE_READ)};
+ 
+ //-----------------------------------------------------------------
+-// Data Buffer
+ //-----------------------------------------------------------------
+-
+-// Buffer upper 16-bits of write data so write command can be accepted
+-// in WRITE0. Also buffer lower 16-bits of read data.
++reg wr_done_q;
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+-    data_buffer_q <= 16'b0;
+-else if (state_q == STATE_WRITE0)
+-    data_buffer_q <= ram_write_data_w[31:16];
+-else if (rd_q[SDRAM_READ_LATENCY+1])
+-    data_buffer_q <= sample_data_q;
+-
+-// Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
++    wr_done_q <= 1'b0;
++else
++    wr_done_q <= (state_q == STATE_WRITE0);
+ 
+ //-----------------------------------------------------------------
+ // ACK
+@@ -684,9 +648,9 @@ if (rst_i)
+     ack_q   <= 1'b0;
+ else
+ begin
+-    if (state_q == STATE_WRITE1)
++    if (wr_done_q)
+         ack_q <= 1'b1;
+-    else if (rd_q[SDRAM_READ_LATENCY+1])
++    else if (rd_q[SDRAM_READ_LATENCY])
+         ack_q <= 1'b1;
+     else
+         ack_q <= 1'b0;
+@@ -730,7 +694,6 @@ begin
+     STATE_READ        : dbg_state = "READ";
+     STATE_READ_WAIT   : dbg_state = "READ_WAIT";
+     STATE_WRITE0      : dbg_state = "WRITE0";
+-    STATE_WRITE1      : dbg_state = "WRITE1";
+     STATE_PRECHARGE   : dbg_state = "PRECHARGE";
+     STATE_REFRESH     : dbg_state = "REFRESH";
+     default           : dbg_state = "UNKNOWN";
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 3613b231..22dc1d83 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -7,10 +7,10 @@ module sdram(
+   input        we,
+   input [12:0] a,
+   input [ 1:0] ba,
+-  input [ 1:0] dqm,
+-  inout [15:0] dq
++  input [ 3:0] dqm,
++  inout [31:0] dq
+ );
+ 
+-  assign dq = 16'bz;
++  assign dq = 32'bz;
+ 
+ endmodule
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 3bc5b93b..f127d714 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -20,13 +20,13 @@ module sdram_top_apb (
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fdb..5731f0de 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -39,13 +39,13 @@ module sdram_top_axi(
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index 6da4ae72..085703a7 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -19,8 +19,8 @@ class SDRAMIO extends Bundle {
+   val we  = Output(Bool())
+   val a   = Output(UInt(13.W))
+   val ba  = Output(UInt(2.W))
+-  val dqm = Output(UInt(2.W))
+-  val dq  = Analog(16.W)
++  val dqm = Output(UInt(4.W))
++  val dq  = Analog(32.W)
+ }
+ 
+ class sdram_top_axi extends BlackBox {
+@@ -50,24 +50,33 @@ class sdram extends BlackBox {
+   val io = IO(Flipped(new SDRAMIO))
+ }
+ 
+-class sdramChisel extends RawModule {
++class SdramChipIO extends Bundle {
++  val clk    = Input(Bool())
++  val cke    = Input(Bool())
++  val cs     = Input(Bool())
++  val ras    = Input(Bool())
++  val cas    = Input(Bool())
++  val we     = Input(Bool())
++  val a      = Input(UInt(13.W))
++  val ba     = Input(UInt(2.W))
++  val dqm    = Input(UInt(2.W))
++  val din    = Input(UInt(16.W))
++  val dout   = Output(UInt(16.W))
++  val out_en = Output(Bool())
++}
++
++class sdramChip extends RawModule {
+   val bankBits = 2
+   val colBits  = 9
+   val rowBits  = 13
+   val bankNum  = 1 << bankBits
+   val colNum   = 1 << colBits
+   val rowNum   = 1 << rowBits
+-  val io       = IO(Flipped(new SDRAMIO))
++  val io       = IO(new SdramChipIO)
+ 
+   // {bank[1:0], row[12:0], col[8:0]}
+   val mem = Mem(1 << 24, UInt(16.W))
+ 
+-  val dout   = Wire(UInt(16.W))
+-  val out_en = Wire(Bool())
+-  val din    = TriStateInBuf(io.dq, dout, out_en)
+-  dout   := 0.U
+-  out_en := false.B
+-
+   val CMD_NOP        = "b0111".U(4.W)
+   val CMD_ACTIVE     = "b0011".U(4.W)
+   val CMD_READ       = "b0101".U(4.W)
+@@ -109,13 +118,13 @@ class sdramChisel extends RawModule {
+     newMeta.row   := Mux(cmd === CMD_READ, activeRow_(io.ba), 0.U)
+     newMeta.col   := Mux(cmd === CMD_READ, io.a(8, 0), 0.U)
+ 
+-    out_en := false.B
+-    dout   := 0.U
++    io.out_en := false.B
++    io.dout   := 0.U
+ 
+     when(!burstActive && readMetaFifo(casLat - 1.U).valid) {
+       val pipeIdx = casLat - 1.U
+-      out_en := true.B
+-      dout   := mem.read(Cat(readMetaFifo(pipeIdx).bank, readMetaFifo(pipeIdx).row, readMetaFifo(pipeIdx).col))
++      io.out_en := true.B
++      io.dout   := mem.read(Cat(readMetaFifo(pipeIdx).bank, readMetaFifo(pipeIdx).row, readMetaFifo(pipeIdx).col))
+       when(burstLen > 1.U) {
+         burstActive := true.B
+         burstIsRead := true.B
+@@ -131,14 +140,14 @@ class sdramChisel extends RawModule {
+         burstCol := nextCol
+         burstCnt := burstCnt - 1.U
+         when(burstIsRead) {
+-          out_en := true.B
+-          dout   := mem.read(Cat(burstBank, burstRow, nextCol))
++          io.out_en := true.B
++          io.dout   := mem.read(Cat(burstBank, burstRow, nextCol))
+         }.otherwise {
+           val addr    = Cat(burstBank, burstRow, nextCol)
+           val oldData = mem.read(addr)
+           val newData = Cat(
+-            Mux(io.dqm(1), oldData(15, 8), din(15, 8)),
+-            Mux(io.dqm(0), oldData(7, 0), din(7, 0))
++            Mux(io.dqm(1), oldData(15, 8), io.din(15, 8)),
++            Mux(io.dqm(0), oldData(7, 0), io.din(7, 0))
+           )
+           mem.write(addr, newData)
+         }
+@@ -166,8 +175,8 @@ class sdramChisel extends RawModule {
+             val addr    = Cat(b, row, io.a(8, 0))
+             val oldData = mem.read(addr)
+             val newData = Cat(
+-              Mux(io.dqm(1), oldData(15, 8), din(15, 8)),
+-              Mux(io.dqm(0), oldData(7, 0), din(7, 0))
++              Mux(io.dqm(1), oldData(15, 8), io.din(15, 8)),
++              Mux(io.dqm(0), oldData(7, 0), io.din(7, 0))
+             )
+             mem.write(addr, newData)
+             when(burstLen > 1.U) {
+@@ -197,6 +206,37 @@ class sdramChisel extends RawModule {
+   }
+ }
+ 
++class sdramChisel extends RawModule {
++  val io = IO(Flipped(new SDRAMIO))
++
++  val chip0 = Module(new sdramChip)
++  val chip1 = Module(new sdramChip)
++
++  for (chip <- Seq(chip0, chip1)) {
++    chip.io.clk := io.clk
++    chip.io.cke := io.cke
++    chip.io.cs  := io.cs
++    chip.io.ras := io.ras
++    chip.io.cas := io.cas
++    chip.io.we  := io.we
++    chip.io.a   := io.a
++    chip.io.ba  := io.ba
++  }
++
++  chip0.io.dqm := io.dqm(1, 0)
++  chip1.io.dqm := io.dqm(3, 2)
++
++  val dout   = Wire(UInt(32.W))
++  val out_en = Wire(Bool())
++  val din    = TriStateInBuf(io.dq, dout, out_en)
++
++  dout   := Cat(chip1.io.dout, chip0.io.dout)
++  out_en := chip0.io.out_en
++
++  chip0.io.din := din(15, 0)
++  chip1.io.din := din(31, 16)
++}
++
+ class AXI4SDRAM(
+   address:    Seq[AddressSet]
+ )(
+-- 
+2.53.0
+

@@ -1,0 +1,110 @@
+From 65175dfc213181319f6c8a736c44e2dd91294236 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 23 Jul 2026 21:16:29 +0800
+Subject: [PATCH 17/24] =?UTF-8?q?fix:=20=E7=AA=81=E5=8F=91=E4=BC=A0?=
+ =?UTF-8?q?=E8=BE=93=E6=9A=B4=E9=9C=B2=E7=9A=84=E6=A0=A1=E5=87=86=E6=AF=94?=
+ =?UTF-8?q?=E4=BE=8B=E9=97=AE=E9=A2=98?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/APBDelayer.scala  |  2 +-
+ src/amba/AXI4Delayer.scala | 28 ++++++++++++----------------
+ 2 files changed, 13 insertions(+), 17 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index d3136c7f..f6516fc8 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -57,7 +57,7 @@ class APBDelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+     }
+     is(sWaitPerip) {
+       when(io.out.pready | io.out.pslverr) {
+-        counter      := counter >> shift
++        counter      := counter + increament >> shift
+         preadyLatch  := io.out.pready
+         pslverrLatch := io.out.pslverr
+         prdataLatch  := io.out.prdata
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 732043f4..25cd2e6f 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -27,19 +27,18 @@ class AXI4DelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+   val sIdle :: sWaitAWorW :: sWaitPerip :: sSyncDelay :: Nil = Enum(4)
+   val rState                                                 = RegInit(sIdle)
+   val rCounter                                               = Reg(UInt(32.W))
+-  val rLatch                                                 = Reg(io.in.r.bits.cloneType)
+   val increament                                             = ((r - 1) * s).toInt.asUInt
+   val shift                                                  = log2Ceil(s).asUInt
+   io.out.ar.valid := Mux(rState === sIdle, io.in.ar.valid, false.B)
+   io.out.ar.bits  := Mux(rState === sIdle, io.in.ar.bits, 0.U.asTypeOf(io.in.ar.bits))
+   io.in.ar.ready  := Mux(rState === sIdle, io.out.ar.ready, false.B)
+-  io.in.r.valid   := rState === sSyncDelay & rCounter === 0.U
+-  io.in.r.bits    := rLatch
+-  io.out.r.ready  := rState === sWaitPerip
++  io.in.r.valid   := Mux(rState === sSyncDelay & rCounter === 0.U, io.out.r.valid, false.B)
++  io.in.r.bits    := Mux(rState === sSyncDelay & rCounter === 0.U, io.out.r.bits, 0.U.asTypeOf(io.out.r.bits))
++  io.out.r.ready  := Mux(rState === sSyncDelay & rCounter === 0.U, io.in.r.ready, false.B)
+   rState          := MuxLookup(rState, sIdle)(
+     Seq(
+       sIdle      -> Mux(io.in.ar.fire, sWaitPerip, sIdle),
+-      sWaitPerip -> Mux(io.out.r.fire, sSyncDelay, sWaitPerip),
++      sWaitPerip -> Mux(io.out.r.valid, sSyncDelay, sWaitPerip),
+       sSyncDelay -> Mux(io.in.r.fire, Mux(io.in.r.bits.last, sIdle, sWaitPerip), sSyncDelay)
+     )
+   )
+@@ -50,9 +49,8 @@ class AXI4DelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+       }
+     }
+     is(sWaitPerip) {
+-      when(io.out.r.fire) {
+-        rCounter := rCounter >> shift
+-        rLatch   := io.out.r.bits
++      when(io.out.r.valid) {
++        rCounter := rCounter + increament >> shift
+       }.otherwise({
+         rCounter := rCounter + increament
+       })
+@@ -65,7 +63,6 @@ class AXI4DelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+   }
+   val wState = RegInit(sIdle)
+   val lastLatch = Reg(Bool())
+-  val bLatch    = Reg(io.out.b.bits.cloneType)
+   val wCounter  = Reg(UInt(32.W))
+   io.out.aw.valid := Mux(wState === sIdle | wState === sWaitAWorW, io.in.aw.valid, false.B)
+   io.out.aw.bits  := Mux(wState === sIdle | wState === sWaitAWorW, io.in.aw.bits, 0.U.asTypeOf(io.in.aw.bits))
+@@ -73,14 +70,14 @@ class AXI4DelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+   io.out.w.valid  := Mux(wState === sIdle | wState === sWaitAWorW, io.in.w.valid, false.B)
+   io.out.w.bits   := Mux(wState === sIdle | wState === sWaitAWorW, io.in.w.bits, 0.U.asTypeOf(io.in.w.bits))
+   io.in.w.ready   := Mux(wState === sIdle | wState === sWaitAWorW, io.out.w.ready, false.B)
+-  io.in.b.valid   := wState === sSyncDelay & wCounter === 0.U
+-  io.in.b.bits    := bLatch
+-  io.out.b.ready  := wState === sWaitPerip
++  io.in.b.valid   := Mux(wState === sSyncDelay & wCounter === 0.U, io.out.b.valid, false.B)
++  io.in.b.bits    := Mux(wState === sSyncDelay & wCounter === 0.U, io.out.b.bits, 0.U.asTypeOf(io.out.b.bits))
++  io.out.b.ready  := Mux(wState === sSyncDelay & wCounter === 0.U, io.in.b.ready, false.B)
+   wState          := MuxLookup(wState, sIdle)(
+     Seq(
+       sIdle      -> Mux(io.in.aw.fire | io.in.w.fire, Mux(io.in.aw.fire & io.in.w.fire, sWaitPerip, sWaitAWorW), sIdle),
+       sWaitAWorW -> Mux(io.in.aw.fire | io.in.w.fire, sWaitPerip, sWaitAWorW),
+-      sWaitPerip -> Mux(io.out.b.fire, sSyncDelay, sWaitPerip),
++      sWaitPerip -> Mux(io.out.b.valid, sSyncDelay, sWaitPerip),
+       sSyncDelay -> Mux(io.in.b.fire, Mux(lastLatch, sIdle, sWaitAWorW), sSyncDelay)
+     )
+   )
+@@ -92,9 +89,8 @@ class AXI4DelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+       wCounter := 0.U
+     }
+     is(sWaitPerip) {
+-      when(io.out.b.fire) {
+-        wCounter := wCounter >> shift
+-        bLatch   := io.out.b.bits
++      when(io.out.b.valid) {
++        wCounter := wCounter + increament >> shift
+       }.otherwise({
+         wCounter := wCounter + increament
+       })
+-- 
+2.53.0
+

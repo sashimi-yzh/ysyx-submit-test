@@ -1,0 +1,28 @@
+From eff1e28bc0fbe18c591f10a928ffde6288a3634e Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 16 Jul 2026 19:03:33 +0800
+Subject: [PATCH 07/11] =?UTF-8?q?feat:=20=E5=A2=9E=E5=8A=A0am=E7=A8=8B?=
+ =?UTF-8?q?=E5=BA=8Flitenes?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/integrate-am-apps.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 5ce2e8f..c72936d 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -11,6 +11,7 @@ app_dir_list = [
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
++  AM_KERNELS_HOME / "kernels" / "litenes",
+ #   AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+-- 
+2.53.0
+

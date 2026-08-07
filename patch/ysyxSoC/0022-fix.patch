@@ -1,0 +1,46 @@
+From 3cbf2e4f3c69d4ad23af5d2ed536e9793593db25 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Wed, 5 Aug 2026 21:44:53 +0800
+Subject: [PATCH 22/24] =?UTF-8?q?fix:=20=E8=AF=BB=E6=95=B0=E6=8D=AE?=
+ =?UTF-8?q?=E7=9A=84=E6=8C=87=E9=92=88=E9=9C=80=E8=A6=81=E6=99=9A=E4=B8=80?=
+ =?UTF-8?q?=E6=8B=8D?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/uart16550/rtl/uart_regs.v | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/perip/uart16550/rtl/uart_regs.v b/perip/uart16550/rtl/uart_regs.v
+index b48d1d6c..04d2fef9 100644
+--- a/perip/uart16550/rtl/uart_regs.v
++++ b/perip/uart16550/rtl/uart_regs.v
+@@ -423,6 +423,15 @@ end // always @ (dl or dlab or ier or iir or scratch...
+ 
+ 
+ // rf_pop signal handling
++reg wb_re_i_r;
++always @(posedge clk or posedge wb_rst_i)
++begin
++    if (wb_rst_i)
++        wb_re_i_r <= #1 0;
++    else
++        wb_re_i_r <= #1 wb_re_i;
++end
++
+ always @(posedge clk or posedge wb_rst_i)
+ begin
+     if (wb_rst_i)
+@@ -431,7 +440,7 @@ begin
+     if (rf_pop)    // restore the signal to 0 after one clock cycle
+         rf_pop <= #1 0;
+     else
+-    if (wb_re_i && wb_addr_i == `UART_REG_RB && !dlab)
++    if (wb_re_i_r && wb_addr_i == `UART_REG_RB && !dlab)
+         rf_pop <= #1 1; // advance read pointer
+ end
+ 
+-- 
+2.53.0
+

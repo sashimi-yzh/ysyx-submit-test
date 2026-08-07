@@ -1,0 +1,1 @@
+{"name":"mill-bsp","argv":["/home/devuser/.cache/mill/download/1.1.7-native-linux-amd64","--bsp","--jobs","0"],"millVersion":"1.1.7","bspVersion":"2.2.0-M2","languages":["java","scala","kotlin"]}

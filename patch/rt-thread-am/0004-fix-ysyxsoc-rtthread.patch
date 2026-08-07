@@ -1,0 +1,80 @@
+From fe1a331d969830c25d88e728e48677ead3fb0ec1 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Fri, 10 Jul 2026 12:25:17 +0800
+Subject: [PATCH 04/11] =?UTF-8?q?fix:=20ysyxsoc=E4=BA=8C=E7=BA=A7=E5=8A=A0?=
+ =?UTF-8?q?=E8=BD=BD=E6=94=AF=E6=8C=81rtthread?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/Makefile             | 2 ++
+ bsp/abstract-machine/extra.ld             | 6 ++++++
+ bsp/abstract-machine/integrate-am-apps.py | 2 +-
+ 3 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f31..bd431fd 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -7,6 +7,8 @@ RTCONFIG_H = rtconfig.h
+ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
++ASFLAGS += -DHAS_DATA_EXTRA -DHAS_BSS_EXTRA
++export ASFLAGS
+ CFLAGS += -Wno-nonnull-compare
+ LDFLAGS += -T extra.ld
+ -include $(FILE_MK)
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index acc47fc..4cec7b5 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,5 +1,6 @@
+ SECTIONS {
+   .data.extra : {
++    _data_extra_start = .;
+     /* section information for finsh shell */
+     __fsymtab_start = .;
+     KEEP(*(FSymTab))
+@@ -27,19 +28,24 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
++    _edata_extra = .;
+   } > psram AT > flash
++  _data_extra_load_start = LOADADDR(.data.extra);
+ }
+ INSERT BEFORE .data;
+ 
+ SECTIONS {
+   .bss.extra : {
+     . = ALIGN(8);
++    _bss_extra_start = .;
+     __am_apps_bss_start = .;
+     *(__am_apps.bss*)
+     *(__am_apps.sbss*)
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
++    _ebss_extra = .;
+   } > psram AT > flash
++  _bss_extra_load_start = LOADADDR(.bss.extra);
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df3..5ce2e8f 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -11,7 +11,7 @@ app_dir_list = [
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++#   AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+-- 
+2.53.0
+

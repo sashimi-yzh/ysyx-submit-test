@@ -1,0 +1,80 @@
+From cfd13e730cc59a40e5896c1f76dbdb398cc0a4fa Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 23 Jul 2026 19:24:55 +0800
+Subject: [PATCH 15/24] =?UTF-8?q?feat:=20delayer=E5=8A=A0require=E5=8A=A0?=
+ =?UTF-8?q?=E5=BC=BA=E5=AE=89=E5=85=A8?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/APBDelayer.scala  |  1 +
+ src/amba/AXI4Delayer.scala | 19 ++++++++++++-------
+ 2 files changed, 13 insertions(+), 7 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 8bd7d5b8..d3136c7f 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -21,6 +21,7 @@ class apb_delayer extends BlackBox {
+ }
+ 
+ class APBDelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
++  require(isPow2(s), s"APBDelayer: s=${s} must be a power of 2")
+   val io                                       = IO(new APBDelayerIO)
+   val sIdle :: sWaitPerip :: sSyncDelay :: Nil = Enum(3)
+   val state                                    = RegInit(sIdle)
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index b60bb57d..be4efa30 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -12,26 +12,28 @@ import freechips.rocketchip.util._
+ class AXI4DelayerIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Reset())
+-  val in = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
+-  val out = new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4))
++  val in    = Flipped(new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4)))
++  val out   = new AXI4Bundle(AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = 4))
+ }
+ 
+ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
+-class AXI4DelayerChisel extends Module {
++class AXI4DelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+   val io = IO(new AXI4DelayerIO)
+   io.out <> io.in
+ }
+ 
+-class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
++class AXI4DelayerWrapper(
++  implicit p: Parameters)
++    extends LazyModule {
+   val node = AXI4IdentityNode()
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new axi4_delayer)
++    (node.in.zip(node.out)).foreach { case ((in, edgeIn), (out, edgeOut)) =>
++      val delayer = Module(new AXI4DelayerChisel())
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+@@ -41,7 +43,10 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+ }
+ 
+ object AXI4Delayer {
+-  def apply()(implicit p: Parameters): AXI4Node = {
++  def apply(
++  )(
++    implicit p: Parameters
++  ): AXI4Node = {
+     val axi4delay = LazyModule(new AXI4DelayerWrapper)
+     axi4delay.node
+   }
+-- 
+2.53.0
+

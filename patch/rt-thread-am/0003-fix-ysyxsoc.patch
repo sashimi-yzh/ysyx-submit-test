@@ -1,0 +1,37 @@
+From efdc11d2b5d03b3ae3a1d1ebbbea4f9a0a407fcf Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Wed, 8 Jul 2026 22:17:32 +0800
+Subject: [PATCH 03/11] =?UTF-8?q?fix:=20ysyxsoc=E7=9A=84=E9=93=BE=E6=8E=A5?=
+ =?UTF-8?q?=E8=84=9A=E6=9C=AC=E6=8E=92=E5=B8=83=E9=80=82=E9=85=8D?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/extra.ld | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc656..acc47fc 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -27,7 +27,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++  } > psram AT > flash
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +40,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > psram AT > flash
+ }
+ INSERT BEFORE .bss;
+-- 
+2.53.0
+

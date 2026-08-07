@@ -1,0 +1,26 @@
+[submodule "nvboard"]
+	path = nvboard
+	url = git@github.com:NJU-ProjectN/nvboard.git
+	shallow = true
+[submodule "am-kernels"]
+	path = am-kernels
+	url = git@github.com:WuShFeng/am-kernels.git
+	shallow = true
+[submodule "yosys-sta"]
+	path = yosys-sta
+	url = git@github.com:WuShFeng/yosys-sta.git
+	shallow = true
+[submodule "ysyxSoC"]
+	path = ysyxSoC
+	url = git@github.com:WuShFeng/ysyxSoC.git
+	shallow = true
+[submodule "npc/dependencies/diplomacy"]
+	path = npc/dependencies/diplomacy
+	url = https://github.com/chipsalliance/diplomacy.git
+	shallow = true
+[submodule "npc/dependencies/cde"]
+	path = npc/dependencies/cde
+	url = https://github.com/chipsalliance/cde.git
+[submodule "fceux-am"]
+	path = fceux-am
+	url = git@github.com:NJU-ProjectN/fceux-am.git

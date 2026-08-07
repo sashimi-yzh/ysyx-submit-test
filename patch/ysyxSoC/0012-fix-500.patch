@@ -1,0 +1,29 @@
+From e92e9d47b314a0b893ba95d1f05eca9f7a7adcee Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Fri, 17 Jul 2026 20:11:17 +0800
+Subject: [PATCH 12/24] =?UTF-8?q?fix:=20=E6=B5=8B=E8=AF=95=E9=A2=91?=
+ =?UTF-8?q?=E7=8E=87=E6=94=B9=E5=9B=9E500?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/APBDelayer.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 59c271a6..8bd7d5b8 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -20,7 +20,7 @@ class apb_delayer extends BlackBox {
+   val io = IO(new APBDelayerIO)
+ }
+ 
+-class APBDelayerChisel(val r: Double = 9.77725, val s: Int = 256) extends Module {
++class APBDelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+   val io                                       = IO(new APBDelayerIO)
+   val sIdle :: sWaitPerip :: sSyncDelay :: Nil = Enum(3)
+   val state                                    = RegInit(sIdle)
+-- 
+2.53.0
+

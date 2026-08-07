@@ -1,0 +1,56 @@
+{
+    "name": "ysyx-workbench",
+    "dockerComposeFile": "compose.yaml",
+    "service": "dev",
+    "workspaceFolder": "/workspaces/ysyx",
+    "remoteUser": "devuser",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "llvm-vs-code-extensions.vscode-clangd",
+                "GitHub.remotehub",
+                "ms-vscode.hexeditor",
+                "ZixuanWang.linkerscript",
+                "anthropic.claude-code",
+                "scalameta.metals",
+                "mshr-h.veriloghdl",
+                "openai.chatgpt",
+                "ms-vsliveshare.vsliveshare"
+            ],
+            "settings": {
+                "digital-ide.function.lsp.linter.systemverilog.diagnostor": "verilator",
+                "metals.serverProperties": [
+                    "-Xmx8G",
+                    "-XX:+UseZGC",
+                    "-XX:ZUncommitDelay=30",
+                    "-XX:ZCollectionInterval=5",
+                    "-XX:+IgnoreUnrecognizedVMOptions"
+                ]
+            }
+        }
+    },
+    "forwardPorts": [
+        6080
+    ],
+    "containerEnv": {
+        "NEMU_HOME": "/workspaces/ysyx/nemu",
+        "AM_HOME": "/workspaces/ysyx/abstract-machine",
+        "NPC_HOME": "/workspaces/ysyx/npc",
+        "NVBOARD_HOME": "/workspaces/ysyx/nvboard",
+        "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT": "1",
+        "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_AUTH_TOKEN": "sk-889c0b73f9884bfe8f909f2fef19d28b",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic"
+    },
+    "mounts": [
+        {
+            "type": "bind",
+            "target": "/workspaces/ysyx",
+            "source": ".."
+        }
+    ],
+    "postCreateCommand": "bash ./.devcontainer/postCreateCommand.sh"
+}

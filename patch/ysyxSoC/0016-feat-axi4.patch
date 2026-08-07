@@ -1,0 +1,120 @@
+From c38c69ded68b8e49bbcac3d870b69ba078506736 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 23 Jul 2026 20:23:16 +0800
+Subject: [PATCH 16/24] =?UTF-8?q?feat:=20=E5=AE=9E=E7=8E=B0axi4=E5=BB=B6?=
+ =?UTF-8?q?=E8=BF=9F=E6=A8=A1=E5=9D=97?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/AXI4Delayer.scala | 86 +++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 84 insertions(+), 2 deletions(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index be4efa30..732043f4 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -8,6 +8,7 @@ import freechips.rocketchip.amba._
+ import freechips.rocketchip.amba.axi4._
+ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
++import hardfloat.countLeadingZeros
+ 
+ class AXI4DelayerIO extends Bundle {
+   val clock = Input(Clock())
+@@ -21,8 +22,89 @@ class axi4_delayer extends BlackBox {
+ }
+ 
+ class AXI4DelayerChisel(val r: Double = 5, val s: Int = 256) extends Module {
+-  val io = IO(new AXI4DelayerIO)
+-  io.out <> io.in
++  require(isPow2(s), s"AXI4Delayer: s=${s} must be a power of 2")
++  val io                                                     = IO(new AXI4DelayerIO)
++  val sIdle :: sWaitAWorW :: sWaitPerip :: sSyncDelay :: Nil = Enum(4)
++  val rState                                                 = RegInit(sIdle)
++  val rCounter                                               = Reg(UInt(32.W))
++  val rLatch                                                 = Reg(io.in.r.bits.cloneType)
++  val increament                                             = ((r - 1) * s).toInt.asUInt
++  val shift                                                  = log2Ceil(s).asUInt
++  io.out.ar.valid := Mux(rState === sIdle, io.in.ar.valid, false.B)
++  io.out.ar.bits  := Mux(rState === sIdle, io.in.ar.bits, 0.U.asTypeOf(io.in.ar.bits))
++  io.in.ar.ready  := Mux(rState === sIdle, io.out.ar.ready, false.B)
++  io.in.r.valid   := rState === sSyncDelay & rCounter === 0.U
++  io.in.r.bits    := rLatch
++  io.out.r.ready  := rState === sWaitPerip
++  rState          := MuxLookup(rState, sIdle)(
++    Seq(
++      sIdle      -> Mux(io.in.ar.fire, sWaitPerip, sIdle),
++      sWaitPerip -> Mux(io.out.r.fire, sSyncDelay, sWaitPerip),
++      sSyncDelay -> Mux(io.in.r.fire, Mux(io.in.r.bits.last, sIdle, sWaitPerip), sSyncDelay)
++    )
++  )
++  switch(rState) {
++    is(sIdle) {
++      when(io.in.ar.fire) {
++        rCounter := 0.U
++      }
++    }
++    is(sWaitPerip) {
++      when(io.out.r.fire) {
++        rCounter := rCounter >> shift
++        rLatch   := io.out.r.bits
++      }.otherwise({
++        rCounter := rCounter + increament
++      })
++    }
++    is(sSyncDelay) {
++      when(rCounter > 0.U) {
++        rCounter := rCounter - 1.U
++      }
++    }
++  }
++  val wState = RegInit(sIdle)
++  val lastLatch = Reg(Bool())
++  val bLatch    = Reg(io.out.b.bits.cloneType)
++  val wCounter  = Reg(UInt(32.W))
++  io.out.aw.valid := Mux(wState === sIdle | wState === sWaitAWorW, io.in.aw.valid, false.B)
++  io.out.aw.bits  := Mux(wState === sIdle | wState === sWaitAWorW, io.in.aw.bits, 0.U.asTypeOf(io.in.aw.bits))
++  io.in.aw.ready  := Mux(wState === sIdle | wState === sWaitAWorW, io.out.aw.ready, false.B)
++  io.out.w.valid  := Mux(wState === sIdle | wState === sWaitAWorW, io.in.w.valid, false.B)
++  io.out.w.bits   := Mux(wState === sIdle | wState === sWaitAWorW, io.in.w.bits, 0.U.asTypeOf(io.in.w.bits))
++  io.in.w.ready   := Mux(wState === sIdle | wState === sWaitAWorW, io.out.w.ready, false.B)
++  io.in.b.valid   := wState === sSyncDelay & wCounter === 0.U
++  io.in.b.bits    := bLatch
++  io.out.b.ready  := wState === sWaitPerip
++  wState          := MuxLookup(wState, sIdle)(
++    Seq(
++      sIdle      -> Mux(io.in.aw.fire | io.in.w.fire, Mux(io.in.aw.fire & io.in.w.fire, sWaitPerip, sWaitAWorW), sIdle),
++      sWaitAWorW -> Mux(io.in.aw.fire | io.in.w.fire, sWaitPerip, sWaitAWorW),
++      sWaitPerip -> Mux(io.out.b.fire, sSyncDelay, sWaitPerip),
++      sSyncDelay -> Mux(io.in.b.fire, Mux(lastLatch, sIdle, sWaitAWorW), sSyncDelay)
++    )
++  )
++  switch(wState) {
++    is(List(sIdle, sWaitAWorW)) {
++      when(io.out.w.fire) {
++        lastLatch := io.out.w.bits.last
++      }
++      wCounter := 0.U
++    }
++    is(sWaitPerip) {
++      when(io.out.b.fire) {
++        wCounter := wCounter >> shift
++        bLatch   := io.out.b.bits
++      }.otherwise({
++        wCounter := wCounter + increament
++      })
++    }
++    is(sSyncDelay) {
++      when(wCounter > 0.U) {
++        wCounter := wCounter - 1.U
++      }
++    }
++  }
+ }
+ 
+ class AXI4DelayerWrapper(
+-- 
+2.53.0
+

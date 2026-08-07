@@ -1,0 +1,68 @@
+From ffba558dc494391d63f49b64eaa72263b3699eef Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Wed, 8 Jul 2026 19:55:49 +0800
+Subject: [PATCH 02/11] =?UTF-8?q?feat:=20=E4=B8=8A=E4=B8=8B=E6=96=87?=
+ =?UTF-8?q?=E5=88=87=E6=8D=A2?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/context.c | 32 ++++++++++++++++++++++++++++--
+ 1 file changed, 30 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 1f31eb4..11eeee5 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -4,7 +4,17 @@
+ #include <rtthread.h>
+ 
+ static Context *ev_handler(Event e, Context *c) {
++  rt_ubase_t *userData;
+   switch (e.event) {
++  case EVENT_YIELD:
++    userData = (rt_ubase_t *)rt_thread_self()->user_data;
++    rt_ubase_t from = userData[0];
++    rt_ubase_t to = userData[1];
++    if (from) {
++      *((Context **)from) = c;
++    }
++    c = *(Context **)to;
++    break;
+   default:
+     printf("Unhandled event ID = %d\n", e.event);
+     assert(0);
+@@ -14,9 +24,27 @@ static Context *ev_handler(Event e, Context *c) {
+ 
+ void __am_cte_init() { cte_init(ev_handler); }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) { assert(0); }
++void rt_hw_context_switch_to(rt_ubase_t to) {
++  rt_thread_t current = rt_thread_self();
++  rt_ubase_t data[2];
++  rt_ubase_t backup = (rt_ubase_t)current->user_data;
++  data[0] = 0;
++  data[1] = to;
++  current->user_data = (rt_ubase_t)data;
++  yield();
++  current->user_data = backup;
++}
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) { assert(0); }
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++  rt_thread_t current = rt_thread_self();
++  rt_ubase_t data[2];
++  rt_ubase_t backup = (rt_ubase_t)current->user_data;
++  data[0] = from;
++  data[1] = to;
++  current->user_data = (rt_ubase_t)data;
++  yield();
++  current->user_data = backup;
++}
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from,
+                                     rt_ubase_t to,
+-- 
+2.53.0
+

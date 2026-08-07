@@ -1,0 +1,7 @@
+build/
+out/
+.bsp/
+.idea/
+.idea_modules/
+waveform.*
+test_run_dir/

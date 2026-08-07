@@ -1,0 +1,25 @@
+From c130930c86b5f8091f71644627ee055efdcb4333 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 16 Jul 2026 19:56:37 +0800
+Subject: [PATCH 03/24] =?UTF-8?q?fix:=20=E5=B0=86.bsp=E5=8A=A0=E5=85=A5.gi?=
+ =?UTF-8?q?tignore?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .gitignore | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/.gitignore b/.gitignore
+index c52d28a0..fc87e983 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -4,3 +4,4 @@ out/
+ .metals/
+ .vscode/
+ patch/firtool/
++.bsp
+-- 
+2.53.0
+

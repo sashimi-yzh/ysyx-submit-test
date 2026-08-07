@@ -1,0 +1,804 @@
+From c023c4038c3f63459a78ef52666dd28efa4d7530 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 16 Jul 2026 19:56:04 +0800
+Subject: [PATCH 01/24] =?UTF-8?q?fix:=20=E5=B0=86=E5=A3=B0=E6=98=8E?=
+ =?UTF-8?q?=E6=94=BE=E5=9C=A8=E8=B0=83=E7=94=A8=E5=89=8D?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .gitignore                              |   4 +
+ perip/psram/efabless/EF_PSRAM_CTRL.v    | 198 ++++++++++++++++++++++++
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v |  69 +++++++--
+ src/CPU.scala                           |   4 +-
+ src/SoC.scala                           |   4 +-
+ src/device/BitRev.scala                 |  33 +++-
+ src/device/PSRAM.scala                  | 121 +++++++++++++--
+ src/device/SPI.scala                    | 160 +++++++++++++++++--
+ 8 files changed, 546 insertions(+), 47 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 3c0160d0..c52d28a0 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,6 @@
+ build/
+ out/
++.bloop/
++.metals/
++.vscode/
++patch/firtool/
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e9..7f18bc30 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -139,6 +139,108 @@ module PSRAM_READER (
+     endgenerate
+ 
+ 
++endmodule
++
++// 03h
++module PSRAM_READER_InQPI (
++    input   wire            clk,
++    input   wire            rst_n,
++    input   wire [23:0]     addr,
++    input   wire            rd,
++    input   wire [2:0]      size,
++    output  wire            done,
++    output  wire [31:0]     line,
++
++    output  reg             sck,
++    output  reg             ce_n,
++    input   wire [3:0]      din,
++    output  wire [3:0]      dout,
++    output  wire            douten
++);
++
++    localparam  IDLE = 1'b0,
++                READ = 1'b1;
++
++    wire [7:0]  FINAL_COUNT = 13 + size*2; // was 21: Always read 1 word
++
++    reg         state, nstate;
++    reg [7:0]   counter;
++    reg [23:0]  saddr;
++    reg [7:0]   data [3:0];
++
++    wire[7:0]   CMD_EBH = 8'heb;
++
++    always @*
++        case (state)
++            IDLE: if(rd) nstate = READ; else nstate = IDLE;
++            READ: if(done) nstate = IDLE; else nstate = READ;
++        endcase
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n) state <= IDLE;
++        else state <= nstate;
++
++    // Drive the Serial Clock (sck) @ clk/2
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            sck <= 1'b0;
++        else if(~ce_n)
++            sck <= ~ sck;
++        else if(state == IDLE)
++            sck <= 1'b0;
++
++    // ce_n logic
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            ce_n <= 1'b1;
++        else if(state == READ)
++            ce_n <= 1'b0;
++        else
++            ce_n <= 1'b1;
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            counter <= 8'b0;
++        else if(sck & ~done)
++            counter <= counter + 1'b1;
++        else if(state == IDLE)
++            counter <= 8'b0;
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            saddr <= 24'b0;
++        else if((state == IDLE) && rd)
++            //saddr <= {addr[23:2], 2'b0};
++            saddr <= {addr[23:0]};
++
++    // Sample with the negedge of sck
++    wire[1:0] byte_index = {counter[7:1] - 8'd7}[1:0];
++    always @ (posedge clk)
++        if(counter >= 14 && counter <= FINAL_COUNT)
++            if(sck)
++                data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
++
++    assign dout     =   (counter == 0) ?   CMD_EBH[7:4]        :
++                        (counter == 1) ?   CMD_EBH[3:0]        :
++                        (counter == 2) ?   saddr[23:20]        :
++                        (counter == 3) ?   saddr[19:16]        :
++                        (counter == 4) ?   saddr[15:12]        :
++                        (counter == 5) ?   saddr[11:8]         :
++                        (counter == 6) ?   saddr[7:4]          :
++                        (counter == 7) ?   saddr[3:0]          :
++                        4'h0;
++
++    assign douten   = (counter < 8);
++
++    assign done     = (counter == FINAL_COUNT+1);
++
++    generate
++        genvar i;
++        for(i=0; i<4; i=i+1)
++            assign line[i*8+7: i*8] = data[i];
++    endgenerate
++
++
+ endmodule
+ 
+ // Using 38H Command
+@@ -234,3 +336,99 @@ module PSRAM_WRITER (
+ 
+ 
+ endmodule
++
++
++// 38h
++module PSRAM_WRITER_InQPI (
++    input   wire            clk,
++    input   wire            rst_n,
++    input   wire [23:0]     addr,
++    input   wire [31: 0]    line,
++    input   wire [2:0]      size,
++    input   wire            wr,
++    output  wire            done,
++
++    output  reg             sck,
++    output  reg             ce_n,
++    input   wire [3:0]      din,
++    output  wire [3:0]      dout,
++    output  wire            douten
++);
++    localparam  DATA_START = 8;
++    localparam  IDLE = 1'b0,
++                WRITE = 1'b1;
++
++    wire[7:0]        FINAL_COUNT = 7 + size*2;
++
++    reg         state, nstate;
++    reg [7:0]   counter;
++    reg [23:0]  saddr;
++    //reg [7:0]   data [3:0];
++
++    wire[7:0]   CMD_38H = 8'h38;
++
++    always @*
++        case (state)
++            IDLE: if(wr) nstate = WRITE; else nstate = IDLE;
++            WRITE: if(done) nstate = IDLE; else nstate = WRITE;
++        endcase
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n) state <= IDLE;
++        else state <= nstate;
++
++    // Drive the Serial Clock (sck) @ clk/2
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            sck <= 1'b0;
++        else if(~ce_n)
++            sck <= ~ sck;
++        else if(state == IDLE)
++            sck <= 1'b0;
++
++    // ce_n logic
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            ce_n <= 1'b1;
++        else if(state == WRITE)
++            ce_n <= 1'b0;
++        else
++            ce_n <= 1'b1;
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            counter <= 8'b0;
++        else if(sck & ~done)
++            counter <= counter + 1'b1;
++        else if(state == IDLE)
++            counter <= 8'b0;
++
++    always @ (posedge clk or negedge rst_n)
++        if(!rst_n)
++            saddr <= 24'b0;
++        else if((state == IDLE) && wr)
++            saddr <= addr;
++
++    assign dout     =   (counter == 0)  ?   CMD_38H[7:4]        :
++                        (counter == 1)  ?   CMD_38H[3:0]        :
++                        (counter == 2)  ?   saddr[23:20]        :
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4)  ?   saddr[15:12]        :
++                        (counter == 5)  ?   saddr[11:8]         :
++                        (counter == 6)  ?   saddr[7:4]          :
++                        (counter == 7)  ?   saddr[3:0]          :
++                        (counter == 8)  ?   line[7:4]           :
++                        (counter == 9)  ?   line[3:0]           :
++                        (counter == 10) ?   line[15:12]         :
++                        (counter == 11) ?   line[11:8]          :
++                        (counter == 12) ?   line[23:20]         :
++                        (counter == 13) ?   line[19:16]         :
++                        (counter == 14) ?   line[31:28]         :
++                        line[27:24];
++
++    assign douten   = (~ce_n);
++
++    assign done     = (counter == FINAL_COUNT + 1);
++
++
++endmodule
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+index 7b5296db..11c7b7b3 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -39,8 +39,9 @@ module EF_PSRAM_CTRL_wb (
+     output  wire [3:0]      douten
+ );
+ 
+-    localparam  ST_IDLE = 1'b0,
+-                ST_WAIT = 1'b1;
++    localparam  ST_INIT = 2'd0,
++                ST_IDLE = 2'd1,
++                ST_WAIT = 2'd2;
+ 
+     wire        mr_sck;
+     wire        mr_ce_n;
+@@ -67,17 +68,28 @@ module EF_PSRAM_CTRL_wb (
+     wire        wb_we           =   we_i & wb_valid;
+     wire        wb_re           =   ~we_i & wb_valid;
+     //wire[3:0]   wb_byte_sel     =   sel_i & {4{wb_we}};
++    reg [7:0]   init_counter = 8'b0;
++    reg         init_sck      = 1'b0;
++    reg         init_ce_n     = 1'b1;
++    reg         init_done;
++
+ 
+     // The FSM
+-    reg         state, nstate;
++    reg [1:0]   state, nstate;
+     always @ (posedge clk_i or posedge rst_i)
+         if(rst_i)
+-            state <= ST_IDLE;
++            state <= ST_INIT;
+         else
+             state <= nstate;
+ 
+     always @* begin
+         case(state)
++            ST_INIT :
++                if(init_done)
++                    nstate = ST_IDLE;
++                else
++                    nstate = ST_INIT;
++
+             ST_IDLE :
+                 if(wb_valid)
+                     nstate = ST_WAIT;
+@@ -89,9 +101,40 @@ module EF_PSRAM_CTRL_wb (
+                     nstate = ST_IDLE;
+                 else
+                     nstate = ST_WAIT;
++
++            default:
++                    nstate = ST_IDLE;
+         endcase
+     end
+ 
++
++    wire [7:0]  CMD_QPI_EN = 8'h35;
++
++    always @ (posedge clk_i)
++        if(init_done)
++            init_sck <= 1'b0;
++        else if(~init_ce_n)
++            init_sck <= ~init_sck;
++
++    always @ (posedge clk_i)
++        if(init_done)
++            init_ce_n <= 1'b1;
++        else
++            init_ce_n <= 1'b0;
++
++    always @ (posedge clk_i)
++        if(~init_done && init_sck)
++            init_counter <= init_counter + 1'b1;
++
++    always @ (posedge clk_i)
++        if(init_counter == 8)
++            init_done <= 1'b1;
++
++    wire [3:0]  init_dout;
++    assign init_dout = (init_counter < 8) ? {3'b0, CMD_QPI_EN[7 - init_counter]} : 4'h0;
++    wire        init_douten;
++    assign init_douten = (init_counter < 8);
++
+     wire [2:0]  size =  (sel_i == 4'b0001) ? 1 :
+                         (sel_i == 4'b0010) ? 1 :
+                         (sel_i == 4'b0100) ? 1 :
+@@ -130,7 +173,7 @@ module EF_PSRAM_CTRL_wb (
+     assign mr_rd    = ( (state==ST_IDLE ) & wb_re );
+     assign mw_wr    = ( (state==ST_IDLE ) & wb_we );
+ 
+-    PSRAM_READER MR (
++    PSRAM_READER_InQPI MR (
+         .clk(clk_i),
+         .rst_n(~rst_i),
+         .addr({adr_i[23:2],2'b0}),
+@@ -146,9 +189,15 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mr_doe)
+     );
+ 
+-    PSRAM_WRITER MW (
++    // wire [1:0] wr_byte_offset;
++    // assign wr_byte_offset = sel_i[0] ? 2'd0 :
++    //                         sel_i[1] ? 2'd1 :
++    //                         sel_i[2] ? 2'd2 : 2'd3;
++
++    PSRAM_WRITER_InQPI MW (
+         .clk(clk_i),
+         .rst_n(~rst_i),
++        // .addr({adr_i[23:0]} + {22'b0, wr_byte_offset}),
+         .addr({adr_i[23:0]}),
+         .wr(mw_wr),
+         .size(size),
+@@ -161,10 +210,10 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mw_doe)
+     );
+ 
+-    assign sck  = wb_we ? mw_sck  : mr_sck;
+-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
+-    assign dout = wb_we ? mw_dout : mr_dout;
+-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
++    assign sck    = (state == ST_INIT) ? init_sck  : (wb_we ? mw_sck  : mr_sck);
++    assign ce_n   = (state == ST_INIT) ? init_ce_n : (wb_we ? mw_ce_n : mr_ce_n);
++    assign dout   = (state == ST_INIT) ? init_dout : (wb_we ? mw_dout : mr_dout);
++    assign douten = (state == ST_INIT) ? {4{init_douten}} : (wb_we ? {4{mw_doe}} : {4{mr_doe}});
+ 
+     assign mw_din = din;
+     assign mr_din = din;
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195f..9678df96 100644
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_25060161 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_25060161)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 1c65cd87..a86a9498 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -135,12 +135,12 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+     val flash = Module(new flash)
+     flash.io <> masic.spi
+     flash.io.ss := masic.spi.ss(0)
+-    val bitrev = Module(new bitrev)
++    val bitrev = Module(new bitrevChisel)
+     bitrev.io <> masic.spi
+     bitrev.io.ss := masic.spi.ss(7)
+     masic.spi.miso := List(bitrev.io, flash.io).map(_.miso).reduce(_&&_)
+ 
+-    val psram = Module(new psram)
++    val psram = Module(new psramChisel)
+     psram.io <> masic.psram
+     val sdram = Module(new sdram)
+     sdram.io <> masic.sdram
+diff --git a/src/device/BitRev.scala b/src/device/BitRev.scala
+index 6bd3d572..643bfb23 100644
+--- a/src/device/BitRev.scala
++++ b/src/device/BitRev.scala
+@@ -6,8 +6,37 @@ import chisel3.util._
+ class bitrev extends BlackBox {
+   val io = IO(Flipped(new SPIIO(1)))
+ }
+-
++/**
++                    +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+
++ SCK            |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |
++        --------+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +---+   +------------
++        --------+                                                                                                                               +--------
++ SS             |                                                                                                                               |
++                +-------------------------------------------------------------------------------------------------------------------------------+
++        +-------+-------+-------+-------+-------+-------+-------+-------+-------+------------------------------------------------------------------------
++ MOSI            |   b7  |   b6  |   b5  |   b4  |   b3  |   b2  |   b1  |   b0  |
++                +-------+-------+-------+-------+-------+-------+-------+-------+
++        +-----------------------------------------------------------------------+-------+-------+-------+-------+-------+-------+-------+-------+--------
++ MISO                                                                            |   b0  |   b1  |   b2  |   b3  |   b4  |   b5  |   b6  |   b7  |
++                                                                                +-------+-------+-------+-------+-------+-------+-------+-------+
++  */
+ class bitrevChisel extends RawModule { // we do not need clock and reset
+   val io = IO(Flipped(new SPIIO(1)))
+-  io.miso := true.B
++
++  withClockAndReset((!io.sck).asClock, io.ss(0).asAsyncReset) {
++    val bitCnt = RegInit(0.U(4.W))
++    bitCnt := bitCnt + 1.U
++
++    val rxReg = RegInit(0.U(8.W))
++    val rxNext = Cat(rxReg(6, 0), io.mosi)
++    rxReg := rxNext
++
++    val txReg = RegInit("hFF".U(8.W))
++    when(bitCnt === 7.U) {
++      txReg := Reverse(rxNext)
++    }.otherwise {
++      txReg := Cat(txReg(6, 0), 0.U(1.W))
++    }
++    io.miso := txReg(7)
++  }
+ }
+diff --git a/src/device/PSRAM.scala b/src/device/PSRAM.scala
+index 09d889e4..b70d981b 100644
+--- a/src/device/PSRAM.scala
++++ b/src/device/PSRAM.scala
+@@ -10,17 +10,18 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ 
+ class QSPIIO extends Bundle {
+-  val sck = Output(Bool())
++  val sck  = Output(Bool())
+   val ce_n = Output(Bool())
+-  val dio = Analog(4.W)
++  val dio  = Analog(4.W)
+ }
+ 
+ class psram_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-    val qspi = new QSPIIO
++    val in    =
++      Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++    val qspi  = new QSPIIO
+   })
+ }
+ 
+@@ -29,22 +30,112 @@ class psram extends BlackBox {
+ }
+ 
+ class psramChisel extends RawModule {
+-  val io = IO(Flipped(new QSPIIO))
+-  val di = TriStateInBuf(io.dio, 0.U, false.B) // change this if you need
++  val io     = IO(Flipped(new QSPIIO))
++  val dout   = Wire(UInt(4.W))
++  val out_en = Wire(Bool())
++  val din    = TriStateInBuf(io.dio, dout, out_en)
++  dout   := 0.U
++  out_en := false.B
++  val mem = Mem(1 << 22, UInt(8.W))
++
++  val inQPI = withClockAndReset(io.sck.asClock, false.B.asAsyncReset) { RegInit(false.B) }
++  withClockAndReset(io.sck.asClock, io.ce_n.asAsyncReset) {
++    val counter      = RegInit(0.U(8.W))
++    val cmd          = RegInit(0.U(8.W))
++    val addr         = RegInit(0.U(24.W))
++    val isReadCmd    = RegInit(false.B)
++    val isWriteCmd   = RegInit(false.B)
++    val writeDataPre = RegInit(0.U(4.W))
++    counter := counter + 1.U
++    when(inQPI === false.B) {
++      when(counter < 8.U) {
++        cmd := Cat(cmd(6, 0), din(0))
++      }
++      when(counter === 8.U) {
++        isReadCmd  := (cmd === 0xeb.U)
++        isWriteCmd := (cmd === 0x38.U)
++        inQPI      := (cmd === 0x35.U)
++      }
++      when(counter >= 8.U && counter < 14.U) {
++        addr := Cat(addr(19, 0), din)
++      }
++      when(isWriteCmd && counter >= 14.U) {
++        writeDataPre := din
++      }
++      when(isWriteCmd && counter > 14.U) {
++        val wIdx = (counter - 14.U)(2, 1)
++        when(counter(0) === 1.U) {
++          mem.write(addr(21, 0) + wIdx, Cat(writeDataPre, din))
++        }
++      }
++      when(isReadCmd && counter >= 21.U && counter < 29.U) {
++        out_en := true.B
++        val rIdx = (counter - 21.U)(2, 1)
++        val byte = mem.read(addr(21, 0) + rIdx)
++        when(counter(0) === 1.U) {
++          dout := byte(7, 4)
++        }.otherwise {
++          dout := byte(3, 0)
++        }
++      }
++    }.otherwise({
++      when(counter < 2.U) {
++        cmd := Cat(cmd(3, 0), din)
++      }
++      when(counter === 2.U) {
++        isReadCmd  := (cmd === 0xeb.U)
++        isWriteCmd := (cmd === 0x38.U)
++      }
++      when(counter >= 2.U && counter < 8.U) {
++        addr := Cat(addr(19, 0), din)
++      }
++      when(isWriteCmd && counter >= 8.U) {
++        writeDataPre := din
++      }
++      when(isWriteCmd && counter > 8.U) {
++        val wIdx = (counter - 8.U)(2, 1)
++        when(counter(0) === 1.U) {
++          mem.write(addr(21, 0) + wIdx, Cat(writeDataPre, din))
++        }
++      }
++      when(isReadCmd && counter >= 15.U && counter < 23.U) {
++        out_en := true.B
++        val rIdx = (counter - 15.U)(2, 1)
++        val byte = mem.read(addr(21, 0) + rIdx)
++        when(counter(0) === 1.U) {
++          dout := byte(7, 4)
++        }.otherwise {
++          dout := byte(3, 0)
++        }
++      }
++    })
++  }
+ }
+ 
+-class APBPSRAM(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBPSRAM(
++  address:    Seq[AddressSet]
++)(
++  implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(
++    Seq(
++      APBSlavePortParameters(
++        Seq(
++          APBSlaveParameters(
++            address = address,
++            executable = true,
++            supportsRead = true,
++            supportsWrite = true
++          )
++        ),
++        beatBytes = 4
++      )
++    )
++  )
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
++    val (in, _)     = node.in(0)
+     val qspi_bundle = IO(new QSPIIO)
+ 
+     val mpsram = Module(new psram_top_apb)
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index c354bb92..f0ffc74f 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -9,18 +9,18 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ 
+ class SPIIO(val ssWidth: Int = 8) extends Bundle {
+-  val sck = Output(Bool())
+-  val ss = Output(UInt(ssWidth.W))
++  val sck  = Output(Bool()) 
++  val ss   = Output(UInt(ssWidth.W))
+   val mosi = Output(Bool())
+   val miso = Input(Bool())
+ }
+ 
+ class spi_top_apb extends BlackBox {
+   val io = IO(new Bundle {
+-    val clock = Input(Clock())
+-    val reset = Input(Reset())
+-    val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-    val spi = new SPIIO
++    val clock       = Input(Clock())
++    val reset       = Input(Reset())
++    val in          = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++    val spi         = new SPIIO
+     val spi_irq_out = Output(Bool())
+   })
+ }
+@@ -29,24 +29,152 @@ class flash extends BlackBox {
+   val io = IO(Flipped(new SPIIO(1)))
+ }
+ 
+-class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+-  val node = APBSlaveNode(Seq(APBSlavePortParameters(
+-    Seq(APBSlaveParameters(
+-      address       = address,
+-      executable    = true,
+-      supportsRead  = true,
+-      supportsWrite = true)),
+-    beatBytes  = 4)))
++class APBSPI(
++  address:    Seq[AddressSet]
++)(
++  implicit p: Parameters)
++    extends LazyModule {
++  val node = APBSlaveNode(Seq(APBSlavePortParameters(Seq(APBSlaveParameters(address = address, executable = true, supportsRead = true, supportsWrite = true)), beatBytes = 4)))
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    val (in, _) = node.in(0)
++    val (in, _)    = node.in(0)
+     val spi_bundle = IO(new SPIIO)
+ 
+     val mspi = Module(new spi_top_apb)
+     mspi.io.clock := clock
+     mspi.io.reset := reset
+-    mspi.io.in <> in
+     spi_bundle <> mspi.io.spi
++
++    val xpiBase                         = 0x3000_0000.U(32.W)
++    val xpiSize                         = 0x1000_0000.U(32.W)
++    val inXPI                           = xpiBase <= in.paddr && in.paddr < xpiBase + xpiSize
++    val sIdle :: sBusy :: sReady :: Nil = Enum(3)
++    val xpiState                        = RegInit(sIdle)
++    val xpiAddr                         = RegInit(0.U(32.W))
++    // step 0: set TX1
++    // step 1: set TX0
++    // step 2: set DIV
++    // step 3: set SS
++    // step 4: set CTRL
++    // step 5: wait CTRL
++    // step 6: reverse RX0 and return
++    object SpiOffset {
++      val TX0              = 0x00.U
++      val TX1              = 0x04.U
++      val CTRL             = 0x10.U
++      val DIV              = 0x14.U
++      val SS               = 0x18.U
++      val SS_FLASH         = (1 << 0).U
++      val CTRL_ASS         = (1 << 13).U
++      val CTRL_TX_NEG      = (1 << 10).U
++      val CTRL_GO          = (1 << 8).U
++      val CTRL_CHAR_LEN_64 = 64.U
++    }
++    val xpiStep = RegInit(0.U(log2Ceil(8).W))
++    val xpiRxData     = RegInit(0.U(32.W))
++    val xpiBundle     = Wire(chiselTypeOf(mspi.io.in))
++    val xpiTransDoing = RegInit(false.B)
++    val xpiTransDone  = xpiBundle.penable && mspi.io.in.pready
++    mspi.io.in.psel    := Mux(inXPI, xpiBundle.psel, in.psel)
++    mspi.io.in.paddr   := Mux(inXPI, xpiBundle.paddr, in.paddr)
++    mspi.io.in.penable := Mux(inXPI, xpiBundle.penable, in.penable)
++    mspi.io.in.pprot   := Mux(inXPI, xpiBundle.pprot, in.pprot)
++    mspi.io.in.pwdata  := Mux(inXPI, xpiBundle.pwdata, in.pwdata)
++    mspi.io.in.pwrite  := Mux(inXPI, xpiBundle.pwrite, in.pwrite)
++    mspi.io.in.pstrb   := Mux(inXPI, xpiBundle.pstrb, in.pstrb)
++    xpiBundle.psel     := inXPI && in.psel
++    xpiBundle.paddr    := 0.U
++    xpiBundle.penable  := xpiTransDoing
++    xpiBundle.pprot    := 0.U
++    xpiBundle.pwdata   := 0.U
++    xpiBundle.pwrite   := 0.U
++    xpiBundle.pstrb    := 0xf.U(8.W)
++    in.pready          := Mux(inXPI, xpiBundle.pready, mspi.io.in.pready)
++    in.pslverr         := Mux(inXPI, xpiBundle.pslverr, mspi.io.in.pslverr)
++    in.prdata          := Mux(inXPI, xpiBundle.prdata, mspi.io.in.prdata)
++    xpiBundle.pready   := xpiState === sReady
++    xpiBundle.pslverr  := false.B
++    xpiBundle.prdata   := xpiRxData
++
++    xpiState := MuxLookup(xpiState, sIdle)(
++      Seq(
++        sIdle  -> Mux(xpiBundle.psel && in.penable, sBusy, sIdle),
++        sBusy  -> Mux(xpiStep === 6.U && xpiTransDone, sReady, sBusy),
++        sReady -> Mux(!xpiBundle.penable, sIdle, sReady)
++      )
++    )
++
++    when(xpiState === sBusy) {
++      switch(xpiStep) {
++        is(0.U) {
++          xpiBundle.paddr  := SpiOffset.TX1
++          xpiBundle.pwdata := Cat("h03".U, (xpiAddr & "h00ff_ffff".U)(23, 0))
++          xpiBundle.pwrite := true.B
++          xpiTransDoing    := true.B
++        }
++        is(1.U) {
++          xpiBundle.paddr  := SpiOffset.TX0
++          xpiBundle.pwdata := 0.U
++          xpiBundle.pwrite := true.B
++          xpiTransDoing    := true.B
++        }
++        is(2.U) {
++          xpiBundle.paddr  := SpiOffset.DIV
++          xpiBundle.pwdata := 0.U
++          xpiBundle.pwrite := true.B
++          xpiTransDoing    := true.B
++        }
++        is(3.U) {
++          xpiBundle.paddr  := SpiOffset.SS
++          xpiBundle.pwdata := SpiOffset.SS_FLASH
++          xpiBundle.pwrite := true.B
++          xpiTransDoing    := true.B
++        }
++        is(4.U) {
++          xpiBundle.paddr  := SpiOffset.CTRL
++          xpiBundle.pwdata := (SpiOffset.CTRL_ASS
++            | SpiOffset.CTRL_TX_NEG
++            | SpiOffset.CTRL_CHAR_LEN_64
++            | SpiOffset.CTRL_GO)
++          xpiBundle.pwrite := true.B
++          xpiTransDoing    := true.B
++        }
++        is(5.U) {
++          xpiBundle.paddr  := SpiOffset.CTRL
++          xpiBundle.pwrite := false.B
++          xpiTransDoing    := true.B
++        }
++        is(6.U) {
++          xpiBundle.paddr  := SpiOffset.TX0
++          xpiBundle.pwrite := false.B
++          xpiTransDoing    := true.B
++        }
++      }
++    }
++
++    when(xpiState === sIdle) {
++      xpiStep := 0.U
++      when(xpiBundle.psel) {
++        xpiAddr := in.paddr
++      }
++    }.elsewhen(xpiState === sBusy && xpiTransDone) {
++      when(xpiStep === 5.U && (mspi.io.in.prdata & SpiOffset.CTRL_GO).orR) {
++        xpiStep := 5.U
++      }.otherwise {
++        xpiStep := xpiStep + 1.U
++      }
++    }
++    when(xpiState === sBusy && xpiStep === 6.U && xpiTransDone) {
++      xpiRxData := Cat(
++        mspi.io.in.prdata(7, 0),
++        mspi.io.in.prdata(15, 8),
++        mspi.io.in.prdata(23, 16),
++        mspi.io.in.prdata(31, 24)
++      )
++    }
++    when(xpiTransDone) {
++      xpiTransDoing := false.B
++    }
+   }
+ }
+-- 
+2.53.0
+

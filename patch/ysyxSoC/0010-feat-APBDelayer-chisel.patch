@@ -1,0 +1,67 @@
+From 2a04f3985d2e3e6253853d7e85fe0461b1de7e26 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Fri, 17 Jul 2026 16:23:02 +0800
+Subject: [PATCH 10/24] =?UTF-8?q?feat:=20APBDelayer=E6=94=B9=E7=94=A8chise?=
+ =?UTF-8?q?l=E5=AE=9E=E7=8E=B0?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/APBDelayer.scala | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 0cfc3d0c..d50414c7 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -12,26 +12,28 @@ import freechips.rocketchip.util._
+ class APBDelayerIO extends Bundle {
+   val clock = Input(Clock())
+   val reset = Input(Reset())
+-  val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-  val out = new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))
++  val in    = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++  val out   = new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))
+ }
+ 
+ class apb_delayer extends BlackBox {
+   val io = IO(new APBDelayerIO)
+ }
+ 
+-class APBDelayerChisel extends Module {
++class APBDelayerChisel(val r: Double = 9.77725, val s: Int = 256) extends Module {
+   val io = IO(new APBDelayerIO)
+   io.out <> io.in
+ }
+ 
+-class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
++class APBDelayerWrapper(
++  implicit p: Parameters)
++    extends LazyModule {
+   val node = APBIdentityNode()
+ 
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+-    (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new apb_delayer)
++    (node.in.zip(node.out)).foreach { case ((in, edgeIn), (out, edgeOut)) =>
++      val delayer = Module(new APBDelayerChisel())
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+@@ -41,7 +43,10 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+ }
+ 
+ object APBDelayer {
+-  def apply()(implicit p: Parameters): APBNode = {
++  def apply(
++  )(
++    implicit p: Parameters
++  ): APBNode = {
+     val apbdelay = LazyModule(new APBDelayerWrapper)
+     apbdelay.node
+   }
+-- 
+2.53.0
+

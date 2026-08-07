@@ -1,0 +1,40 @@
+From 12d9bdf0f2382fb20e7e3e68f73fcb12da595703 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Tue, 4 Aug 2026 22:28:18 +0800
+Subject: [PATCH 08/11] =?UTF-8?q?fix:=20=E4=B8=8D=E5=86=8Dload=20bss.extra?=
+ =?UTF-8?q?=E6=AE=B5?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/extra.ld | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 6e02ccf..0b39e53 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -35,17 +35,14 @@ SECTIONS {
+ INSERT BEFORE .data;
+ 
+ SECTIONS {
+-  .bss.extra : {
++  .bss.extra (NOLOAD): {
+     . = ALIGN(8);
+-    _bss_extra_start = .;
+     __am_apps_bss_start = .;
+     *(__am_apps.bss*)
+     *(__am_apps.sbss*)
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-    _ebss_extra = .;
+-  } > sdram AT > flash
+-  _bss_extra_load_start = LOADADDR(.bss.extra);
++  } > sdram : NONE
+ }
+ INSERT BEFORE .bss;
+-- 
+2.53.0
+

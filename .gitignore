@@ -1,0 +1,4 @@
+netlist/
+.cache/
+.metals/
+out

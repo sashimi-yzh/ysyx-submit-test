@@ -1,0 +1,135 @@
+From 81691123b8bc41e724e6a71ae5dc85310a646f63 Mon Sep 17 00:00:00 2001
+From: WuShFeng <1481542813@qq.com>
+Date: Thu, 6 Aug 2026 20:33:57 +0800
+Subject: [PATCH 23/24] =?UTF-8?q?fix:=20init=E9=9C=80=E8=A6=81=E5=90=8C?=
+ =?UTF-8?q?=E6=97=B6=E6=93=8D=E4=BD=9C=E4=B8=A4=E4=B8=AAchip?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 23 +++++++++++++++-----
+ 1 file changed, 18 insertions(+), 5 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index f3e92410..8b45bf2e 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -160,6 +160,7 @@ reg [SDRAM_DQM_W-1:0]  dqm_q;
+ reg                    cke_q;
+ reg [SDRAM_BANK_W-1:0] bank_q;
+ reg                    word_sel_q;
++reg                    broadcast_q;
+ 
+ wire [SDRAM_DATA_W-1:0] sdram_data_in_w;
+ 
+@@ -493,6 +494,7 @@ begin
+     dqm_q           <= {SDRAM_DQM_W{1'b0}};
+     data_rd_en_q    <= 1'b1;
+     word_sel_q      <= 1'b0;
++    broadcast_q     <= 1'b0;
+ 
+     for (idx=0;idx<SDRAM_WORD_GROUPS;idx=idx+1) begin
+         row_open_q[idx]   <= {SDRAM_BANKS{1'b0}};
+@@ -513,6 +515,7 @@ begin
+         addr_q       <= {SDRAM_ROW_W{1'b0}};
+         bank_q       <= {SDRAM_BANK_W{1'b0}};
+         data_rd_en_q <= 1'b1;
++        broadcast_q  <= 1'b0;
+     end
+     //-----------------------------------------
+     // STATE_INIT
+@@ -531,17 +534,20 @@ begin
+             // Precharge all banks
+             command_q           <= CMD_PRECHARGE;
+             addr_q[ALL_BANKS]   <= 1'b1;
++            broadcast_q         <= 1'b1;
+         end
+         // 2 x REFRESH (with at least tREF wait)
+         else if (refresh_timer_q == 20 || refresh_timer_q == 30)
+         begin
+-            command_q <= CMD_REFRESH;
++            command_q   <= CMD_REFRESH;
++            broadcast_q <= 1'b1;
+         end
+         // Load mode register
+         else if (refresh_timer_q == 10)
+         begin
+-            command_q <= CMD_LOAD_MODE;
+-            addr_q    <= MODE_REG;
++            command_q   <= CMD_LOAD_MODE;
++            addr_q      <= MODE_REG;
++            broadcast_q <= 1'b1;
+         end
+         // Other cycles during init - just NOP
+         else
+@@ -549,6 +555,7 @@ begin
+             command_q   <= CMD_NOP;
+             addr_q      <= {SDRAM_ROW_W{1'b0}};
+             bank_q      <= {SDRAM_BANK_W{1'b0}};
++            broadcast_q <= 1'b0;
+         end
+     end
+     //-----------------------------------------
+@@ -561,6 +568,7 @@ begin
+         addr_q        <= addr_row_w;
+         bank_q        <= addr_bank_w;
+         word_sel_q    <= addr_word_sel;
++        broadcast_q   <= 1'b0;
+ 
+         active_row_q[addr_word_sel][addr_bank_w]  <= addr_row_w;
+         row_open_q[addr_word_sel][addr_bank_w]    <= 1'b1;
+@@ -577,6 +585,7 @@ begin
+             command_q           <= CMD_PRECHARGE;
+             addr_q[ALL_BANKS]   <= 1'b1;
+             word_sel_q          <= 1'b0;
++            broadcast_q         <= 1'b1;
+             for (idx=0;idx<SDRAM_WORD_GROUPS;idx=idx+1)
+                 row_open_q[idx] <= {SDRAM_BANKS{1'b0}};
+         end
+@@ -587,6 +596,7 @@ begin
+             addr_q[ALL_BANKS]   <= 1'b0;
+             bank_q              <= addr_bank_w;
+             word_sel_q          <= addr_word_sel;
++            broadcast_q         <= 1'b0;
+ 
+             row_open_q[addr_word_sel][addr_bank_w] <= 1'b0;
+         end
+@@ -601,6 +611,7 @@ begin
+         addr_q      <= {SDRAM_ROW_W{1'b0}};
+         bank_q      <= {SDRAM_BANK_W{1'b0}};
+         word_sel_q  <= 1'b0;
++        broadcast_q <= 1'b1;
+     end
+     //-----------------------------------------
+     // STATE_READ
+@@ -611,6 +622,7 @@ begin
+         addr_q      <= addr_col_w;
+         bank_q      <= addr_bank_w;
+         word_sel_q  <= addr_word_sel;
++        broadcast_q <= 1'b0;
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+@@ -627,6 +639,7 @@ begin
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+         word_sel_q      <= addr_word_sel;
++        broadcast_q     <= 1'b0;
+         data_q          <= ram_write_data_w[31:0];
+ 
+         // Disable auto precharge (auto close of row)
+@@ -693,8 +706,8 @@ assign sdram_data_output_o   =  data_q;
+ assign sdram_data_in_w       = sdram_data_input_i;
+ 
+ assign sdram_cke_o  = cke_q;
+-assign sdram_cs_o   = command_q[3] |  word_sel_q;
+-assign sdram_cs1_o  = command_q[3] | ~word_sel_q;
++assign sdram_cs_o   = broadcast_q ? 1'b0 : (command_q[3] |  word_sel_q);
++assign sdram_cs1_o  = broadcast_q ? 1'b0 : (command_q[3] | ~word_sel_q);
+ assign sdram_ras_o  = command_q[2];
+ assign sdram_cas_o  = command_q[1];
+ assign sdram_we_o   = command_q[0];
+-- 
+2.53.0
+
