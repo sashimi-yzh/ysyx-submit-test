@@ -1,0 +1,15 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.sh
+!*.v
+!*.cc
+!*.cpp
+!.gitignore
+!README.md
+!Kconfig
+!constr/*.nxdc
+build/

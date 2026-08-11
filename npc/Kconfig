@@ -1,0 +1,118 @@
+mainmenu "NPC Simulator Settings"
+
+menu "Host and RTL Build"
+
+choice
+  prompt "Host optimization profile"
+  default HOST_LEVEL_BALANCED
+
+config HOST_LEVEL_MAX
+  bool "speed (-O3)"
+config HOST_LEVEL_BALANCED
+  bool "balanced (-O2)"
+config HOST_LEVEL_LIGHT
+  bool "light (-O1)"
+config HOST_LEVEL_DEBUG
+  bool "debug (-O0)"
+endchoice
+
+config CC_OPT
+  string
+  default "-O3" if HOST_LEVEL_MAX
+  default "-O2" if HOST_LEVEL_BALANCED
+  default "-O1" if HOST_LEVEL_LIGHT
+  default "-O0" if HOST_LEVEL_DEBUG
+
+config CC_DEBUG
+  bool "Keep host debug information"
+
+choice
+  prompt "RTL compilation profile"
+  default RTL_LEVEL_FAST
+
+config RTL_LEVEL_FAST
+  bool "fast (-O3)"
+config RTL_LEVEL_NORMAL
+  bool "normal (-O2)"
+config RTL_LEVEL_SAFE
+  bool "safe (-O1)"
+config RTL_LEVEL_CHECK
+  bool "check (-O0)"
+endchoice
+
+config VERILATOR_OPT
+  string
+  default "-O3" if RTL_LEVEL_FAST
+  default "-O2" if RTL_LEVEL_NORMAL
+  default "-O1" if RTL_LEVEL_SAFE
+  default "-O0" if RTL_LEVEL_CHECK
+
+endmenu
+
+menu "Run Limits"
+
+config MAX_NO_COMMIT_CYCLES
+  int "Commit watchdog (cycles)"
+  default 10000
+
+config MAX_SIM_TIME
+  int "Simulation cycle ceiling"
+  default 5000000000
+
+endmenu
+
+menu "Trace and Diagnostics"
+
+menuconfig TRACE
+  bool "Record execution traces"
+
+if TRACE
+
+config TRACE_END
+  int "Last instruction to record"
+  default 1000000
+
+config TRACE_START
+  int "First instruction to record"
+  default 0
+
+comment "Trace channels"
+
+config MTRACE
+  bool "Memory accesses"
+
+config MTRACE_COND
+  string "Memory-access filter"
+  depends on MTRACE
+  default "true"
+
+config ITRACE
+  bool "Instructions"
+
+config ITRACE_COND
+  string "Instruction filter"
+  depends on ITRACE
+  default "true"
+
+config FTRACE
+  bool "Function calls and returns"
+
+config DTRACE
+  bool "Device accesses"
+
+config ETRACE
+  bool "Exceptions and returns"
+
+endif
+
+config WATCHPOINT
+  bool "Evaluate watchpoints after each commit"
+  default y
+
+config DIFFTEST
+  bool "Compare against a reference model"
+
+config WAVE
+  bool "Save a waveform"
+
+endmenu
