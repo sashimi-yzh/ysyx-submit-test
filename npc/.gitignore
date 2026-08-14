@@ -1,0 +1,16 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.v
+!*.cc
+!*.cpp
+!.gitignore
+!README.md
+!constr/*
+build/
+obj_dir/
+sta-result/
+build-sim

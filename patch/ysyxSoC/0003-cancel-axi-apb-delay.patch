@@ -1,0 +1,33 @@
+From 8383b8f285b0279c6c4788b5ebabfb70f3dbc076 Mon Sep 17 00:00:00 2001
+From: haijistu <haijistu@gmail.com>
+Date: Sun, 9 Aug 2026 19:33:02 +0800
+Subject: [PATCH 3/4] cancel axi&apb delay
+
+---
+ perip/amba/apb_delayer.v  | 2 +-
+ perip/amba/axi4_delayer.v | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index a04bb95c..11c67e76 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -1,4 +1,4 @@
+-`define delay
++// `define delay
+ module apb_delayer(
+   input         clock,
+   input         reset,
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f5e62cb9..c3ca3d50 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -1,4 +1,4 @@
+-`define delay
++// `define delay
+ module axi4_delayer(
+   input         clock,
+   input         reset,
+-- 
+2.43.0
+

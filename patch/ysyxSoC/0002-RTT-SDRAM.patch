@@ -1,0 +1,1847 @@
+From 86a46bd34ed6f419578155761006b0b2eb872f9d Mon Sep 17 00:00:00 2001
+From: haijistu <haijistu@gmail.com>
+Date: Sun, 9 Aug 2026 17:04:55 +0800
+Subject: [PATCH 2/4] =?UTF-8?q?=E5=8F=AF=E5=90=AF=E5=8A=A8RTT=EF=BC=8C?=
+ =?UTF-8?q?=E5=B9=B6=E6=8B=93=E5=B1=95SDRAM=E4=BD=8D=E5=AE=BD=E5=92=8C?=
+ =?UTF-8?q?=E5=AD=97=E5=AE=BD?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/amba/apb_delayer.v                     | 141 +++++++++++-
+ perip/amba/axi4_delayer.v                    | 219 +++++++++++++++++-
+ perip/bitrev/bitrev.v                        |  38 +++-
+ perip/flash/flash.v                          |   4 +-
+ perip/gpio/gpio_top_apb.v                    | 102 +++++++++
+ perip/ps2/ps2_top_apb.v                      |  80 +++++++
+ perip/psram/efabless/EF_PSRAM_CTRL.v         |  81 ++++---
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v      |  99 ++++++++-
+ perip/psram/psram.v                          | 117 +++++++++-
+ perip/sdram/core_sdram_axi4/sdram_axi.v      |   8 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  39 ++--
+ perip/sdram/sdram.v                          | 222 ++++++++++++++++++-
+ perip/sdram/sdram_top_apb.v                  |   8 +-
+ perip/sdram/sdram_top_axi.v                  |  12 +-
+ perip/spi/rtl/spi_top_apb.v                  | 144 +++++++++++-
+ perip/vga/vga_top_apb.v                      | 104 +++++++++
+ 16 files changed, 1317 insertions(+), 101 deletions(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index c0d20764..a04bb95c 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -1,3 +1,4 @@
++`define delay
+ module apb_delayer(
+   input         clock,
+   input         reset,
+@@ -24,15 +25,131 @@ module apb_delayer(
+   input         out_pslverr
+ );
+ 
+-  assign out_paddr   = in_paddr;
+-  assign out_psel    = in_psel;
+-  assign out_penable = in_penable;
+-  assign out_pprot   = in_pprot;
+-  assign out_pwrite  = in_pwrite;
+-  assign out_pwdata  = in_pwdata;
+-  assign out_pstrb   = in_pstrb;
+-  assign in_pready   = out_pready;
+-  assign in_prdata   = out_prdata;
+-  assign in_pslverr  = out_pslverr;
+-
+-endmodule
++`ifdef delay
++  localparam s = 8;
++  localparam log2s = 3;
++  localparam r_mul_s = 75;
++
++  reg         in_pready_wait;
++  reg [31:0]  in_prdata_wait;
++  reg         in_pslverr_wait;
++  reg [31:0]  out_paddr_o;
++  reg         out_psel_o;
++  reg         out_penable_o;
++  reg [2:0]   out_pprot_o;
++  reg         out_pwrite_o;
++  reg [31:0]  out_pwdata_o;
++  reg [3:0]   out_pstrb_o;
++
++  reg        in_pready_o;
++  reg [31:0] in_prdata_o;
++  reg        in_pslverr_o;
++
++  reg [31:0] counter;
++  reg [31:0] k_counter;
++  reg [1:0] state;
++
++  assign out_paddr   = out_paddr_o;
++  assign out_psel    = out_psel_o;
++  assign out_penable = out_penable_o;
++  assign out_pprot   = out_pprot_o;
++  assign out_pwrite  = out_pwrite_o;
++  assign out_pwdata  = out_pwdata_o;
++  assign out_pstrb   = out_pstrb_o;
++
++  assign in_pready   = in_pready_o;
++  assign in_prdata   = in_prdata_o;
++  assign in_pslverr  = in_pslverr_o;
++
++  always @(*) begin
++    if(state == 2'd0 || state == 2'd1) begin
++      out_paddr_o   = in_paddr;
++      out_psel_o    = in_psel;
++      out_penable_o = in_penable;
++      out_pprot_o   = in_pprot;
++      out_pwrite_o  = in_pwrite;
++      out_pwdata_o  = in_pwdata;
++      out_pstrb_o   = in_pstrb;
++    end
++    else begin
++      out_paddr_o   = 0;
++      out_psel_o    = 0;
++      out_penable_o = 0;
++      out_pprot_o   = 0;
++      out_pwrite_o  = 0;
++      out_pwdata_o  = 0;
++      out_pstrb_o   = 0;
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset) state <= 0;
++    else begin
++      case (state)
++        2'd0: state <= in_penable ? 2'd1 : 2'd0;
++        2'd1: state <= out_pready ? 2'd2 : 2'd1;
++        2'd2: state <= (counter == 0) ? 2'd0 : 2'd2;
++        default: state <= 2'd0;
++      endcase
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset) begin
++      k_counter <= 0;
++      counter <= 0;
++    end
++    else begin
++      if(state == 2'd0) counter <= 0;
++      else if(state == 2'd1) begin
++        if(out_pready) begin
++          counter <= ((counter + r_mul_s - k_counter) >> log2s);
++          k_counter <= 0;
++        end
++        else begin
++          k_counter <= k_counter + s;
++          counter <= counter + r_mul_s;
++        end
++      end
++      else if(state == 2'd2) counter <= counter - 1;
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset) begin
++      in_pready_wait <= 0;
++      in_prdata_wait <= 0;
++      in_pslverr_wait <= 0;
++    end
++    else if(state == 2'd1 && out_pready) begin
++      in_pready_wait <= out_pready;
++      in_prdata_wait <= out_prdata;
++      in_pslverr_wait <= out_pslverr;
++    end
++  end
++
++  always @(*) begin
++    if(state == 2'd2 && counter == 0) begin
++      in_pready_o = in_pready_wait;
++      in_prdata_o = in_prdata_wait;
++      in_pslverr_o = in_pslverr_wait;
++    end
++    else begin
++      in_pready_o = 0;
++      in_prdata_o = 0;
++      in_pslverr_o = 0;
++    end
++  end
++`else
++    assign out_paddr   = in_paddr;
++    assign out_psel    = in_psel;
++    assign out_penable = in_penable;
++    assign out_pprot   = in_pprot;
++    assign out_pwrite  = in_pwrite;
++    assign out_pwdata  = in_pwdata;
++    assign out_pstrb   = in_pstrb;
++    assign in_pready   = out_pready;
++    assign in_prdata   = out_prdata;
++    assign in_pslverr  = out_pslverr;
++`endif
++endmodule
+\ No newline at end of file
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803b..f5e62cb9 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -1,3 +1,4 @@
++`define delay
+ module axi4_delayer(
+   input         clock,
+   input         reset,
+@@ -62,7 +63,221 @@ module axi4_delayer(
+   input  [3:0]  out_bid,
+   input  [1:0]  out_bresp
+ );
++`ifdef delay
++  localparam s = 8;
++  localparam log2s = 3;
++  localparam r_mul_s = 75;
++  localparam MAX_BURST_LEN = 8;
+ 
++  localparam IDLE = 4'd0;
++  localparam READ = 4'd1;
++  localparam READ_WAIT = 4'd2;
++  localparam WRITE = 4'd3;
++  localparam WRITE_WAIT = 4'd4;
++
++  reg [3:0]  state;
++  // read transaction
++  reg [31:0] r_counter;
++  reg [31:0] rk_counter;
++  reg [2:0] r_counter_ptr;
++  reg [31:0] w_counter;
++  reg [31:0] wk_counter;
++
++  reg        in_rvalid_o;
++  reg [3:0]  in_rid_o;
++  reg [31:0] in_rdata_o;
++  reg [1:0]  in_rresp_o;
++  reg        in_rlast_o;
++
++  reg        in_bvalid_o;
++  reg [3:0]  in_bid_o;
++  reg [1:0]  in_bresp_o;
++
++  reg        in_bvalid_wait;
++  reg [3:0]  in_bid_wait;
++  reg [1:0]  in_bresp_wait;
++  
++  // FIFO
++  reg [2:0] fifo_rptr;
++  reg [2:0] fifo_wptr;
++  reg [31:0] ram [7:0];
++
++  always @(posedge clock) begin
++    if(reset) state <= IDLE;
++    else begin
++      case (state)
++        IDLE : state <= in_arvalid ? READ : (in_awvalid || in_wvalid) ? WRITE : IDLE;
++        READ : state <= out_rlast && out_rvalid && in_rready ? READ_WAIT : READ;
++        READ_WAIT : state <= (fifo_rptr == fifo_wptr) ? IDLE : READ_WAIT;
++        WRITE : state <= out_bvalid ? WRITE_WAIT : WRITE;
++        WRITE_WAIT : state <= (w_counter == 0) ? IDLE : WRITE_WAIT;
++        default: ; 
++      endcase
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset) begin
++      r_counter <= 0;
++      rk_counter <= 0;
++    end
++    else begin
++      if(state == IDLE) begin
++        rk_counter <= 0;
++        r_counter <= 0;
++      end
++      else if (state == READ) begin
++        r_counter <= r_counter + r_mul_s;
++        rk_counter <= rk_counter + s;
++      end
++    end
++  end
++
++  reg [31:0] burst_counter[MAX_BURST_LEN - 1 : 0];
++  reg        burst_valid[MAX_BURST_LEN - 1 : 0];
++  reg [2 :0] burst_ptr;
++  integer i1;
++  always @(posedge clock) begin
++    if(reset || (state == IDLE)) begin
++      for(i1 = 0; i1 < MAX_BURST_LEN; i1 = i1 + 1) begin
++        burst_counter[i1] <= 0;
++        burst_valid[i1] <= 0;
++      end
++      burst_ptr <= 0;
++    end
++    else begin
++      if(out_rvalid && in_rready) begin
++        burst_counter[burst_ptr] <= ((r_counter + r_mul_s - rk_counter) >> log2s);
++        burst_valid[burst_ptr] <= 1'b1;
++        burst_ptr <= burst_ptr + 3'd1;
++      end
++      else if(burst_valid[fifo_rptr] && (burst_counter[fifo_rptr] == 0)) begin
++        burst_valid[fifo_rptr] <= 1'd0;
++      end
++      for(i1 = 0; i1 < MAX_BURST_LEN; i1 = i1 + 1) begin
++        if(burst_valid[i1] && (burst_counter[i1] != 0)) burst_counter[i1] <= burst_counter[i1] - 32'd1;
++      end
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset || state == IDLE) begin
++      fifo_rptr <= 0;
++      fifo_wptr <= 0;
++    end
++    else begin
++      if(state == READ || state == READ_WAIT) begin
++        if(out_rvalid && in_rready) begin
++          fifo_wptr <= fifo_wptr + 3'd1;
++          ram[fifo_wptr] <= out_rdata;
++        end
++        else if(burst_valid[fifo_rptr] && (burst_counter[fifo_rptr] == 0)) begin
++          fifo_rptr <= fifo_rptr + 3'd1;
++        end
++      end
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset || (state == IDLE)) begin
++      w_counter <= 0;
++      wk_counter <= 0;
++    end
++    else if(state == WRITE) begin
++      if(out_bvalid) begin
++        w_counter <= ((w_counter + r_mul_s - wk_counter) >> log2s);
++      end
++      else begin
++        w_counter <= w_counter + r_mul_s;
++        wk_counter <= wk_counter + s;
++      end
++    end
++    else if(state == WRITE_WAIT) begin
++      w_counter <= w_counter - 32'd1;
++    end
++  end
++
++  always @(*) begin
++    if(burst_valid[fifo_rptr] && (burst_counter[fifo_rptr] == 0)) begin
++      in_rvalid_o = 1'd1;
++      in_rid_o = 0;
++      in_rdata_o = ram[fifo_rptr];
++      in_rresp_o = 0;
++      in_rlast_o = ((fifo_rptr + 3'd1) == fifo_wptr);
++    end
++    else begin
++      in_rvalid_o = 0;
++      in_rid_o = 0;
++      in_rdata_o = 0;
++      in_rresp_o = 0;
++      in_rlast_o = 0;
++    end
++  end
++
++  always @(posedge clock) begin
++    if(reset) begin
++      in_bvalid_wait <= 0;
++      in_bid_wait <= 0;
++      in_bresp_wait <= 0;
++    end
++    else if(out_bvalid)begin
++      in_bvalid_wait <= 1'd1;
++      in_bid_wait <= 0;
++      in_bresp_wait <= 0;
++    end
++    else if(w_counter == 0)begin
++      in_bvalid_wait <= 0;
++      in_bid_wait <= 0;
++      in_bresp_wait <= 0;
++    end
++  end
++
++  always @(*) begin
++    if(w_counter == 0) begin
++      in_bvalid_o = in_bvalid_wait;
++      in_bid_o = in_bid_wait;
++      in_bresp_o = in_bresp_wait;
++    end
++    else begin
++      in_bvalid_o = 0;
++      in_bid_o    = 0;
++      in_bresp_o  = 0;
++    end
++  end
++  
++  assign in_arready   = out_arready;
++  assign out_arvalid  = in_arvalid;
++  assign out_arid     = in_arid;
++  assign out_araddr   = in_araddr;
++  assign out_arlen    = in_arlen;
++  assign out_arsize   = in_arsize;
++  assign out_arburst  = in_arburst;
++  assign out_rready   = in_rready;
++
++  assign in_rvalid    = in_rvalid_o;
++  assign in_rid       = in_rid_o;
++  assign in_rdata     = in_rdata_o;
++  assign in_rresp     = in_rresp_o;
++  assign in_rlast     = in_rlast_o;
++
++  assign in_awready = out_awready;
++  assign out_awvalid = in_awvalid;
++  assign out_awid = in_awid;
++  assign out_awaddr = in_awaddr;
++  assign out_awlen = in_awlen;
++  assign out_awsize = in_awsize;
++  assign out_awburst = in_awburst;
++  assign in_wready = out_wready;
++  assign out_wvalid = in_wvalid;
++  assign out_wdata = in_wdata;
++  assign out_wstrb = in_wstrb;
++  assign out_wlast = in_wlast;
++  assign out_bready = in_bready;
++
++  assign in_bvalid = in_bvalid_o;
++  assign in_bid    = in_bid_o;
++  assign in_bresp  = in_bresp_o;
++`else
+   assign in_arready = out_arready;
+   assign out_arvalid = in_arvalid;
+   assign out_arid = in_arid;
+@@ -92,5 +307,5 @@ module axi4_delayer(
+   assign in_bvalid = out_bvalid;
+   assign in_bid = out_bid;
+   assign in_bresp = out_bresp;
+-
+-endmodule
++`endif
++endmodule
+\ No newline at end of file
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+index f1c3b363..4292dafe 100644
+--- a/perip/bitrev/bitrev.v
++++ b/perip/bitrev/bitrev.v
+@@ -4,5 +4,41 @@ module bitrev (
+   input  mosi,
+   output miso
+ );
+-  assign miso = 1'b1;
++  wire reset = ss;
++  reg state;
++  reg [7:0] counter;
++  localparam DATA_IN = 1'b0, DATA_OUT = 1'b1;
++  always @(posedge sck or posedge reset) begin
++    if(reset) state <= DATA_IN;
++    else begin
++      case (state)
++        DATA_IN : state <= (counter == 8'd7) ? DATA_OUT : DATA_IN;
++        DATA_OUT : state <= DATA_OUT;
++      default: state <= DATA_IN;
++      endcase
++    end
++  end
++
++  always@(posedge sck or posedge reset) begin
++    if (reset) counter <= 8'd0;
++    else begin
++      case (state)
++        DATA_IN :   counter <= (counter < 8'd7 ) ? counter + 8'd1 : 8'd0;
++        default: counter <= counter + 8'd1;
++      endcase
++    end
++  end
++  
++  // 串并转换
++  reg [7:0] bswap_reg;
++  always @(posedge sck or posedge reset) begin
++    if(reset) bswap_reg <= 8'b11111111;
++    else if (state == DATA_IN) begin
++      bswap_reg <= {bswap_reg[6:0], mosi};
++    end
++    else begin
++      bswap_reg <= {bswap_reg[6:0], 1'b1};
++    end
++  end
++  assign miso = ss ? 1'b1 : bswap_reg[7];
+ endmodule
+diff --git a/perip/flash/flash.v b/perip/flash/flash.v
+index 480d7092..940173a7 100644
+--- a/perip/flash/flash.v
++++ b/perip/flash/flash.v
+@@ -10,7 +10,7 @@ module flash (
+   output miso
+ );
+   wire reset = ss;
+-
++  
+   typedef enum [2:0] { cmd_t, addr_t, data_t, err_t } state_t;
+   reg [2:0]  state;
+   reg [7:0]  counter;
+@@ -98,4 +98,4 @@ module flash_cmd(
+         $fatal;
+       end
+   end
+-endmodule
++endmodule
+\ No newline at end of file
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index ec51ffe5..07272d20 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -23,5 +23,107 @@ module gpio_top_apb(
+   output [7:0]  gpio_seg_6,
+   output [7:0]  gpio_seg_7
+ );
++  localparam GPIO_LED_BASE = 32'h10002000;
++  localparam GPIO_SWITCH_BASE = 32'h10002004;
++  localparam GPIO_SEG_BASE = 32'h10002008;
+ 
++  wire [31:0] align_addr = in_paddr & 32'hfffffffc;
++
++  reg [31:0] led;
++  reg [31:0] seg_raw;
++  always @(posedge clock) begin
++    if(reset) begin
++      led = 0;
++      seg_raw = 0;
++    end
++    else if(in_pwrite) begin
++      if(align_addr == GPIO_LED_BASE) begin
++        case (in_pstrb)
++          4'b0001 : led[ 7: 0] <= in_pwdata[ 7: 0];
++          4'b0010 : led[15: 8] <= in_pwdata[15: 8];
++          4'b0100 : led[23:16] <= in_pwdata[23:16];
++          4'b1000 : led[31:24] <= in_pwdata[31:24];
++          4'b0011 : led[15: 0] <= in_pwdata[15: 0];
++          4'b1100 : led[31:16] <= in_pwdata[31:16];
++          4'b1111 : led        <= in_pwdata;
++          default: assert(0);
++        endcase
++      end
++
++      if(align_addr == GPIO_SEG_BASE) begin
++        case (in_pstrb)
++          4'b0001 : seg_raw[ 7: 0] <= in_pwdata[ 7: 0];
++          4'b0010 : seg_raw[15: 8] <= in_pwdata[15: 8];
++          4'b0100 : seg_raw[23:16] <= in_pwdata[23:16];
++          4'b1000 : seg_raw[31:24] <= in_pwdata[31:24];
++          4'b0011 : seg_raw[15: 0] <= in_pwdata[15: 0];
++          4'b1100 : seg_raw[31:16] <= in_pwdata[31:16];
++          4'b1111 : seg_raw        <= in_pwdata;
++          default: assert(0);
++        endcase
++      end
++    end
++  end
++  assign in_pslverr = 0;
++  
++  reg [31:0] prdata;
++  assign in_prdata = prdata;
++  always @(*) begin
++    prdata = 0;
++    if(align_addr == GPIO_LED_BASE) prdata = {16'd0, led[15:0]};
++    if(align_addr == GPIO_SWITCH_BASE) prdata = {16'd0, gpio_in};
++    if(align_addr == GPIO_LED_BASE) prdata = seg_raw;
++  end
++
++  assign gpio_out = led[15:0];
++  assign gpio_seg_0[0] = 1;
++  assign gpio_seg_1[0] = 1;
++  assign gpio_seg_2[0] = 1;
++  assign gpio_seg_3[0] = 1;
++  assign gpio_seg_4[0] = 1;
++  assign gpio_seg_5[0] = 1;
++  assign gpio_seg_6[0] = 1;
++  assign gpio_seg_7[0] = 1;
++  x7seg SEG0(seg_raw[ 3: 0], gpio_seg_0[7:1]);
++  x7seg SEG1(seg_raw[ 7: 4], gpio_seg_1[7:1]);
++  x7seg SEG2(seg_raw[11: 8], gpio_seg_2[7:1]);
++  x7seg SEG3(seg_raw[15:12], gpio_seg_3[7:1]);
++  x7seg SEG4(seg_raw[19:16], gpio_seg_4[7:1]);
++  x7seg SEG5(seg_raw[23:20], gpio_seg_5[7:1]);
++  x7seg SEG6(seg_raw[27:24], gpio_seg_6[7:1]);
++  x7seg SEG7(seg_raw[31:28], gpio_seg_7[7:1]);
++
++  reg ready;
++  always @(posedge clock) begin
++    if(reset) ready <= 0;
++    else if(in_penable) ready <= 1;
++  end
++  assign in_pready = ready;
++endmodule
++
++module x7seg (
++  input [3:0] b,
++  output reg [6:0] h
++);
++  always @(*) begin
++    case (b)
++      4'd0: h = 7'b0000001;
++      4'd1: h = 7'b1001111;
++      4'd2: h = 7'b0010010;
++      4'd3: h = 7'b0000110;
++      4'd4: h = 7'b1001100;
++      4'd5: h = 7'b0100100;
++      4'd6: h = 7'b0100000;
++      4'd7: h = 7'b0001111;
++      4'd8: h = 7'b0000000;
++      4'd9: h = 7'b0000100;
++      4'd10: h = 7'b0001000; // A
++      4'd11: h = 7'b1100000; // B
++      4'd12: h = 7'b0110001; // C
++      4'd13: h = 7'b1000010; // D
++      4'd14: h = 7'b0110000; // E
++      4'd15: h = 7'b0111000; // F
++      default: h = 7'h7f;
++    endcase
++  end
+ endmodule
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 080d38fa..3a05d0c0 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -15,5 +15,85 @@ module ps2_top_apb(
+   input         ps2_clk,
+   input         ps2_data
+ );
++// 读通码和断码，其中读断码时，略过F0H，即读两个码，跳过F0H
++wire [7:0] scan_data;
++wire ready, overflow;
++reg ack;
++ps2_keyboard ps2_keyboard0(
++  clock,~reset,ps2_clk,ps2_data,scan_data,ready,~ack,overflow
++);
++reg [7:0] scan_data_buf;
++always @(posedge clock) begin
++  if (reset) scan_data_buf <= 8'h00;
++  else if(ready) scan_data_buf <= scan_data;
++  else scan_data_buf <= 8'h00;
++end
++
++always @(posedge clock) begin
++  if(reset) ack <= 0;
++  else if(in_penable & ~ack) ack <= 1;
++  else ack <= 0;
++end
++
++// 读通码时，输出扫描码；读断码时，输出0x00
++// in_prdata低8位存储扫描码或0xff，高23位为0，第24位为1表示当前为按下状态，0表示当前为松开状态
++assign in_prdata[31:8] = 0;
++assign in_prdata[7:0] = scan_data_buf;
++assign in_pready = ack;
++endmodule
++
++module ps2_keyboard(clk,clrn,ps2_clk,ps2_data,data,
++                    ready,nextdata_n,overflow);
++    input clk,clrn,ps2_clk,ps2_data;
++    input nextdata_n;
++    output [7:0] data;
++    output reg ready;
++    output reg overflow;     // fifo overflow
++    // internal signal, for test
++    reg [9:0] buffer;        // ps2_data bits
++    reg [7:0] fifo[15:0];     // data fifo
++    reg [3:0] w_ptr,r_ptr;   // fifo write and read pointers
++    reg [3:0] count;  // count ps2_data bits
++    // detect falling edge of ps2_clk
++    reg [2:0] ps2_clk_sync;
++
++    always @(posedge clk) begin
++        ps2_clk_sync <=  {ps2_clk_sync[1:0],ps2_clk};
++    end
++
++    wire sampling = ps2_clk_sync[2] & ~ps2_clk_sync[1];
++
++    always @(posedge clk) begin
++        if (clrn == 0) begin // reset
++            count <= 0; w_ptr <= 0; r_ptr <= 0; overflow <= 0; ready<= 0;
++        end
++        else begin
++            if ( ready ) begin // read to output next data
++                if(nextdata_n == 1'b0) //read next data
++                begin
++                    r_ptr <= r_ptr + 4'b1;
++                    if(w_ptr==(r_ptr+1'b1)) //empty
++                        ready <= 1'b0;
++                end
++            end
++            if (sampling) begin
++              if (count == 4'd10) begin
++                if ((buffer[0] == 0) &&  // start bit
++                    (ps2_data)       &&  // stop bit
++                    (^buffer[9:1])) begin      // odd  parity
++                    fifo[w_ptr] <= buffer[8:1];  // kbd scan code
++                    w_ptr <= w_ptr+4'b1;
++                    ready <= 1'b1;
++                    overflow <= overflow | (r_ptr == (w_ptr + 4'b1));
++                end
++                count <= 0;     // for next
++              end else begin
++                buffer[count] <= ps2_data;  // store ps2_data
++                count <= count + 4'b1;
++              end
++            end
++        end
++    end
++    assign data = fifo[r_ptr]; //always set output data
+ 
+ endmodule
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e9..b5cfd08f 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -60,8 +60,8 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
+-
++    // wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    wire [7:0]  FINAL_COUNT = 13 + size*2; // was 27: Always read 1 word
+     reg         state, nstate;
+     reg [7:0]   counter;
+     reg [23:0]  saddr;
+@@ -113,22 +113,30 @@ module PSRAM_READER (
+             saddr <= {addr[23:0]};
+ 
+     // Sample with the negedge of sck
+-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++    wire[1:0] byte_index = {counter[7:1] - 8'd7}[1:0];
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
++        if(counter >= 14 && counter <= FINAL_COUNT)
+             if(sck)
+                 data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
++    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
++    //                     (counter == 8)  ?   saddr[23:20]        :
++    //                     (counter == 9)  ?   saddr[19:16]        :
++    //                     (counter == 10) ?   saddr[15:12]        :
++    //                     (counter == 11) ?   saddr[11:8]         :
++    //                     (counter == 12) ?   saddr[7:4]          :
++    //                     (counter == 13) ?   saddr[3:0]          :
++    //                     4'h0;
++    assign dout     =   (counter == 0)  ?   CMD_EBH[7:4]        :
++                        (counter == 1)  ?   CMD_EBH[3:0]        :
++                        (counter == 2)  ?   saddr[23:20]        :
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4)  ?   saddr[15:12]        :
++                        (counter == 5)  ?   saddr[11:8]         :
++                        (counter == 6)  ?   saddr[7:4]          :
++                        (counter == 7)  ?   saddr[3:0]          :
+                         4'h0;
+-
+-    assign douten   = (counter < 14);
++    assign douten   = (counter < 8);
+ 
+     assign done     = (counter == FINAL_COUNT+1);
+ 
+@@ -161,7 +169,8 @@ module PSRAM_WRITER (
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    // wire[7:0]        FINAL_COUNT = 13 + size*2;
++    wire[7:0]        FINAL_COUNT = 7 + size*2;
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,20 +221,36 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
+-                        (counter == 14) ?   line[7:4]           :
+-                        (counter == 15) ?   line[3:0]           :
+-                        (counter == 16) ?   line[15:12]         :
+-                        (counter == 17) ?   line[11:8]          :
+-                        (counter == 18) ?   line[23:20]         :
+-                        (counter == 19) ?   line[19:16]         :
+-                        (counter == 20) ?   line[31:28]         :
++    // assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
++    //                     (counter == 8)  ?   saddr[23:20]        :
++    //                     (counter == 9)  ?   saddr[19:16]        :
++    //                     (counter == 10) ?   saddr[15:12]        :
++    //                     (counter == 11) ?   saddr[11:8]         :
++    //                     (counter == 12) ?   saddr[7:4]          :
++    //                     (counter == 13) ?   saddr[3:0]          :
++    //                     (counter == 14) ?   line[7:4]           :
++    //                     (counter == 15) ?   line[3:0]           :
++    //                     (counter == 16) ?   line[15:12]         :
++    //                     (counter == 17) ?   line[11:8]          :
++    //                     (counter == 18) ?   line[23:20]         :
++    //                     (counter == 19) ?   line[19:16]         :
++    //                     (counter == 20) ?   line[31:28]         :
++    //                     line[27:24];
++    assign dout     =   (counter == 0)  ?   CMD_38H[7:4]        :
++                        (counter == 1)  ?   CMD_38H[3:0]        :
++                        (counter == 2)  ?   saddr[23:20]        :
++                        (counter == 3)  ?   saddr[19:16]        :
++                        (counter == 4)  ?   saddr[15:12]        :
++                        (counter == 5)  ?   saddr[11:8]         :
++                        (counter == 6)  ?   saddr[7:4]          :
++                        (counter == 7)  ?   saddr[3:0]          :
++                        (counter == 8)  ?   line[7:4]           :
++                        (counter == 9)  ?   line[3:0]           :
++                        (counter == 10) ?   line[15:12]         :
++                        (counter == 11) ?   line[11:8]          :
++                        (counter == 12) ?   line[23:20]         :
++                        (counter == 13) ?   line[19:16]         :
++                        (counter == 14) ?   line[31:28]         :
+                         line[27:24];
+ 
+     assign douten   = (~ce_n);
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+index 7b5296db..f0b60bf2 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -39,8 +39,9 @@ module EF_PSRAM_CTRL_wb (
+     output  wire [3:0]      douten
+ );
+ 
+-    localparam  ST_IDLE = 1'b0,
+-                ST_WAIT = 1'b1;
++    localparam  ST_QPI  = 2'b10,
++                ST_IDLE = 2'b0,
++                ST_WAIT = 2'b1;
+ 
+     wire        mr_sck;
+     wire        mr_ce_n;
+@@ -54,12 +55,18 @@ module EF_PSRAM_CTRL_wb (
+     wire [3:0]  mw_dout;
+     wire        mw_doe;
+ 
++    wire        qpi_sck;
++    wire        qpi_ce_n;
++    wire [3:0]  qpi_dout;
++    wire        qpi_doe;
++
+     // PSRAM Reader and Writer wires
+     wire        mr_rd;
+     wire        mr_done;
+     wire        mw_wr;
+     wire        mw_done;
+-
++    wire        qpi_done;    
++    wire        qpi_valid;
+     //wire        doe;
+ 
+     // WB Control Signals
+@@ -69,15 +76,20 @@ module EF_PSRAM_CTRL_wb (
+     //wire[3:0]   wb_byte_sel     =   sel_i & {4{wb_we}};
+ 
+     // The FSM
+-    reg         state, nstate;
++    reg [1:0]   state, nstate;
+     always @ (posedge clk_i or posedge rst_i)
+         if(rst_i)
+-            state <= ST_IDLE;
++            state <= ST_QPI;
+         else
+             state <= nstate;
+ 
+     always @* begin
+         case(state)
++            ST_QPI : 
++                if(qpi_done)
++                    nstate = ST_IDLE;
++                else
++                    nstate = ST_QPI;
+             ST_IDLE :
+                 if(wb_valid)
+                     nstate = ST_WAIT;
+@@ -89,6 +101,7 @@ module EF_PSRAM_CTRL_wb (
+                     nstate = ST_IDLE;
+                 else
+                     nstate = ST_WAIT;
++            default : nstate = ST_IDLE;
+         endcase
+     end
+ 
+@@ -129,6 +142,7 @@ module EF_PSRAM_CTRL_wb (
+ 
+     assign mr_rd    = ( (state==ST_IDLE ) & wb_re );
+     assign mw_wr    = ( (state==ST_IDLE ) & wb_we );
++    assign qpi_valid= (state==ST_QPI  );
+ 
+     PSRAM_READER MR (
+         .clk(clk_i),
+@@ -161,12 +175,79 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mw_doe)
+     );
+ 
+-    assign sck  = wb_we ? mw_sck  : mr_sck;
+-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
+-    assign dout = wb_we ? mw_dout : mr_dout;
+-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
++    PSRAM_QPI QPI (
++        .clk(clk_i),
++        .rst_n(~rst_i),
++        .valid(qpi_valid),
++        .done(qpi_done),
++        .sck(qpi_sck),
++        .ce_n(qpi_ce_n),
++        .dout(qpi_dout),
++        .douten(qpi_doe)
++    );
++
++    assign sck  = qpi_valid ? qpi_sck : wb_we ? mw_sck  : mr_sck;
++    assign ce_n = qpi_valid ? qpi_ce_n : wb_we ? mw_ce_n : mr_ce_n;
++    assign dout = qpi_valid ? qpi_dout : wb_we ? mw_dout : mr_dout;
++    assign douten  = qpi_valid ? {4{qpi_doe}} : wb_we ? {4{mw_doe}}  : {4{mr_doe}};
+ 
+     assign mw_din = din;
+     assign mr_din = din;
+     assign ack_o = wb_we ? mw_done :mr_done ;
+ endmodule
++
++module PSRAM_QPI (
++  input   wire            clk,
++  input   wire            rst_n,
++  input   wire            valid,
++  output  wire            done,
++
++  output  reg             sck,
++  output  reg             ce_n,
++  output  wire [3:0]      dout,
++  output  wire            douten
++);
++  localparam  IDLE = 1'b0,
++              QPI_MODE = 1'b1;
++  reg state;
++  reg [7:0]   counter;
++  wire[7:0]   CMD_35H = 8'h35;
++  always @(posedge clk or negedge rst_n) begin
++    if(!rst_n) state <= IDLE;
++    else begin
++      case (state)
++        IDLE : state <= valid ? QPI_MODE : IDLE;
++        QPI_MODE : state <= done ? IDLE : QPI_MODE;
++        default: state <= IDLE;
++      endcase
++    end
++  end
++
++  always @ (posedge clk or negedge rst_n)
++    if(!rst_n)
++        sck <= 1'b0;
++    else if(~ce_n)
++        sck <= ~ sck;
++    else if(state == IDLE)
++        sck <= 1'b0;
++  
++  always @ (posedge clk or negedge rst_n)
++    if(!rst_n)
++        ce_n <= 1'b1;
++    else if(state == QPI_MODE)
++        ce_n <= 1'b0;
++    else
++        ce_n <= 1'b1;
++  
++  always @ (posedge clk or negedge rst_n)
++    if(!rst_n)
++        counter <= 8'b0;
++    else if(sck & ~done)
++        counter <= counter + 1'b1;
++    else if(state == IDLE)
++        counter <= 8'b0;
++
++  assign dout     =   {3'b0, CMD_35H[7 - counter]};
++  assign douten   =   (~ce_n);
++  assign done     =   (counter == 8);
++endmodule
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index d9bdd882..b5ac3e98 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -3,7 +3,122 @@ module psram(
+   input ce_n,
+   inout [3:0] dio
+ );
++  localparam cmd_t = 3'd0, addr_t = 3'd1, r_delay = 3'd2, data_out_t = 3'd3, data_in_t = 3'd4, err_t = 3'd5;
++  wire reset = ce_n;
++  // assign dio = 4'bz;
++  reg [2:0] state;
++  reg [7:0] counter;
++  reg [7:0] cmd;
++  reg [23:0] addr;
++  reg [31:0] raddr;
++  reg [31:0] waddr;
++  reg [31:0] data;
++  reg [31:0] rdata; // 通过 dpi-c 函数读
++  reg [2:0] wlen;
++  wire rvalid;
++  reg qpi_flag = 1'b0;
+ 
+-  assign dio = 4'bz;
++  assign raddr = {8'b0, addr[19:0], dio};
++  assign waddr = {8'b0, addr};
++  always @(posedge sck) begin
++    if(reset) state <= cmd_t;
++    else begin
++      case (state)
++        cmd_t : state <= qpi_flag ? ((counter == 8'd1) ? addr_t : state) : ((counter == 8'd7 ) ? addr_t : state);
++        addr_t: state <= ((cmd != 8'heb) && (cmd != 8'h38)) ? err_t : ((counter == 8'd5) ? ((cmd == 8'heb) ? r_delay : data_in_t) : state);
++        r_delay: state <= (counter == 8'd5) ? data_out_t : state;
++        data_out_t: state <= state;
++        data_in_t: state <= state;
++        default: begin
++          $fwrite(32'h80000002, "Assertion failed: Unsupported command `%xh`\n", cmd);
++          $fatal;
++        end
++      endcase
++    end
++  end
+ 
++  always @(posedge sck) begin
++    // 进入QPI模式
++    if(state == cmd_t && (counter == 8'd7) && {cmd[6:0], dio[0]} == 8'h35) qpi_flag <= 1'b1;
++  end
++
++  always@(posedge sck) begin
++    if (reset) counter <= 8'd0;
++    else begin
++      case (state)
++        cmd_t:   counter <= qpi_flag ? ((counter < 8'd1) ? counter + 8'd1 : 8'd0) : ((counter < 8'd7 ) ? counter + 8'd1 : 8'd0);
++        addr_t:  counter <= (counter < 8'd5) ? counter + 8'd1 : 8'd0;
++        r_delay: counter <= (counter < 8'd5) ? counter + 8'd1 : 8'd0;
++        data_in_t: counter <= (counter < 8'd1) ? counter + 8'd1 : 8'd0;
++        default: counter <= counter + 8'd1;
++      endcase
++    end
++  end
++
++  always@(posedge sck) begin
++    if (reset)               cmd <= 8'd0;
++    else if (state == cmd_t) begin 
++      if(qpi_flag) cmd <= { cmd[3:0], dio};
++      else cmd <= { cmd[6:0], dio[0] };
++    end
++  end
++
++  always@(posedge sck) begin
++    if (reset) addr <= 24'd0;
++    else if (state == addr_t) addr <= { addr[19:0], dio };
++  end
++
++  always@(posedge sck) begin
++    if (reset) data <= 32'd0;
++    else if (state == data_out_t) begin
++      if(counter == 8'd0) data <= rdata;
++      else data <= {data[27:0], 4'd0};
++    end
++    else if (state == data_in_t) begin
++      data <= { data[27:0], dio };
++    end
++  end
++  // [3Bh]: SPI Fast Quad IO Read
++  always @(posedge sck) begin
++    if(reset)
++      wlen <= 0;
++    else if(state == data_in_t && counter == 8'd1)
++      wlen <= wlen + 1;
++  end
++
++  // [EBh]: SPI Fast Quad IO Read
++  assign rvalid = (cmd == 8'heb) && (state == addr_t) && (counter == 8'd5);
++  assign dio = ce_n ? 4'bzzzz : ((state == r_delay) ? 4'bzzzz: data[31:28]);
++  dram_cmd dram_cmd_i(
++    .clock(sck),
++    .ce_n(ce_n),
++    .rvalid(rvalid),
++    .raddr(raddr),
++    .waddr(waddr),
++    .rdata(rdata),
++    .wdata(data),
++    .wlen(wlen)
++  );
++endmodule
++
++import "DPI-C" function void dram_read(input int addr, output int data);
++import "DPI-C" function void dram_write(input int addr, input int data, input int len);
++
++module dram_cmd (
++  input             clock,
++  input             ce_n,
++  input             rvalid,
++  input [2:0]       wlen,
++  input [31:0]      raddr,
++  input [31:0]      waddr,
++  output reg [31:0] rdata,
++  input [31:0]      wdata
++);
++  always@(posedge clock) begin
++    if (rvalid) dram_read(raddr, rdata);
++  end
++
++  always @(posedge ce_n) begin
++    if (wlen != 0) dram_write(waddr, wdata, {29'd0, wlen}); 
++  end
+ endmodule
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f58..f6b4695e 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    ,output [  3:0]  sdram_dqm_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cedbf77b..7b8c5004 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -42,7 +42,7 @@ module sdram_axi_core
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_accept_o
+@@ -55,10 +55,10 @@ module sdram_axi_core
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    ,output [  3:0]  sdram_dqm_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -68,7 +68,7 @@ module sdram_axi_core
+ // Key Params
+ //-----------------------------------------------------------------
+ parameter SDRAM_MHZ              = 50;
+-parameter SDRAM_ADDR_W           = 24;
++parameter SDRAM_ADDR_W           = 25; // 多加一位地址，字拓展
+ parameter SDRAM_COL_W            = 9;
+ parameter SDRAM_READ_LATENCY     = 2;
+ 
+@@ -76,7 +76,7 @@ parameter SDRAM_READ_LATENCY     = 2;
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+@@ -93,8 +93,8 @@ localparam CMD_PRECHARGE     = 4'b0010;
+ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+-// Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++// Mode: Burst Length = 1 * 4 bytes, CAS=1
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b001,1'b0,3'b000}; // 位拓展后无需突发传输，经过一个CAS即可返回32位数据
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -112,7 +112,7 @@ localparam STATE_REFRESH     = 4'd9;
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -472,7 +472,7 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+     sample_data_q <= {SDRAM_DATA_W{1'b0}};
+ else
+-    sample_data_q <= sample_data0_q;
++    sample_data_q <= sdram_data_in_w;
+ 
+ //-----------------------------------------------------------------
+ // Command Output
+@@ -483,7 +483,7 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+@@ -537,7 +537,7 @@ begin
+         else if (refresh_timer_q == 10)
+         begin
+             command_q <= CMD_LOAD_MODE;
+-            addr_q    <= MODE_REG;
++            addr_q    <= {1'b0, MODE_REG};
+         end
+         // Other cycles during init - just NOP
+         else
+@@ -616,14 +616,13 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w[31:0];
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w;
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+@@ -665,14 +664,14 @@ else
+ // in WRITE0. Also buffer lower 16-bits of read data.
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+-    data_buffer_q <= 16'b0;
++    data_buffer_q <= 32'b0;
+ else if (state_q == STATE_WRITE0)
+-    data_buffer_q <= ram_write_data_w[31:16];
+-else if (rd_q[SDRAM_READ_LATENCY+1])
++    data_buffer_q <= ram_write_data_w[31:0];
++else if (rd_q[SDRAM_READ_LATENCY])
+     data_buffer_q <= sample_data_q;
+ 
+ // Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
++assign ram_read_data_w = data_buffer_q;
+ 
+ //-----------------------------------------------------------------
+ // ACK
+@@ -686,7 +685,7 @@ else
+ begin
+     if (state_q == STATE_WRITE1)
+         ack_q <= 1'b1;
+-    else if (rd_q[SDRAM_READ_LATENCY+1])
++    else if (rd_q[SDRAM_READ_LATENCY])
+         ack_q <= 1'b1;
+     else
+         ack_q <= 1'b0;
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 3613b231..2d72a846 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -1,4 +1,94 @@
+ module sdram(
++  input        clk,
++  input        cke,
++  input        cs,
++  input        ras,
++  input        cas,
++  input        we,
++  input [13:0] a,
++  input [ 1:0] ba,
++  input [ 3:0] dqm,
++  inout [31:0] dq
++);
++  sdram_set #(0)set0(
++    .clk(clk),
++    .cke(cke),
++    .cs(cs),
++    .ras(ras),
++    .cas(cas),
++    .we(we),
++    .a(a[12:0]),
++    .ba(ba),
++    .dqm(dqm),
++    .dq(dq),
++
++    .sel(~a[13])
++  );
++
++  sdram_set #(1)set1(
++    .clk(clk),
++    .cke(cke),
++    .cs(cs),
++    .ras(ras),
++    .cas(cas),
++    .we(we),
++    .a(a[12:0]),
++    .ba(ba),
++    .dqm(dqm),
++    .dq(dq),
++
++    .sel(a[13])
++  );
++endmodule
++
++module sdram_set(
++  input        clk,
++  input        cke,
++  input        cs,
++  input        ras,
++  input        cas,
++  input        we,
++  input [12:0] a,
++  input [ 1:0] ba,
++  input [ 3:0] dqm,
++  inout [31:0] dq,
++
++  input        sel
++);
++  parameter sel_set = 0;
++  sdram_sub_module #(sel_set, 0) sub_module0 (
++    .clk(clk),
++    .cke(cke),
++    .cs(cs),
++    .ras(ras),
++    .cas(cas),
++    .we(we),
++    .a(a),
++    .ba(ba),
++    .dqm(dqm[1:0]),
++    .dq(dq[15:0]),
++
++    .sel(sel)
++  );
++
++  sdram_sub_module #(sel_set, 1) sub_module1(
++    .clk(clk),
++    .cke(cke),
++    .cs(cs),
++    .ras(ras),
++    .cas(cas),
++    .we(we),
++    .a(a),
++    .ba(ba),
++    .dqm(dqm[3:2]),
++    .dq(dq[31:16]),
++
++    .sel(sel)
++  );
++endmodule
++
++
++module sdram_sub_module(
+   input        clk,
+   input        cke,
+   input        cs,
+@@ -8,9 +98,137 @@ module sdram(
+   input [12:0] a,
+   input [ 1:0] ba,
+   input [ 1:0] dqm,
+-  inout [15:0] dq
++  inout [15:0] dq,
++
++  input        sel
+ );
++  
++  parameter sel_set = 0;
++  parameter sdram_set = 0;
++  reg sel_q;
++  // assign dq = 16'bz;
++  wire [3:0] cmd = {cs, ras, cas, we};
++  reg [12:0] ba_row [0:3];
++  reg [ 8:0] ba_col;
++
++  localparam CMD_NOP           = 4'b0111; // 包括 PRECHARGE 和 AUTO REFRESH
++  localparam CMD_ACTIVE        = 4'b0011;
++  localparam CMD_READ          = 4'b0101;
++  localparam CMD_WRITE         = 4'b0100;
++  localparam CMD_LOAD_MODE     = 4'b0000;
++
++  localparam STATE_IDLE          = 4'b0111;
++  localparam STATE_READ          = 4'b0101;
++  localparam STATE_WRITE         = 4'b0100;
++  
++  // CL & BL
++  reg [12:0] MODE_REG;
++  wire [2:0] CL = MODE_REG[6:4];
++  wire [2:0] BL = MODE_REG[2:0];
++  reg [2:0] cl_counter;
++  wire [2:0] rs = CL - 3'b1;
++  wire [2:0] rc_m = BL + rs;
++  wire cl_done = (cl_counter == CL);
++  always @(posedge clk) begin
++    if(cke) begin
++      if(cmd == CMD_LOAD_MODE) begin
++        MODE_REG <= a[12:0];
++      end
++    end
++  end
++
++  reg [3:0] state;
++  reg [2:0] counter;
++  always @(posedge clk) begin
++    if(~cke) state <= STATE_IDLE;
++    else begin
++      case (state)
++        STATE_IDLE : state <= (cmd == CMD_READ) ? STATE_READ : (cmd == CMD_WRITE) ? STATE_WRITE : state;
++        STATE_READ : state <= (counter == rc_m) ? ((cmd == CMD_READ) ? state : STATE_IDLE) : state;
++        STATE_WRITE : state <= (counter == BL) ? STATE_IDLE : state;
++        default: state <= STATE_IDLE;
++      endcase
++    end
++  end
++
++  always @(posedge clk) begin
++    if(~cke) counter <= 0;
++    else begin
++      case (state)
++        STATE_IDLE : counter <= 0;
++        STATE_READ : counter <= (counter < rc_m) ? counter + 3'd1 : 0;
++        STATE_WRITE : counter <= (counter < BL) ? counter + 3'd1 : 0;
++        default: counter <= 0;
++      endcase
++    end
++  end
++
++  always @(posedge clk) begin
++    if(state == STATE_IDLE) begin
++      cl_counter <= 3'b0;
++    end
++    else if(state == STATE_READ) begin
++      if(cl_counter < CL) cl_counter <= cl_counter + 1'b1;
++    end
++  end
++
++  reg [1:0] access_bank;
++  always @(posedge clk) begin
++    if(~cke) begin
++      access_bank <= 0;
++      ba_col <= 0;
++    end
++    else begin
++      case (cmd)
++        CMD_ACTIVE : begin
++          sel_q <= sel;
++          ba_row[ba] <= a;
++        end
++        CMD_READ : begin
++          access_bank <= ba;
++          ba_col <= a[8:0];
++        end
++        CMD_WRITE : begin
++          access_bank <= ba;
++          ba_col <= a[8:0];
++        end
++        default: ;
++      endcase
++    end
++  end
++  
++  import "DPI-C" function void sdram_read(input int row, input int bank, input int col, output int data, input int sdram_set, input int sel_set);
++  import "DPI-C" function void sdram_write(input int row, input int bank, input int col, input int mask, input int data, input int sdram_set, input int sel_set);
++  reg [15:0] rdata;
++  reg [15:0] wdata;
++  reg [1:0] wmask;
++  always @(posedge clk) begin
++    if(~cke) begin
++      wdata <= 0;
++      wmask <= 0;
++    end
++    else begin
++      if(cmd == CMD_WRITE || state == STATE_WRITE) begin
++        wdata <= dq;
++        wmask <= dqm;
++      end
++    end
++  end
+ 
+-  assign dq = 16'bz;
++  always @(posedge clk) begin
++    if(cke && sel_q) begin
++      if(state == STATE_READ) begin
++        if(counter == rs) begin
++          sdram_read({19'd0, ba_row[access_bank]}, {30'd0, access_bank}, {24'd0, ba_col[8:1]}, {16'd0, rdata}, sdram_set, sel_set);
++        end
++      end
++      if(state == STATE_WRITE) begin
++        if(counter == 3'd0) begin
++          sdram_write({19'd0, ba_row[access_bank]}, {30'd0, access_bank}, {24'd0, ba_col[8:1]}, {30'd0, wmask}, {16'd0, wdata}, sdram_set, sel_set);
++        end
++      end
++    end
++  end
+ 
++  assign dq = (cl_done) ? rdata : 16'hzzzz;
+ endmodule
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 3bc5b93b..fde85a94 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -20,13 +20,13 @@ module sdram_top_apb (
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 31'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fdb..507233d7 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -37,18 +37,18 @@ module sdram_top_axi(
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+-    .SDRAM_ADDR_W(24),
++    .SDRAM_ADDR_W(25),
+     .SDRAM_COL_W(9),
+     .SDRAM_READ_LATENCY(2)
+   ) u_sdram_axi(
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d37516..71d7c9e7 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-//`define FAST_FLASH
++// `define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+@@ -16,7 +16,7 @@ module spi_top_apb #(
+   input         in_pwrite,
+   input  [31:0] in_pwdata,
+   input  [3:0]  in_pstrb,
+-  output        in_pready,
++  output reg    in_pready,
+   output [31:0] in_prdata,
+   output        in_pslverr,
+ 
+@@ -39,7 +39,7 @@ flash_cmd flash_cmd_i(
+   .data(data)
+ );
+ assign spi_sck    = 1'b0;
+-assign spi_ss     = 8'b0;
++assign spi_ss     = 8'b11111111;
+ assign spi_mosi   = 1'b1;
+ assign spi_irq_out= 1'b0;
+ assign in_pslverr = 1'b0;
+@@ -48,17 +48,141 @@ assign in_prdata  = data[31:0];
+ 
+ `else
+ 
++reg [3:0] xip_state;
++localparam IDLE = 4'd0, XIP_SS = 4'd1, XIP_TX = 4'd2, XIP_DIVIDER = 4'd3, XIP_CTRL = 4'd4, XIP_WAIT = 4'd5, XIP_RX = 4'd6, XIP_QUIT = 4'd7;
++wire likely_flash = ((in_paddr >= flash_addr_start) && (in_paddr <= flash_addr_end));
++reg [23:0] flash_addr;
++
++always @(posedge clock or posedge reset) begin
++  if(reset) begin
++    flash_addr <= 0;
++  end
++  else if(in_psel && !in_penable && likely_flash) begin
++    // APB setup阶段锁存地址
++    flash_addr <= in_paddr[23:0];
++  end
++end
++
++wire pready;
++
++always @(posedge clock or posedge reset) begin
++  if(reset) xip_state <= IDLE;
++  else begin
++    case (xip_state)
++      IDLE : xip_state <= (likely_flash && in_psel) ? XIP_SS : IDLE;
++      // 进入XIP模式，开始写SPI master寄存器
++      XIP_SS : xip_state <= pready ? XIP_TX : XIP_SS;
++      XIP_TX : xip_state <= pready ? XIP_DIVIDER : XIP_TX;
++      XIP_DIVIDER : xip_state <= pready ? XIP_CTRL : XIP_DIVIDER;
++      XIP_CTRL : xip_state <= pready ? XIP_WAIT : XIP_CTRL;
++      XIP_WAIT : xip_state <= spi_irq_out ? XIP_QUIT : XIP_WAIT;
++      XIP_QUIT : xip_state <= pready ? XIP_RX : XIP_QUIT;
++      XIP_RX : xip_state <= pready ? IDLE : XIP_RX;
++      default: xip_state <= IDLE;
++    endcase
++  end
++end
++
++reg [4:0] paddr;
++reg [31:0] pwdata;
++reg [3:0] pstrb;
++reg pwrite;
++reg psel;
++reg penable;
++
++always @(*) begin
++  if(xip_state == IDLE || xip_state == XIP_RX) in_pready = pready;
++  else in_pready = 1'b0;
++end
++
++always @(*) begin
++  paddr = 0;
++  pwdata = 0;
++  pstrb = 0;
++  pwrite = 0;
++  psel = 0;
++  penable = 0;
++  case (xip_state)
++    XIP_SS : begin
++      paddr = 5'h18;
++      pwdata = 32'h1;
++      pstrb = 4'b1;
++      pwrite = 1'b1;
++      psel = 1'b1;
++      penable = 1'b1;
++    end
++    XIP_TX : begin
++      paddr = 5'h4;
++      pwdata = {8'h03, flash_addr};
++      pstrb = 4'b1111;
++      pwrite = 1'b1;
++      psel = 1'b1;
++      penable = 1'b1;
++    end
++    XIP_DIVIDER : begin
++      paddr = 5'h14;
++      pwdata = 32'h0;
++      pstrb = 4'b11;
++      pwrite = 1'b1;
++      psel = 1'b1;
++      penable = 1'b1;
++    end
++    XIP_CTRL : begin
++      paddr = 5'h10;
++      pwdata = 32'h1540;
++      pstrb = 4'b11;
++      pwrite = 1'b1;
++      psel = 1'b1;
++      penable = 1'b1;
++    end
++    XIP_WAIT : begin
++      paddr = 0;
++      pwdata = 0;
++      pstrb = 0;
++      pwrite = 0;
++      psel = 0;
++      penable = 0;
++    end
++    XIP_RX : begin
++      paddr = 5'h0;
++      psel = 1'b1;
++      penable = 1'b1;
++      pwdata = 0;
++      pstrb = 0;
++      pwrite = 0;
++    end
++    XIP_QUIT : begin
++      paddr = 5'h18;
++      pwdata = 32'h0;
++      pstrb = 4'b1;
++      pwrite = 1'b1;
++      psel = 1'b1;
++      penable = 1'b1;
++    end
++    default: begin
++      if(!(likely_flash && in_psel)) begin
++        paddr = in_paddr[4:0];
++        pwdata = in_pwdata;
++        pstrb = in_pstrb;
++        pwrite = in_pwrite;
++        psel = in_psel;
++        penable = in_penable;
++      end
++    end
++  endcase
++end
++
+ spi_top u0_spi_top (
+   .wb_clk_i(clock),
+   .wb_rst_i(reset),
+-  .wb_adr_i(in_paddr[4:0]),
+-  .wb_dat_i(in_pwdata),
++  .wb_adr_i(paddr[4:0]),
++  .wb_dat_i(pwdata),
+   .wb_dat_o(in_prdata),
+-  .wb_sel_i(in_pstrb),
+-  .wb_we_i (in_pwrite),
+-  .wb_stb_i(in_psel),
+-  .wb_cyc_i(in_penable),
+-  .wb_ack_o(in_pready),
++  .wb_sel_i(pstrb),
++  .wb_we_i (pwrite),
++  .wb_stb_i(psel),
++  .wb_cyc_i(penable),
++  .wb_ack_o(pready),
+   .wb_err_o(in_pslverr),
+   .wb_int_o(spi_irq_out),
+ 
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 5c74cfbe..25235bf5 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -19,5 +19,109 @@ module vga_top_apb(
+   output        vga_vsync,
+   output        vga_valid
+ );
++wire [9:0] h_addr;
++wire [9:0] v_addr;
++wire [23:0] vga_data;
+ 
++vga_ctrl vga_ctrl0(
++  clock, reset, vga_data, h_addr, v_addr, vga_hsync, vga_vsync, vga_valid, vga_r, vga_g, vga_b
++);
++
++reg [23:0] pic_data [307199:0];
++wire [18:0] fb_addr;
++
++assign fb_addr = ({9'b0, v_addr} << 9) + ({9'b0, v_addr} << 7) + {9'b0, h_addr}; // 代替乘法计算像素索引：v_addr * 640 + h_addr = v_addr * (512 + 128) + h_addr = (v_addr << 9) + (v_addr << 7) + h_addr
++assign vga_data = pic_data[fb_addr];
++
++reg ack;
++// APB接口逻辑
++always @(posedge clock) begin
++  if(reset) begin
++    // 初始化帧缓冲为全黑
++    integer i;
++    for (i = 0; i < 524288; i = i + 1) begin
++      pic_data[i] <= 24'b0;
++    end
++  end else if(in_psel && in_penable && in_pwrite && ~ack) begin
++    // 写操作，更新对应像素数据
++    pic_data[in_paddr[20:2]] <= in_pwdata[23:0]; // 地址映射到像素索引，写入RGB数据
++  end
++end
++
++always @(posedge clock) begin
++  if(reset) ack <= 0;
++  else if(in_psel && in_penable && ~ack) ack <= 1;
++  else ack <= 0;
++end
++assign in_pready = ack;
++assign in_pslverr = 0;
++assign in_prdata = 0;
++endmodule
++
++module vga_ctrl(
++    input           pclk,     //25MHz时钟
++    input           reset,    //置位
++    input  [23:0]   vga_data, //上层模块提供的VGA颜色数据
++    output [9:0]    h_addr,   //提供给上层模块的当前扫描像素点坐标
++    output [9:0]    v_addr,
++    output          hsync,    //行同步和列同步信号
++    output          vsync,
++    output          valid,    //消隐信号
++    output [7:0]    vga_r,    //红绿蓝颜色信号
++    output [7:0]    vga_g,
++    output [7:0]    vga_b
++    );
++
++  //640x480分辨率下的VGA参数设置
++  parameter    h_frontporch = 96;
++  parameter    h_active = 144;
++  parameter    h_backporch = 784;
++  parameter    h_total = 800;
++
++  parameter    v_frontporch = 2;
++  parameter    v_active = 35;
++  parameter    v_backporch = 515;
++  parameter    v_total = 525;
++
++  //像素计数值
++  reg [9:0]    x_cnt;
++  reg [9:0]    y_cnt;
++  wire         h_valid;
++  wire         v_valid;
++
++  always @(posedge reset or posedge pclk) //行像素计数
++      if (reset == 1'b1)
++        x_cnt <= 1;
++      else
++      begin
++        if (x_cnt == h_total)
++            x_cnt <= 1;
++        else
++            x_cnt <= x_cnt + 10'd1;
++      end
++
++  always @(posedge pclk)  //列像素计数
++      if (reset == 1'b1)
++        y_cnt <= 1;
++      else
++      begin
++        if (y_cnt == v_total & x_cnt == h_total)
++            y_cnt <= 1;
++        else if (x_cnt == h_total)
++            y_cnt <= y_cnt + 10'd1;
++      end
++  //生成同步信号
++  assign hsync = (x_cnt > h_frontporch);
++  assign vsync = (y_cnt > v_frontporch);
++  //生成消隐信号
++  assign h_valid = (x_cnt > h_active) & (x_cnt <= h_backporch);
++  assign v_valid = (y_cnt > v_active) & (y_cnt <= v_backporch);
++  assign valid = h_valid & v_valid;
++  //计算当前有效像素坐标
++  assign h_addr = h_valid ? (x_cnt - 10'd145) : {10{1'b0}};
++  assign v_addr = v_valid ? (y_cnt - 10'd36) : {10{1'b0}};
++  //设置输出的颜色值
++  assign vga_r = vga_data[23:16];
++  assign vga_g = vga_data[15:8];
++  assign vga_b = vga_data[7:0];
+ endmodule
+-- 
+2.43.0
+

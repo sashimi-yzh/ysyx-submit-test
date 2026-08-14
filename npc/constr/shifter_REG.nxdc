@@ -1,0 +1,7 @@
+top=shifter_REG
+
+btn_clk BTNC
+din (SW7, SW6, SW5, SW4, SW3, SW2, SW1, SW0)
+sel (SW10, SW9, SW8)
+serial_din SW11
+shifter_reg (LD7, LD6, LD5, LD4, LD3, LD2, LD1, LD0)

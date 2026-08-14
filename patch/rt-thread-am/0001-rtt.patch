@@ -1,0 +1,212 @@
+From c2a25a94ce29bf309cd53611d4e833b0c4750726 Mon Sep 17 00:00:00 2001
+From: haijistu <haijistu@gmail.com>
+Date: Mon, 10 Aug 2026 14:47:39 +0800
+Subject: [PATCH] =?UTF-8?q?=E9=87=8D=E6=96=B0=E5=85=8B=E9=9A=86=E4=BB=93?=
+ =?UTF-8?q?=E5=BA=93=EF=BC=8C=E5=88=9B=E5=BB=BA=E6=96=B0=E7=9A=84rtt?=
+ =?UTF-8?q?=E8=A1=A5=E4=B8=81?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/Makefile         |  8 +++-
+ bsp/abstract-machine/extra-ysyxsoc.ld | 48 ++++++++++++++++++++++
+ bsp/abstract-machine/src/context.c    | 58 +++++++++++++++++++++++++--
+ bsp/abstract-machine/src/uart.c       | 10 +++++
+ 4 files changed, 120 insertions(+), 4 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra-ysyxsoc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f31..fb34936 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,13 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++
++ifeq ($(findstring -ysyxsoc,$(ARCH)),-ysyxsoc)
++		CFLAGS += -DNPC_UART_RTT
++    LDSCRIPTS += extra-ysyxsoc.ld
++else
++    LDSCRIPTS += extra.ld
++endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra-ysyxsoc.ld b/bsp/abstract-machine/extra-ysyxsoc.ld
+new file mode 100644
+index 0000000..4f3572c
+--- /dev/null
++++ b/bsp/abstract-machine/extra-ysyxsoc.ld
+@@ -0,0 +1,48 @@
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++    _sdram_extra_data_start = .;
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++  } > sdram AT> flash
++  _flash_extra_data_start = LOADADDR(.data.extra);
++  _flash_extra_data_end = LOADADDR(.data.extra) + SIZEOF(.data.extra);
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > sdram
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829..2da9866 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,10 +2,24 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++static struct Context **global_from = NULL;
++static struct Context **global_to = NULL;
++
++static Context* ev_handler_yield(Context *c) {
++  if(global_from) {
++    // 保存当前上下文
++    *global_from = c;
++  }
++  return *global_to;
++}
++
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD: c = ev_handler_yield(c); break;
++    case EVENT_IRQ_TIMER: break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
++  
+   return c;
+ }
+ 
+@@ -14,18 +28,56 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
++  struct Context **to_ptr = (struct Context **)to;
++  global_to = (Context **)to_ptr;
++  global_from = NULL;
++  yield();
+   assert(0);
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  struct Context **to_ptr = (struct Context **)to;
++  struct Context **from_ptr = (struct Context **)from;
++  global_to = to_ptr;
++  global_from = from_ptr;
++  yield();
++  assert(to_ptr);
++  assert(*to_ptr);
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
++typedef struct
++{
++  void (*tentry)(void*);
++  void *parameter;
++  void (*texit)(void);
++} Wrapper_Arg;
++
++
++static void wrapper(void* args_ptr) {
++  Wrapper_Arg* args = (Wrapper_Arg *)args_ptr;
++  args->tentry(args->parameter);  // 调用真正的入口
++  args->texit();                   // 永远不会返回
++  // 理论上不会执行到这里
+   assert(0);
+-  return NULL;
++}
++
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
++  // 对齐栈地址
++  uintptr_t aligned_stack = (uintptr_t)stack_addr;
++  if (aligned_stack % sizeof(uintptr_t) != 0) {
++      aligned_stack += sizeof(uintptr_t) - (aligned_stack % sizeof(uintptr_t));
++  }
++  aligned_stack -= sizeof(Wrapper_Arg);
++
++  Wrapper_Arg *wap = (Wrapper_Arg *)aligned_stack;
++  wap->parameter = parameter;
++  wap->tentry = tentry;
++  wap->texit = texit;
++
++  // 创建新的上下文结构
++  return (rt_uint8_t *)kcontext((Area) {NULL, (void *)aligned_stack}, wrapper, wap);
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb866..3fb952b 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,16 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++#ifdef NPC_UART_RTT
++  if(*p == '\0') {
++    return io_read(AM_UART_RX).data;
++  }
++  else {
++    return (*p != '\0' ? *(p ++) : -1);
++  }
++#else
+   return (*p != '\0' ? *(p ++) : -1);
++#endif
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.43.0
+
