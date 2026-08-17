@@ -1,0 +1,28 @@
+From 49d738ff9e579042ade7cab1487225401a0247ad Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Mon, 17 Aug 2026 21:25:02 +0800
+Subject: [PATCH 44/46] =?UTF-8?q?=E4=BF=AE=E6=94=B9=E5=BB=B6=E8=BF=9F?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/AXI4Delayer.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index dd579ac5..94bf1d73 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -26,7 +26,7 @@ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
+-class AXI4DelayerChisel(ratio: Double = 4.56, scale_2pow: Long = 6)
++class AXI4DelayerChisel(ratio: Double = 2.1, scale_2pow: Long = 6)
+     extends Module {
+   val io = IO(new AXI4DelayerIO)
+   val countup_amount = math.round((ratio - 1.0) * math.pow(2.0, scale_2pow))
+-- 
+2.55.0
+

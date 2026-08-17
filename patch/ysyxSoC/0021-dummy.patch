@@ -1,0 +1,25 @@
+From 9026ce63f345d0ad6e4b26b84823956f53e54888 Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Mon, 8 Jun 2026 15:13:57 +0800
+Subject: [PATCH 21/46] dummy
+
+---
+ patch/update-firtool.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/patch/update-firtool.sh b/patch/update-firtool.sh
+index 305bd648..f7064d14 100755
+--- a/patch/update-firtool.sh
++++ b/patch/update-firtool.sh
+@@ -23,7 +23,7 @@ replace_firtool() {
+     echo "Downloading SHA256 checksum from $firtool_sha256_url..."
+     # Check SHA256 checksum
+     check_sha256=$(curl -L $firtool_sha256_url)
+-    echo "Checking SHA256 checksum..."
++    # echo "Checking SHA256 checksum..."
+     # echo "$check_sha256 $firtool_temp/firtool.tar.gz" | sha256sum -c -
+ 
+     # if [ $? -ne 0 ]; then
+-- 
+2.55.0
+

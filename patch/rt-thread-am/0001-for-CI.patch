@@ -1,0 +1,734 @@
+From cfc7bf6d3f3e26ab0ea01cc72eb4a9bb4441c862 Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Mon, 8 Jun 2026 11:49:08 +0800
+Subject: [PATCH 1/2] for CI
+
+---
+ bsp/abstract-machine/.gitignore      |  13 +++
+ bsp/abstract-machine/Makefile        |  13 ++-
+ bsp/abstract-machine/extra.ld        |   4 +
+ bsp/abstract-machine/extra_soc.ld    |  54 +++++++++
+ bsp/abstract-machine/include/extra.h | 159 ++++++++++++++++++++++-----
+ bsp/abstract-machine/rtconfig.h      |  99 +++++++++++++++++
+ bsp/abstract-machine/src/context.c   |  69 +++++++++---
+ bsp/abstract-machine/src/init.c      |  53 +++++++--
+ bsp/abstract-machine/src/libc.c      |  10 +-
+ bsp/abstract-machine/src/uart.c      |  49 +++++----
+ 10 files changed, 445 insertions(+), 78 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra_soc.ld
+ create mode 100644 bsp/abstract-machine/rtconfig.h
+
+diff --git a/bsp/abstract-machine/.gitignore b/bsp/abstract-machine/.gitignore
+index 27ab723ff..1a6674602 100644
+--- a/bsp/abstract-machine/.gitignore
++++ b/bsp/abstract-machine/.gitignore
+@@ -1,2 +1,15 @@
+ rtconfig.h
+ files.mk
++!src/**
++!include/**
++*.txt
++!*.ld
++!*.py
++!*.h
++!*.c
++!Kconfig
++!SCon*
++!Makefile
++compile_commands.json
++*.log
++/.cache/**
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..562dc0e86 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -7,10 +7,19 @@ RTCONFIG_H = rtconfig.h
+ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+-CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++CFLAGS += -Wno-nonnull-compare -Wno-error=stringop-overflow
++
++
++
++ifeq ($(findstring soc,$(ARCH)),soc)
++  LDFLAGS += -T extra_soc.ld
++else
++  LDFLAGS += -T extra.ld
++endif
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
++
+ include $(AM_HOME)/Makefile
+ 
+ $(RTCONFIG_H):
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..0ce48ceae 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,5 +1,6 @@
+ SECTIONS {
+   .data.extra : {
++    rt_begin = .;
+     /* section information for finsh shell */
+     __fsymtab_start = .;
+     KEEP(*(FSymTab))
+@@ -28,6 +29,9 @@ SECTIONS {
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+   }
++
++  rt_load_begin = LOADADDR(.data.extra);
++  rt_load_end = rt_load_begin + SIZEOF(.data.extra);
+ }
+ INSERT BEFORE .data;
+ 
+diff --git a/bsp/abstract-machine/extra_soc.ld b/bsp/abstract-machine/extra_soc.ld
+new file mode 100644
+index 000000000..4546d674e
+--- /dev/null
++++ b/bsp/abstract-machine/extra_soc.ld
+@@ -0,0 +1,54 @@
++SECTIONS {
++  .data.extra : {
++    . = ALIGN(8);
++    rt_begin = .;
++
++    /* section information for finsh shell */
++    . = ALIGN(8);
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++
++    . = ALIGN(8);
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++
++    . = ALIGN(8);
++  } > sdram AT> prog
++
++  rt_load_begin = LOADADDR(.data.extra);
++  rt_load_end = LOADADDR(.data.extra) + SIZEOF(.data.extra);
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra (NOLOAD) : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++
++    . = ALIGN(8);
++  } > sdram
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/include/extra.h b/bsp/abstract-machine/include/extra.h
+index 27c72f4a5..d31406d03 100644
+--- a/bsp/abstract-machine/include/extra.h
++++ b/bsp/abstract-machine/include/extra.h
+@@ -1,38 +1,141 @@
++#ifndef __RTTHREAD_AM_EXTRA_H__
++#define __RTTHREAD_AM_EXTRA_H__
++
++#include <stdint.h>
++#include <stddef.h>
++
++#ifndef __has_include
++#define __has_include(x) 0
++#endif
++
++
++#if defined(__GNUC__) && !defined(__ISA_NATIVE__) && !defined(__ARMCC_VERSION)
++
++#if __has_include(<sys/_types.h>)
++#include <sys/_types.h>
++
++#if !defined(__clock_t_defined) && !defined(_CLOCK_T_DECLARED) && defined(_CLOCK_T_)
++typedef _CLOCK_T_ clock_t;
++#define __clock_t_defined
++#define _CLOCK_T_DECLARED
++#endif
++
++#if !defined(__time_t_defined) && !defined(_TIME_T_DECLARED) && defined(_TIME_T_)
++typedef _TIME_T_ time_t;
++#define __time_t_defined
++#define _TIME_T_DECLARED
++#endif
++
++#if !defined(__clockid_t_defined) && !defined(_CLOCKID_T_DECLARED) && defined(_CLOCKID_T_)
++typedef _CLOCKID_T_ clockid_t;
++#define __clockid_t_defined
++#define _CLOCKID_T_DECLARED
++#endif
++
++#if !defined(__timer_t_defined) && !defined(_TIMER_T_DECLARED) && defined(_TIMER_T_)
++typedef _TIMER_T_ timer_t;
++#define __timer_t_defined
++#define _TIMER_T_DECLARED
++#endif
++
++#else
++
++/*
++ * riscv64-linux-gnu used as a freestanding cross compiler:
++ * Avoid including <sys/types.h> here, because it may trigger the RT-Thread
++ * sys/select.h -> sys/time.h include cycle too early.
++ *
++ * These definitions are enough for RT-Thread/AM builds.  The exact Linux
++ * userspace ABI is not relevant here because we are not linking against
++ * Linux libc as a normal userspace program.
++ */
++#if !defined(__clock_t_defined) && !defined(_CLOCK_T_DECLARED)
++typedef long clock_t;
++#define __clock_t_defined
++#define _CLOCK_T_DECLARED
++#endif
++
++#if !defined(__time_t_defined) && !defined(_TIME_T_DECLARED)
++typedef long time_t;
++#define __time_t_defined
++#define _TIME_T_DECLARED
++#endif
++
++#if !defined(__clockid_t_defined) && !defined(_CLOCKID_T_DECLARED)
++typedef int clockid_t;
++#define __clockid_t_defined
++#define _CLOCKID_T_DECLARED
++#endif
++
++#if !defined(__timer_t_defined) && !defined(_TIMER_T_DECLARED)
++typedef void *timer_t;
++#define __timer_t_defined
++#define _TIMER_T_DECLARED
++#endif
++
++#endif /* __has_include(<sys/_types.h>) */
++
++/*
++ * RT-Thread's sys/time.h needs these very early.
++ * Put them before any possible <sys/types.h> include.
++ */
++#if !defined(__suseconds_t_defined) && !defined(_SUSECONDS_T_DECLARED)
+ typedef long suseconds_t;
++#define __suseconds_t_defined
++#define _SUSECONDS_T_DECLARED
++#endif
++
++#if !defined(__useconds_t_defined) && !defined(_USECONDS_T_DECLARED)
+ typedef unsigned long useconds_t;
++#define __useconds_t_defined
++#define _USECONDS_T_DECLARED
++#endif
++
++#endif /* GCC && !native && !ARMCC */
++
++
++/*
++ * Now it is safe to include sys/types.h.
++ * If it accidentally pulls RT-Thread sys/time.h first, the needed types
++ * above have already been declared.
++ */
+ #include <sys/types.h>
+ 
++
+ #ifdef __ISA_NATIVE__
+-// rename posix API to avoid conflict with glibc in native
+-#define open      rt_open
+-#define creat     rt_creat
+-#define close     rt_close
+-#define read      rt_read
+-#define write     rt_write
+-#define lseek     rt_lseek
+-#define rename    rt_rename
+-#define unlink    rt_unlink
+-#define stat      rt_stat
+-#define fstat     rt_fstat
+-#define fsync     rt_fsync
+-#define fcntl     rt_fcntl
+-#define ioctl     rt_ioctl
++
++/* rename POSIX API to avoid conflict with glibc in native */
++#define open rt_open
++#define creat rt_creat
++#define close rt_close
++#define read rt_read
++#define write rt_write
++#define lseek rt_lseek
++#define rename rt_rename
++#define unlink rt_unlink
++#define stat rt_stat
++#define fstat rt_fstat
++#define fsync rt_fsync
++#define fcntl rt_fcntl
++#define ioctl rt_ioctl
+ #define ftruncate rt_ftruncate
+-#define statfs    rt_statfs
+-#define fstatfs   rt_fstatfs
+-#define mkdir     rt_mkdir
+-#define rmdir     rt_rmdir
+-#define opendir   rt_opendir
+-#define readdir   rt_readdir
+-#define telldir   rt_telldir
+-#define seekdir   rt_seekdir
++#define statfs rt_statfs
++#define fstatfs rt_fstatfs
++#define mkdir rt_mkdir
++#define rmdir rt_rmdir
++#define opendir rt_opendir
++#define readdir rt_readdir
++#define telldir rt_telldir
++#define seekdir rt_seekdir
+ #define rewinddir rt_rewinddir
+-#define closedir  rt_closedir
+-#define chdir     rt_chdir
+-#define access    rt_access
+-#define setcwd    rt_setcwd
+-#define getcwd    rt_getcwd
++#define closedir rt_closedir
++#define chdir rt_chdir
++#define access rt_access
++#define setcwd rt_setcwd
++#define getcwd rt_getcwd
+ 
+ #define gettimeofday rt_gettimeofday
+ 
+-#endif
++#endif /* __ISA_NATIVE__ */
++
++#endif /* __RTTHREAD_AM_EXTRA_H__ */
+diff --git a/bsp/abstract-machine/rtconfig.h b/bsp/abstract-machine/rtconfig.h
+new file mode 100644
+index 000000000..e06434ab6
+--- /dev/null
++++ b/bsp/abstract-machine/rtconfig.h
+@@ -0,0 +1,99 @@
++#ifndef RT_CONFIG_H__
++#define RT_CONFIG_H__
++#include "extra.h"
++
++#define RT_CONFIG_H__
++#define RT_NAME_MAX 24
++#define RT_ALIGN_SIZE 8
++#define RT_THREAD_PRIORITY_32
++#define RT_THREAD_PRIORITY_MAX 32
++#define RT_TICK_PER_SECOND 100
++#define RT_USING_OVERFLOW_CHECK
++#define RT_USING_HOOK
++#define RT_HOOK_USING_FUNC_PTR
++#define RT_USING_IDLE_HOOK
++#define RT_IDLE_HOOK_LIST_SIZE 4
++#define IDLE_THREAD_STACK_SIZE 16384
++#define RT_USING_TIMER_SOFT
++#define RT_TIMER_THREAD_PRIO 4
++#define RT_TIMER_THREAD_STACK_SIZE 16384
++#define RT_KPRINTF_USING_LONGLONG
++#define RT_DEBUG
++#define RT_DEBUG_COLOR
++#define RT_USING_SEMAPHORE
++#define RT_USING_MUTEX
++#define RT_USING_EVENT
++#define RT_USING_MAILBOX
++#define RT_USING_MESSAGEQUEUE
++#define RT_USING_MEMPOOL
++#define RT_USING_SMALL_MEM
++#define RT_USING_SMALL_MEM_AS_HEAP
++#define RT_USING_MEMTRACE
++#define RT_USING_HEAP
++#define RT_USING_DEVICE
++#define RT_USING_DEVICE_OPS
++#define RT_USING_CONSOLE
++#define RT_CONSOLEBUF_SIZE 256
++#define RT_CONSOLE_DEVICE_NAME "uart"
++#define RT_VER_NUM 0x50001
++#define RT_USING_COMPONENTS_INIT
++#define RT_USING_USER_MAIN
++#define RT_MAIN_THREAD_STACK_SIZE 2048
++#define RT_MAIN_THREAD_PRIORITY 10
++#define RT_USING_MSH
++#define RT_USING_FINSH
++#define FINSH_USING_MSH
++#define FINSH_THREAD_NAME "tshell"
++#define FINSH_THREAD_PRIORITY 20
++#define FINSH_THREAD_STACK_SIZE 4096
++#define FINSH_USING_HISTORY
++#define FINSH_HISTORY_LINES 10
++#define FINSH_USING_SYMTAB
++#define FINSH_CMD_SIZE 80
++#define MSH_USING_BUILT_IN_COMMANDS
++#define FINSH_USING_DESCRIPTION
++#define FINSH_ARG_MAX 10
++#define RT_USING_DFS
++#define DFS_USING_POSIX
++#define DFS_USING_WORKDIR
++#define DFS_FD_MAX 32
++#define RT_USING_DFS_V1
++#define DFS_FILESYSTEMS_MAX 4
++#define DFS_FILESYSTEM_TYPES_MAX 4
++#define RT_USING_DFS_ELMFAT
++#define RT_DFS_ELM_CODE_PAGE 437
++#define RT_DFS_ELM_WORD_ACCESS
++#define RT_DFS_ELM_USE_LFN_3
++#define RT_DFS_ELM_USE_LFN 3
++#define RT_DFS_ELM_LFN_UNICODE_0
++#define RT_DFS_ELM_LFN_UNICODE 0
++#define RT_DFS_ELM_MAX_LFN 255
++#define RT_DFS_ELM_DRIVES 2
++#define RT_DFS_ELM_MAX_SECTOR_SIZE 512
++#define RT_DFS_ELM_REENTRANT
++#define RT_DFS_ELM_MUTEX_TIMEOUT 3000
++#define RT_USING_DFS_DEVFS
++#define RT_USING_DFS_ROMFS
++#define RT_USING_DEVICE_IPC
++#define RT_UNAMED_PIPE_NUMBER 64
++#define RT_USING_SYSTEM_WORKQUEUE
++#define RT_SYSTEM_WORKQUEUE_STACKSIZE 8192
++#define RT_SYSTEM_WORKQUEUE_PRIORITY 23
++#define RT_USING_SERIAL
++#define RT_USING_SERIAL_V1
++#define RT_SERIAL_USING_DMA
++#define RT_SERIAL_RB_BUFSZ 64
++#define RT_USING_CPUTIME
++#define CPUTIME_TIMER_FREQ 300000000
++#define RT_USING_NULL
++#define RT_USING_ZERO
++#define RT_USING_RANDOM
++#define RT_USING_RTC
++#define RT_LIBC_DEFAULT_TIMEZONE 8
++#define RT_USING_UTEST
++#define UTEST_THR_STACK_SIZE 4096
++#define UTEST_THR_PRIORITY 20
++#define RT_USING_ADT
++#define BOARD_AM
++
++#endif
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..1778399dc 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -1,31 +1,74 @@
++#include "rtdef.h"
+ #include <am.h>
+ #include <klib.h>
+ #include <rtthread.h>
++#include <stdint.h>
+ 
+-static Context* ev_handler(Event e, Context *c) {
++static Context *ev_handler(Event e, Context *c) {
+   switch (e.event) {
+-    default: printf("Unhandled event ID = %d\n", e.event); assert(0);
++  case EVENT_YIELD: {
++    rt_thread_t self = rt_thread_self();
++    if (self->from_context_p)
++      *(Context **)self->from_context_p = c;
++    c = *(Context **)self->to_context_p;
++  } break;
++  case EVENT_IRQ_TIMER:
++    break;
++  case EVENT_IRQ_IODEV:
++    break;
++
++  default:
++    printf("Unhandled event ID = %d\n", e.event);
++    assert(0);
+   }
+   return c;
+ }
+ 
+-void __am_cte_init() {
+-  cte_init(ev_handler);
+-}
++void __am_cte_init() { cte_init(ev_handler); }
+ 
+-void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++  rt_thread_t self = rt_thread_self();
++  self->from_context_p = from;
++  self->to_context_p = to;
++  yield();
+ }
+ 
+-void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
++void rt_hw_context_switch_to(rt_ubase_t to) { rt_hw_context_switch(0, to); }
++
++void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from,
++                                    rt_ubase_t to,
++                                    struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
+-void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+-  assert(0);
++typedef struct {
++  void *arg;
++  void (*tentry)(void *);
++  void (*texit)(void);
++} wrapped_parameter;
++
++void wrapped_entry(void *param) {
++  wrapped_parameter param_wrapped = *(wrapped_parameter *)param;
++  param_wrapped.tentry(param_wrapped.arg);
++  param_wrapped.texit();
+ }
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter,
++                             rt_uint8_t *stack_addr, void *texit) {
++  stack_addr = (rt_uint8_t *)((uintptr_t)stack_addr & ~(sizeof(uintptr_t) - 1));
++  // Context *context_addr = (Context *)(stack_addr - sizeof(Context));
++  // context_addr->mepc = (uintptr_t)tentry - 4;
++  // context_addr->mstatus = 0x1800;
++  // context_addr->gpr[1] = (uintptr_t)texit;
++  // context_addr->gpr[10] = (uintptr_t)parameter;
+ 
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  Area stk = {.end = stack_addr};
++
++  wrapped_parameter *stk_ext =
++      (wrapped_parameter *)(stack_addr - sizeof(Context) -
++                            sizeof(wrapped_parameter));
++  stk_ext->texit = texit;
++  stk_ext->tentry = tentry;
++  stk_ext->arg = parameter;
++  Context *context_addr = kcontext(stk, wrapped_entry, stk_ext);
++  return (rt_uint8_t *)context_addr;
+ }
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index 93e271154..9bcfd72c3 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -1,14 +1,47 @@
+ #include <am.h>
+-#include <rtthread.h>
+-#include <klib.h>
+ #include <klib-macros.h>
++#include <klib.h>
++#include <rtthread.h>
+ 
+-#define AM_APPS_HEAP_SIZE  0x2000000
++#define AM_APPS_HEAP_SIZE 0x2000000
+ #define RT_HW_HEAP_BEGIN heap.start
+ #define RT_HW_HEAP_END heap.end
++__attribute__((section(".ssbl"))) static void *
++__ssbl__memcpy(void *out, const void *in, size_t n) {
++  unsigned char *d = (unsigned char *)out;
++  const unsigned char *s = (const unsigned char *)in;
++
++  if ((((uintptr_t)d ^ (uintptr_t)s) & 0x3) == 0) {
++    while ((((uintptr_t)d) & 0x3) && n != 0) {
++      *d++ = *s++;
++      n--;
++    }
++
++    while (n >= 4) {
++      *(uint32_t *)d = *(const uint32_t *)s;
++      d += 4;
++      s += 4;
++      n -= 4;
++    }
++  }
++
++  while (n != 0) {
++    *d++ = *s++;
++    n--;
++  }
++
++  return out;
++}
++
++__attribute__((section(".ssbl"))) void __ssbl_extra() {
++  extern char rt_load_begin, rt_load_end, rt_begin;
++  char *src = &rt_load_begin;
++  char *dst = &rt_begin;
++  __ssbl__memcpy(dst, src, &rt_load_end - &rt_load_begin);
++}
+ 
+ Area am_apps_heap = {}, am_apps_data = {}, am_apps_bss = {};
+-uint8_t * am_apps_data_content = NULL;
++uint8_t *am_apps_data_content = NULL;
+ 
+ void rt_hw_board_init() {
+   int rt_hw_uart_init(void);
+@@ -21,15 +54,18 @@ void rt_hw_board_init() {
+ 
+   uint32_t size = AM_APPS_HEAP_SIZE;
+   void *p = NULL;
+-  for (; p == NULL && size != 0; size /= 2) { p = rt_malloc(size); }
++  for (; p == NULL && size != 0; size /= 2) {
++    p = rt_malloc(size);
++  }
+   am_apps_heap = RANGE(p, p + size);
+ 
+   extern char __am_apps_data_start, __am_apps_data_end;
+   extern char __am_apps_bss_start, __am_apps_bss_end;
+   am_apps_data = RANGE(&__am_apps_data_start, &__am_apps_data_end);
+-  am_apps_bss  = RANGE(&__am_apps_bss_start,  &__am_apps_bss_end);
++  am_apps_bss = RANGE(&__am_apps_bss_start, &__am_apps_bss_end);
+   printf("am-apps.data.size = %ld, am-apps.bss.size = %ld\n",
+-      am_apps_data.end - am_apps_data.start, am_apps_bss.end - am_apps_bss.start);
++         am_apps_data.end - am_apps_data.start,
++         am_apps_bss.end - am_apps_bss.start);
+ 
+   uint32_t data_size = am_apps_data.end - am_apps_data.start;
+   if (data_size != 0) {
+@@ -48,7 +84,8 @@ void rt_hw_board_init() {
+ #endif
+ 
+ #ifdef RT_USING_HEAP
+-  rt_kprintf("heap: [0x%08x - 0x%08x]\n", (rt_ubase_t) RT_HW_HEAP_BEGIN, (rt_ubase_t) RT_HW_HEAP_END);
++  rt_kprintf("heap: [0x%08x - 0x%08x]\n", (rt_ubase_t)RT_HW_HEAP_BEGIN,
++             (rt_ubase_t)RT_HW_HEAP_END);
+ #endif
+ }
+ 
+diff --git a/bsp/abstract-machine/src/libc.c b/bsp/abstract-machine/src/libc.c
+index b57efe16f..696a72da7 100644
+--- a/bsp/abstract-machine/src/libc.c
++++ b/bsp/abstract-machine/src/libc.c
+@@ -1,22 +1,22 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-__attribute__((weak)) char *strchr(const char *s, int c) {
++char *strchr(const char *s, int c) {
+   assert(0);
+ }
+ 
+-__attribute__((weak)) char *strrchr(const char *s, int c) {
++char *strrchr(const char *s, int c) {
+   assert(0);
+ }
+ 
+-__attribute__((weak)) char *strstr(const char *haystack, const char *needle) {
++char *strstr(const char *haystack, const char *needle) {
+   return rt_strstr(haystack, needle);
+ }
+ 
+-__attribute__((weak)) long strtol(const char *restrict nptr, char **restrict endptr, int base) {
++long strtol(const char *restrict nptr, char **restrict endptr, int base) {
+   assert(0);
+ }
+ 
+-__attribute__((weak)) char *strncat(char *restrict dst, const char *restrict src, size_t sz) {
++char *strncat(char *restrict dst, const char *restrict src, size_t sz) {
+   assert(0);
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..05abc3c97 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -6,11 +6,12 @@
+  * Change Logs:
+  * Date           Author       Notes
+  */
+-
+-#include <rtdevice.h>
+-#include <rtthread.h>
++#include <klib-macros.h>
++#include "amdev.h"
+ #include <am.h>
+ #include <klib.h>
++#include <rtdevice.h>
++#include <rtthread.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -19,15 +20,17 @@ struct device_uart {
+   rt_uint32_t irqno;
+ };
+ 
+-static void *uart0_base = (void*)0x10000000;
++static void *uart0_base = (void *)0x10000000;
+ static struct rt_serial_device serial0;
+ static struct device_uart uart0;
+ 
+-static rt_err_t _uart_configure(struct rt_serial_device *serial, struct serial_configure *cfg) {
++static rt_err_t _uart_configure(struct rt_serial_device *serial,
++                                struct serial_configure *cfg) {
+   return (RT_EOK);
+ }
+ 
+-static rt_err_t _uart_control(struct rt_serial_device *serial, int cmd, void *arg) {
++static rt_err_t _uart_control(struct rt_serial_device *serial, int cmd,
++                              void *arg) {
+   return (RT_EOK);
+ }
+ 
+@@ -37,17 +40,21 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  // static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmem"
++  //                        "check\nutest_list\nam_hello\nam_microbench\n";
++  // if (*p == '\0') {
++  //   AM_UART_RX_T rx;
++  //   ioe_read(AM_UART_RX, &rx);
++  //   return rx.data;
++  // }
++  // return *p++;
++  return (io_read(AM_UART_CONFIG).present ? io_read(AM_UART_RX).data : -1);
+ }
+ 
+-const struct rt_uart_ops _uart_ops = {
+-  _uart_configure,
+-  _uart_control,
+-  _uart_putc,
+-  _uart_getc,
+-  // TODO: add DMA support
+-  RT_NULL};
++const struct rt_uart_ops _uart_ops = {_uart_configure, _uart_control,
++                                      _uart_putc, _uart_getc,
++                                      // TODO: add DMA support
++                                      RT_NULL};
+ 
+ /*
+  * UART Initiation
+@@ -66,14 +73,12 @@ int rt_hw_uart_init(void) {
+   uart->hw_base = (rt_ubase_t)uart0_base;
+   uart->irqno = 0x0a;
+ 
+-  rt_hw_serial_register(serial,
+-      RT_CONSOLE_DEVICE_NAME,
+-      RT_DEVICE_FLAG_STREAM | RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX,
+-      uart);
++  rt_hw_serial_register(serial, RT_CONSOLE_DEVICE_NAME,
++                        RT_DEVICE_FLAG_STREAM | RT_DEVICE_FLAG_RDWR |
++                            RT_DEVICE_FLAG_INT_RX,
++                        uart);
+   return 0;
+ }
+ 
+ /* WEAK for SDK 0.5.6 */
+-rt_weak void uart_debug_init(int uart_channel)
+-{
+-}
++rt_weak void uart_debug_init(int uart_channel) {}
+-- 
+2.54.0
+

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+files_pa0=$(git ls-tree -r --name-only pa0 src | grep '\.[ch]$')
+lines1=0
+for file in $files_pa0;
+do
+    file_lines1=$(git show pa0:nemu/$file | tr -s '\n' | wc -l)
+    lines1=$((file_lines1+lines1))
+done
+lines2=$(find ./src -name "*.[ch]" | xargs cat | tr -s '\n' | wc -l)
+
+echo "相比pa0多了$((lines2-lines1))行"

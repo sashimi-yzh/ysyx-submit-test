@@ -1,0 +1,25 @@
+From 69d690e67bab8c223757648376f97d8fbab99267 Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Tue, 9 Jun 2026 14:09:10 +0800
+Subject: [PATCH 32/46] dummy 24
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 5275fd0c..6e5ba5de 100644
+--- a/Makefile
++++ b/Makefile
+@@ -11,7 +11,7 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ # TODO: This can be removed after chisel publishes a new version
+ 	sed -i  "s/RegNext(r_sel0)/Reg(Bool())/g" rocket-chip/src/main/scala/amba/axi4/SRAM.scala || true
+ 	sed -i  "s/RegNext(w_sel0)/Reg(Bool())/g" rocket-chip/src/main/scala/amba/axi4/SRAM.scala || true
+-#	dummy 23
++#	dummy 24
+ 	@./patch/update-firtool.sh $(FIRTOOL_VERSION) $(FIRTOOL_PATCH_DIR)
+ 	CHISEL_FIRTOOL_PATH=$(FIRTOOL_PATCH_DIR)/firtool-$(FIRTOOL_VERSION)/bin \
+ 	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D)
+-- 
+2.55.0
+

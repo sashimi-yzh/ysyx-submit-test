@@ -1,0 +1,39 @@
+From b86f6d4252930f3c5cf9931228457f5604041317 Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Mon, 8 Jun 2026 22:20:18 +0800
+Subject: [PATCH 23/46] Reduce delay ratio
+
+---
+ src/amba/APBDelayer.scala  | 2 +-
+ src/amba/AXI4Delayer.scala | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index c55fe381..69e71bd9 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -22,7 +22,7 @@ class apb_delayer extends BlackBox {
+   val io = IO(new APBDelayerIO)
+ }
+ 
+-class APBDelayerChisel(ratio: Double = 2.3456789, scale_2pow: Long = 6)
++class APBDelayerChisel(ratio: Double = 1.05, scale_2pow: Long = 6)
+     extends Module {
+   val io = IO(new APBDelayerIO)
+   val countup_amount = math.round((ratio - 1.0) * math.pow(2.0, scale_2pow))
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index aaa9d009..813e31ea 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -26,7 +26,7 @@ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
+-class AXI4DelayerChisel(ratio: Double = 2.3456789, scale_2pow: Long = 6)
++class AXI4DelayerChisel(ratio: Double = 1.05, scale_2pow: Long = 6)
+     extends Module {
+   val io = IO(new AXI4DelayerIO)
+   val countup_amount = math.round((ratio - 1.0) * math.pow(2.0, scale_2pow))
+-- 
+2.55.0
+

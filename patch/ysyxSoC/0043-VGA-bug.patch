@@ -1,0 +1,50 @@
+From d033de2f8134b3eff39917b452c2356a224d5601 Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Mon, 17 Aug 2026 21:21:38 +0800
+Subject: [PATCH 43/46] =?UTF-8?q?=E4=BF=AE=E6=94=B9VGA=E6=98=BE=E7=A4=BA?=
+ =?UTF-8?q?=E7=9A=84bug?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .mill-version        | 2 +-
+ src/device/VGA.scala | 6 +++---
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/.mill-version b/.mill-version
+index 7fd0b1e8..bcc7c361 100644
+--- a/.mill-version
++++ b/.mill-version
+@@ -1 +1 @@
+-0.12.4
+\ No newline at end of file
++0.12.16
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index 2d545fb6..c4174b6f 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -48,7 +48,7 @@ class vgaChisel extends Module {
+   val do_write = apb.psel && apb.penable && apb.pwrite
+   when(do_write) {
+     buffer.write(
+-      apb.paddr(19, 2),
++      apb.paddr(20, 2),
+       apb.pwdata.asTypeOf(Vec(4, UInt(8.W))),
+       apb.pstrb.asBools
+     )
+@@ -93,9 +93,9 @@ class vgaChisel extends Module {
+   vga.valid := RegNext(pixel_valid, false.B)
+   vga.vsync := RegNext(vs, false.B)
+   vga.hsync := RegNext(hs, false.B)
+-  vga.r := pixel(7, 0)
++  vga.r := pixel(23, 16)
+   vga.g := pixel(15, 8)
+-  vga.b := pixel(23, 16)
++  vga.b := pixel(7, 0)
+ }
+ 
+ class APBVGA(address: Seq[AddressSet])(implicit p: Parameters)
+-- 
+2.55.0
+

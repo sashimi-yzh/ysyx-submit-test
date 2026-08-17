@@ -1,0 +1,15 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.cc
+!.gitignore
+!README.md
+!Kconfig
+!**/*.md
+!/count
+!test/*
+include/config
+include/generated

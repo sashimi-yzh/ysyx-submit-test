@@ -1,0 +1,5 @@
+!/iverilog_tb/*.sv
+!/build
+!/sta/*.sdc
+!/sta/*.tcl
+!/test_progs/*

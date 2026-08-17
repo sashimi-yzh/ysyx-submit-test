@@ -1,0 +1,22 @@
+From d9d471a4d571872572caf6148057e4c2d2af80e8 Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Mon, 17 Aug 2026 21:29:01 +0800
+Subject: [PATCH 45/46] =?UTF-8?q?=E4=BF=AE=E6=94=B9Mill=E7=89=88=E6=9C=AC?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .mill-version | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/.mill-version b/.mill-version
+index bcc7c361..e01e0ddd 100644
+--- a/.mill-version
++++ b/.mill-version
+@@ -1 +1 @@
+-0.12.16
++0.12.4
+-- 
+2.55.0
+

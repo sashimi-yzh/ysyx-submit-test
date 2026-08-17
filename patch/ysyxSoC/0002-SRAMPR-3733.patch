@@ -1,0 +1,27 @@
+From d056c9d92ac23f51200aea49ccf5abae60c412b7 Mon Sep 17 00:00:00 2001
+From: Shitful <2292683261@qq.com>
+Date: Sun, 7 Jun 2026 16:26:28 +0800
+Subject: [PATCH 02/46] =?UTF-8?q?=E4=BF=AE=E6=94=B9SRAMPR=20#3733?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ Makefile | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index 0d2ecd84..75a1bca9 100644
+--- a/Makefile
++++ b/Makefile
+@@ -25,5 +25,7 @@ dev-init:
+ 	git submodule update --init --recursive
+ 	cd rocket-chip && git apply ../patch/rocket-chip.patch
+ # 	git apply ../patch/0001-AXI-resp-2-b11-bug.patch || true
++	sed -i  "s/RegNext(r_sel0)/Reg(Bool())/g" src/main/scala/amba/axi4/SRAM.scala || true
++	sed -i  "s/RegNext(w_sel0)/Reg(Bool())/g" src/main/scala/amba/axi4/SRAM.scala || true
+ 
+ .PHONY: verilog clean dev-init
+-- 
+2.55.0
+
