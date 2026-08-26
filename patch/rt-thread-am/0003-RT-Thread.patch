@@ -1,0 +1,47 @@
+From 7777f4d4d2702bf4962e0d6010a93d565fb46b14 Mon Sep 17 00:00:00 2001
+From: FZ_XiaoXi <FZXiaoxi@outlook.com>
+Date: Wed, 12 Aug 2026 15:12:44 +0800
+Subject: [PATCH 3/4] =?UTF-8?q?=E9=80=9A=E8=BF=87=E4=B8=B2=E5=8F=A3?=
+ =?UTF-8?q?=E5=9C=A8RT-Thread=E4=B8=AD=E9=94=AE=E5=85=A5=E5=91=BD=E4=BB=A4?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/uart.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..72d3e3801 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,17 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  if(*p != '\0'){
++    return *(p ++);
++  }else{
++    char data = io_read(AM_UART_RX).data;
++    if(data == 0x0 || data == 0xFF){
++      return -1;
++    }else{
++      return data;
++    }
++  }
++  
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.43.0
+

@@ -1,0 +1,129 @@
+From 7dfe0e969e976fa4eb09974f7b96a1d605ad88e8 Mon Sep 17 00:00:00 2001
+From: FZ_XiaoXi <FZXiaoxi@outlook.com>
+Date: Mon, 2 Mar 2026 16:15:39 +0800
+Subject: [PATCH 1/4] RT-Thread AM Intr
+
+---
+ bsp/abstract-machine/src/context.c         | 53 ++++++++++++++++++++--
+ bsp/abstract-machine/src/init.c            |  2 +-
+ components/libc/compilers/common/cstdlib.c |  2 +
+ 3 files changed, 52 insertions(+), 5 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..8b684d093 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,23 +2,61 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++typedef struct{
++  void *tentry;
++  void *parameter;
++  void *texit;
++} rt_hw_pkg_t;
++typedef struct{
++  rt_ubase_t from;
++  rt_ubase_t to;
++} rt_context_chg_t;
++static void rt_hw_pkg(rt_hw_pkg_t *p){
++  ((void(*)(void*))(p->tentry))(p->parameter);
++  ((void(*)(void))(p->texit))();
++}
++
+ static Context* ev_handler(Event e, Context *c) {
++  rt_context_chg_t *rt_context_chg_ptr = (rt_context_chg_t*)(rt_thread_self()->user_data);
+   switch (e.event) {
++    case EVENT_YIELD:
++      if(rt_context_chg_ptr->from) *(Context**)(rt_context_chg_ptr->from) = c;
++      c = *(Context**)(rt_context_chg_ptr->to);
++      break;
++    case EVENT_IRQ_TIMER:
++      break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+ 
+ void __am_cte_init() {
++
+   cte_init(ev_handler);
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_context_chg_t rt_context_chg;
++  rt_context_chg.from = 0;
++  rt_context_chg.to = to;
++  rt_thread_t tid = rt_thread_self();
++  rt_ubase_t tmp_usr_data = tid->user_data;
++  tid->user_data = (rt_ubase_t)&rt_context_chg;
++  yield();
++  tid->user_data = tmp_usr_data;
++  //assert(0);
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_context_chg_t rt_context_chg;
++  rt_context_chg.from = from;
++  rt_context_chg.to = to;
++  rt_thread_t tid = rt_thread_self();
++  rt_ubase_t tmp_usr_data = tid->user_data;
++  tid->user_data = (rt_ubase_t)&rt_context_chg;
++  yield();
++  tid->user_data = tmp_usr_data;
++  // assert(0);
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+@@ -26,6 +64,13 @@ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t t
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  printf("ST INIT\n");
++  stack_addr = (rt_uint8_t*)((rt_ubase_t)stack_addr - ((rt_ubase_t)stack_addr % sizeof(uintptr_t)));
++  rt_hw_pkg_t *sp = (rt_hw_pkg_t*)stack_addr;
++  sp--;
++  sp->tentry = tentry;
++  sp->parameter = parameter;
++  sp->texit = texit;
++  return (rt_uint8_t*)kcontext((Area){0,sp}, (void(*)(void*))rt_hw_pkg, sp);
+ }
++
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index 93e271154..8b7f32051 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -2,7 +2,7 @@
+ #include <rtthread.h>
+ #include <klib.h>
+ #include <klib-macros.h>
+-
++#
+ #define AM_APPS_HEAP_SIZE  0x2000000
+ #define RT_HW_HEAP_BEGIN heap.start
+ #define RT_HW_HEAP_END heap.end
+diff --git a/components/libc/compilers/common/cstdlib.c b/components/libc/compilers/common/cstdlib.c
+index 64bfbb10e..f31a719fe 100644
+--- a/components/libc/compilers/common/cstdlib.c
++++ b/components/libc/compilers/common/cstdlib.c
+@@ -50,6 +50,7 @@ int system(const char *command)
+ RTM_EXPORT(system);
+ #endif /* RT_USING_MSH */
+ 
++/*
+ char *ltoa(long value, char *string, int radix)
+ {
+     char tmp[33];
+@@ -147,3 +148,4 @@ char *utoa(unsigned value, char *string, int radix)
+ {
+     return ultoa(value, string, radix) ;
+ }
++*/
+\ No newline at end of file
+-- 
+2.43.0
+

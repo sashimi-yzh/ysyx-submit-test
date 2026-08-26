@@ -1,0 +1,15 @@
+*.*
+*
+!*/
+!Makefile
+!*.mk
+!*.[cSh]
+!*.cc
+!.gitignore
+!README.md
+!Kconfig
+!.config
+include/config
+include/generated
+!riscv32-nemu-interpreter-so
+!riscv32-nemu-interpreter-so-ysyxsoc

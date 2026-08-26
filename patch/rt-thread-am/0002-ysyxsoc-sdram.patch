@@ -1,0 +1,77 @@
+From dc6c04b2efcfc9b37d95f38f5cd338edef193a77 Mon Sep 17 00:00:00 2001
+From: FZ_XiaoXi <FZXiaoxi@outlook.com>
+Date: Wed, 12 Aug 2026 11:33:42 +0800
+Subject: [PATCH 2/4] =?UTF-8?q?=E9=80=82=E9=85=8Dysyxsoc-sdram?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/extra.ld      | 7 +++++--
+ bsp/abstract-machine/src/context.c | 3 ++-
+ bsp/abstract-machine/src/init.c    | 7 +++++++
+ 3 files changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..772a18523 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -27,7 +27,10 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram AT> flash
++  __extra_data_lma_start = LOADADDR(.data.extra);
++  __extra_data_vma_start = ADDR(.data.extra);
++  __extra_data_size = SIZEOF(.data.extra);
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +43,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram AT> flash
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 8b684d093..3b610d311 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -64,7 +64,6 @@ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t t
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  printf("ST INIT\n");
+   stack_addr = (rt_uint8_t*)((rt_ubase_t)stack_addr - ((rt_ubase_t)stack_addr % sizeof(uintptr_t)));
+   rt_hw_pkg_t *sp = (rt_hw_pkg_t*)stack_addr;
+   sp--;
+@@ -74,3 +73,5 @@ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_ad
+   return (rt_uint8_t*)kcontext((Area){0,sp}, (void(*)(void*))rt_hw_pkg, sp);
+ }
+ 
++
++//
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index 8b7f32051..13ae8fc80 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -14,6 +14,13 @@ void rt_hw_board_init() {
+   int rt_hw_uart_init(void);
+   rt_hw_uart_init();
+ 
++  /* copy .data.extra from flash LMA to VMA before accessing */
++  extern char __extra_data_lma_start, __extra_data_vma_start, __extra_data_size;
++  uint32_t extra_data_size = (uint32_t)&__extra_data_size;
++  if (extra_data_size > 0) {
++    memcpy(&__extra_data_vma_start, &__extra_data_lma_start, extra_data_size);
++  }
++
+ #ifdef RT_USING_HEAP
+   /* initialize memory system */
+   rt_system_heap_init(RT_HW_HEAP_BEGIN, RT_HW_HEAP_END);
+-- 
+2.43.0
+

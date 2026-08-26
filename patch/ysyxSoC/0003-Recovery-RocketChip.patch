@@ -1,0 +1,19 @@
+From 1c413df3194fbe5b3405d36e84d4d5fccb97ab4b Mon Sep 17 00:00:00 2001
+From: FZ_XiaoXi <FZXiaoxi@outlook.com>
+Date: Wed, 26 Aug 2026 01:46:30 +0800
+Subject: [PATCH 3/3] Recovery RocketChip
+
+---
+ rocket-chip | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/rocket-chip b/rocket-chip
+index 2b7015ab..d0c6b50f 160000
+--- a/rocket-chip
++++ b/rocket-chip
+@@ -1 +1 @@
+-Subproject commit 2b7015ab88382a524f33033b4a3b2d0f8a9422c9
++Subproject commit d0c6b50fdefcdbe121e9788433ea51f7efaf1d32
+-- 
+2.43.0
+
