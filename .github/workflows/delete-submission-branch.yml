@@ -1,0 +1,48 @@
+name: Delete Submission Branch
+
+run-name: Delete branch | ${{ inputs.branch }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to delete (must start with ysyx_)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  delete-branch:
+    name: Validate and delete branch
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Validate branch name
+        env:
+          TARGET_BRANCH: ${{ inputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${TARGET_BRANCH}" != ysyx_* ]]; then
+            echo "::error::Branch name must start with ysyx_."
+            exit 1
+          fi
+
+          if ! git check-ref-format "refs/heads/${TARGET_BRANCH}"; then
+            echo "::error::Invalid Git branch name."
+            exit 1
+          fi
+
+      - name: Delete branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: ${{ inputs.branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh api \
+            --method DELETE \
+            "repos/${GITHUB_REPOSITORY}/git/refs/heads/${TARGET_BRANCH}"
