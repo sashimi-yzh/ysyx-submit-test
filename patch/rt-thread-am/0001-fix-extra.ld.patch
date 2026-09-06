@@ -1,0 +1,24 @@
+From b7902ba9d8720e2a0608b3f3520ef20a7c857296 Mon Sep 17 00:00:00 2001
+From: sunmingyang <2326103265@qq.com>
+Date: Sun, 6 Sep 2026 21:59:11 +0800
+Subject: [PATCH] fix extra.ld
+
+---
+ bsp/abstract-machine/extra.ld | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc656..c4d5389 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -33,6 +33,7 @@ INSERT BEFORE .data;
+ 
+ SECTIONS {
+   .bss.extra : {
++    . = ABSOLUTE(_heap_start + 0x4000);
+     . = ALIGN(8);
+     __am_apps_bss_start = .;
+     *(__am_apps.bss*)
+-- 
+2.53.0
+

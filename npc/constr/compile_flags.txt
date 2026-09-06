@@ -1,0 +1,4 @@
+-I
+/home/ysyx/project/ysyx-workbench/nvboard/usr/include
+-I
+/home/ysyx/project/ysyx-workbench/npc/build/obj_dir

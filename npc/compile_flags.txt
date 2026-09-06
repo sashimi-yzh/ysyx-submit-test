@@ -1,0 +1,6 @@
+-I
+./include/
+-I
+./build/ysyxsoc_nvboard/obj_dir/
+-I 
+./build/

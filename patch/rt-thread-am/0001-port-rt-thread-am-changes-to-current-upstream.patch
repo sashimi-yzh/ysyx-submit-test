@@ -1,0 +1,454 @@
+From 47390cbcb99225dbf85dfcad9f367a105ce8cb59 Mon Sep 17 00:00:00 2001
+From: sunmingyang <2326103265@qq.com>
+Date: Fri, 21 Aug 2026 15:55:09 +0800
+Subject: [PATCH] port rt-thread-am changes to current upstream
+
+
+diff --git a/.gitignore b/.gitignore
+index 558b09f..76ebb12 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -51,3 +51,21 @@ tags
+ CMakeLists.txt
+ cmake-build-debug
+ *.mk
++
++# 确保源代码目录被包含
++!src/
++!src/**
++!include/
++!include/**
++!components/
++!components/**
++!libcpu/
++!libcpu/**
++!bsp/
++!bsp/**
++!tools/
++!tools/**
++!examples/
++!examples/**
++
++bsp/abstract-machine/build/
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/.gitignore b/bsp/abstract-machine/.gitignore
+index 27ab723..1ce9c20 100644
+--- a/bsp/abstract-machine/.gitignore
++++ b/bsp/abstract-machine/.gitignore
+@@ -1,2 +1,5 @@
+ rtconfig.h
+ files.mk
++
++build
++__pycache__
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f31..7392e0f 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,16 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++
++# 根据 ARCH 选择不同的链接脚本
++ifeq ($(ARCH),riscv32e-ysyxsoc)
++    EXTRA_LDS := socextra.ld
++else
++    EXTRA_LDS := extra.ld
++endif
++
++LDFLAGS += -T $(EXTRA_LDS)
++
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc656..3b31d13 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -29,7 +29,7 @@ SECTIONS {
+     . = ALIGN(8);
+   }
+ }
+-INSERT BEFORE .data;
++INSERT AFTER .data;
+ 
+ SECTIONS {
+   .bss.extra : {
+@@ -42,4 +42,4 @@ SECTIONS {
+     . = ALIGN(8);
+   }
+ }
+-INSERT BEFORE .bss;
++INSERT AFTER .bss;
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df3..e5594b1 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -8,10 +8,10 @@ AM_HOME = Path(os.environ["AM_HOME"])
+ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+-  AM_KERNELS_HOME / "benchmarks" / "microbench",
+-  AM_KERNELS_HOME / "kernels" / "typing-game",
+-  AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
++  # AM_KERNELS_HOME / "benchmarks" / "microbench",
++  # AM_KERNELS_HOME / "kernels" / "typing-game",
++  # AM_KERNELS_HOME / "kernels" / "snake",
++  # AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+diff --git a/bsp/abstract-machine/socextra.ld b/bsp/abstract-machine/socextra.ld
+new file mode 100644
+index 0000000..2234a69
+--- /dev/null
++++ b/bsp/abstract-machine/socextra.ld
+@@ -0,0 +1,59 @@
++MEMORY {
++    MROM (rx) : ORIGIN = 0x20000000, LENGTH = 4K
++    FLASH (rwx) : ORIGIN = 0x30000000, LENGTH = 32M
++    SRAM (rwx) : ORIGIN = 0x0f000000, LENGTH = 8K
++    PSRAM (rwx) : ORIGIN = 0x80000000, LENGTH = 4M
++    SDRAM (rwx) : ORIGIN = 0xa0000000, LENGTH = 32M
++}
++
++
++SECTIONS {
++  .data.extra : {
++    _sdata_extra_vma = .;
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++    _edata_extra_vma = .;
++  } > SDRAM AT> FLASH
++  _data_extra_lma = LOADADDR(.data.extra);
++}
++INSERT AFTER .data;
++
++SECTIONS {
++  .bss.extra : {
++    . = ABSOLUTE(_heap_end);
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > SDRAM
++  _bss_extra_lma = LOADADDR(.bss.extra);
++}
++INSERT AFTER .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829..61a3f16 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -1,9 +1,25 @@
++#include "rtdef.h"
+ #include <am.h>
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++// clang-format off
++
+ static Context* ev_handler(Event e, Context *c) {
++  // printf("get event ID = %d\n", e.event);
++  rt_thread_t pcb = rt_thread_self();
++  rt_uint32_t *user_data_p = (void *)&(pcb->user_data);
+   switch (e.event) {
++    case EVENT_YIELD:
++    case EVENT_SYSCALL:
++      if (user_data_p[1]) {
++        *(Context**)user_data_p[1] = c;
++      }
++      c = *(Context **)user_data_p[0];
++      break;
++    case EVENT_IRQ_TIMER:
++    break;
++			break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -13,19 +29,61 @@ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
++// to and from is the pointer point to the pointer of the context
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t userdata_store = pcb->user_data;
++  rt_uint32_t *user_data_p = (void *)&(pcb->user_data);
++  user_data_p[0] = to;
++  user_data_p[1] = 0;
++  yield();
++  pcb->user_data = userdata_store;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t pcb = rt_thread_self();
++  rt_ubase_t userdata_store = pcb->user_data;
++  rt_uint32_t *user_data_p = (void *)&(pcb->user_data);
++  user_data_p[0] = to;
++  user_data_p[1] = from;
++  yield();
++  pcb->user_data = userdata_store;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
+-rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
++typedef struct {
++  void (*tentry)(void*);
++  void *parameter;
++  void (*texit)(void);
++} pacage_function_args;
++
++// due to once the function tentry returned
++// we need to call the texit
++// so we make the wrap_function to make sure the
++// tentry return the texit will been called;
++void pacage_function(pacage_function_args *args){
++  args->tentry(args->parameter);
++  args->texit();
++
++  printf("it should not reach here\n");
+   assert(0);
+-  return NULL;
+ }
++
++rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
++  rt_uint8_t *context_start = (rt_uint8_t*)(((uintptr_t)stack_addr + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1));
++
++  context_start -= sizeof(pacage_function_args);
++  pacage_function_args *args = (pacage_function_args *)context_start;
++  args->parameter = parameter;
++  args->tentry = (void (*)(void *))tentry;
++  args->texit = (void (*)(void))texit;
++
++  Area kstack = {.end = context_start};
++  Context *context = kcontext(kstack, (void*)pacage_function, args);
++  return (rt_uint8_t*)context;
++}
++
++// clang-format on
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index 93e2711..8da9e78 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -1,14 +1,14 @@
+ #include <am.h>
+-#include <rtthread.h>
+-#include <klib.h>
+ #include <klib-macros.h>
++#include <klib.h>
++#include <rtthread.h>
+ 
+-#define AM_APPS_HEAP_SIZE  0x2000000
++#define AM_APPS_HEAP_SIZE 0x2000000
+ #define RT_HW_HEAP_BEGIN heap.start
+ #define RT_HW_HEAP_END heap.end
+ 
+ Area am_apps_heap = {}, am_apps_data = {}, am_apps_bss = {};
+-uint8_t * am_apps_data_content = NULL;
++uint8_t *am_apps_data_content = NULL;
+ 
+ void rt_hw_board_init() {
+   int rt_hw_uart_init(void);
+@@ -21,15 +21,18 @@ void rt_hw_board_init() {
+ 
+   uint32_t size = AM_APPS_HEAP_SIZE;
+   void *p = NULL;
+-  for (; p == NULL && size != 0; size /= 2) { p = rt_malloc(size); }
++  for (; p == NULL && size != 0; size /= 2) {
++    p = rt_malloc(size);
++  }
+   am_apps_heap = RANGE(p, p + size);
+ 
+   extern char __am_apps_data_start, __am_apps_data_end;
+   extern char __am_apps_bss_start, __am_apps_bss_end;
+   am_apps_data = RANGE(&__am_apps_data_start, &__am_apps_data_end);
+-  am_apps_bss  = RANGE(&__am_apps_bss_start,  &__am_apps_bss_end);
++  am_apps_bss = RANGE(&__am_apps_bss_start, &__am_apps_bss_end);
+   printf("am-apps.data.size = %ld, am-apps.bss.size = %ld\n",
+-      am_apps_data.end - am_apps_data.start, am_apps_bss.end - am_apps_bss.start);
++         am_apps_data.end - am_apps_data.start,
++         am_apps_bss.end - am_apps_bss.start);
+ 
+   uint32_t data_size = am_apps_data.end - am_apps_data.start;
+   if (data_size != 0) {
+@@ -48,7 +51,8 @@ void rt_hw_board_init() {
+ #endif
+ 
+ #ifdef RT_USING_HEAP
+-  rt_kprintf("heap: [0x%08x - 0x%08x]\n", (rt_ubase_t) RT_HW_HEAP_BEGIN, (rt_ubase_t) RT_HW_HEAP_END);
++  rt_kprintf("heap: [0x%08x - 0x%08x]\n", (rt_ubase_t)RT_HW_HEAP_BEGIN,
++             (rt_ubase_t)RT_HW_HEAP_END);
+ #endif
+ }
+ 
+diff --git a/bsp/abstract-machine/src/libc.c b/bsp/abstract-machine/src/libc.c
+index b57efe1..4a74947 100644
+--- a/bsp/abstract-machine/src/libc.c
++++ b/bsp/abstract-machine/src/libc.c
+@@ -1,22 +1,10 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
+-__attribute__((weak)) char *strchr(const char *s, int c) {
+-  assert(0);
+-}
+-
+-__attribute__((weak)) char *strrchr(const char *s, int c) {
+-  assert(0);
+-}
+-
+-__attribute__((weak)) char *strstr(const char *haystack, const char *needle) {
++char *strstr(const char *haystack, const char *needle) {
+   return rt_strstr(haystack, needle);
+ }
+ 
+-__attribute__((weak)) long strtol(const char *restrict nptr, char **restrict endptr, int base) {
+-  assert(0);
+-}
+-
+-__attribute__((weak)) char *strncat(char *restrict dst, const char *restrict src, size_t sz) {
++char *strncat(char *restrict dst, const char *restrict src, size_t sz) {
+   assert(0);
+ }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb866..2a3f639 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -7,10 +7,13 @@
+  * Date           Author       Notes
+  */
+ 
+-#include <rtdevice.h>
+-#include <rtthread.h>
++#include "amdev.h"
++#include "klib-macros.h"
+ #include <am.h>
+ #include <klib.h>
++#include <rtdevice.h>
++#include <rtthread.h>
++#include <stdbool.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -19,15 +22,18 @@ struct device_uart {
+   rt_uint32_t irqno;
+ };
+ 
+-static void *uart0_base = (void*)0x10000000;
++static void *uart0_base = (void *)0x10000000;
++static bool has_uart = true;
+ static struct rt_serial_device serial0;
+ static struct device_uart uart0;
+ 
+-static rt_err_t _uart_configure(struct rt_serial_device *serial, struct serial_configure *cfg) {
++static rt_err_t _uart_configure(struct rt_serial_device *serial,
++                                struct serial_configure *cfg) {
+   return (RT_EOK);
+ }
+ 
+-static rt_err_t _uart_control(struct rt_serial_device *serial, int cmd, void *arg) {
++static rt_err_t _uart_control(struct rt_serial_device *serial, int cmd,
++                              void *arg) {
+   return (RT_EOK);
+ }
+ 
+@@ -37,17 +43,19 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmem"
++                         "check\nutest_list\nam_hello\n";
++  if (has_uart)
++    return io_read(AM_UART_RX).data;
++  else {
++    return (*p != '\0' ? *(p++) : -1);
++  }
+ }
+ 
+-const struct rt_uart_ops _uart_ops = {
+-  _uart_configure,
+-  _uart_control,
+-  _uart_putc,
+-  _uart_getc,
+-  // TODO: add DMA support
+-  RT_NULL};
++const struct rt_uart_ops _uart_ops = {_uart_configure, _uart_control,
++                                      _uart_putc, _uart_getc,
++                                      // TODO: add DMA support
++                                      RT_NULL};
+ 
+ /*
+  * UART Initiation
+@@ -60,20 +68,20 @@ int rt_hw_uart_init(void) {
+   serial = &serial0;
+   uart = &uart0;
+ 
++  has_uart = io_read(AM_UART_CONFIG).present;
++
+   serial->ops = &_uart_ops;
+   serial->config = config;
+   serial->config.baud_rate = UART_DEFAULT_BAUDRATE;
+   uart->hw_base = (rt_ubase_t)uart0_base;
+   uart->irqno = 0x0a;
+ 
+-  rt_hw_serial_register(serial,
+-      RT_CONSOLE_DEVICE_NAME,
+-      RT_DEVICE_FLAG_STREAM | RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX,
+-      uart);
++  rt_hw_serial_register(serial, RT_CONSOLE_DEVICE_NAME,
++                        RT_DEVICE_FLAG_STREAM | RT_DEVICE_FLAG_RDWR |
++                            RT_DEVICE_FLAG_INT_RX,
++                        uart);
+   return 0;
+ }
+ 
+ /* WEAK for SDK 0.5.6 */
+-rt_weak void uart_debug_init(int uart_channel)
+-{
+-}
++rt_weak void uart_debug_init(int uart_channel) {}
+diff --git a/tools/.gitignore b/tools/.gitignore
+new file mode 100644
+index 0000000..bee8a64
+--- /dev/null
++++ b/tools/.gitignore
+@@ -0,0 +1 @@
++__pycache__

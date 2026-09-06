@@ -1,0 +1,15 @@
+date=2026-08-30
+time=17:28:27
+end_pc=0x80000128
+total_cycle=12034
+total_inst=1658
+ipc=0.137776
+ifu_occupy=0
+ifu_giveup_cnt=195
+ifu_giveup_rate=0.117612
+icache_hit_rate=0.700844
+icache_amat=710560
+idu_occupy=0.401511
+exu_occupy=0.592181
+lsu_occupy=99.5106
+predict_miss=195

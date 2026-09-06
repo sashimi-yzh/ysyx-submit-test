@@ -1,0 +1,30 @@
+From 4dd01c44d4c76548f055f5586bdfde35365cbc39 Mon Sep 17 00:00:00 2001
+From: sunmingyang <2326103265@qq.com>
+Date: Mon, 24 Aug 2026 18:22:18 +0800
+Subject: [PATCH] enable AM app integration
+
+---
+ bsp/abstract-machine/integrate-am-apps.py | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index e5594b1..8968df3 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -8,10 +8,10 @@ AM_HOME = Path(os.environ["AM_HOME"])
+ AM_KERNELS_HOME = (AM_HOME / ".." / "am-kernels").resolve()
+ app_dir_list = [
+   AM_KERNELS_HOME / "kernels" / "hello",
+-  # AM_KERNELS_HOME / "benchmarks" / "microbench",
+-  # AM_KERNELS_HOME / "kernels" / "typing-game",
+-  # AM_KERNELS_HOME / "kernels" / "snake",
+-  # AM_KERNELS_HOME / ".." / "fceux-am",
++  AM_KERNELS_HOME / "benchmarks" / "microbench",
++  AM_KERNELS_HOME / "kernels" / "typing-game",
++  AM_KERNELS_HOME / "kernels" / "snake",
++  AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+-- 
+2.53.0

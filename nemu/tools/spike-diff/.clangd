@@ -1,0 +1,38 @@
+CompileFlags:
+  CompilationDatabase: .
+---
+If:
+  PathMatch:
+    - ^difftest\.cc$
+    - ^repo/(fesvr|riscv|disasm|customext|spike_main|spike_dasm|build)/.*\.cc$
+CompileFlags:
+  Add:
+    - --gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/15
+    - -std=c++17
+---
+If:
+  PathMatch: ^difftest\.cc$
+CompileFlags:
+  Add:
+    - -Irepo
+    - -Irepo/fesvr
+    - -Irepo/riscv
+    - -Irepo/disasm
+    - -Irepo/customext
+    - -Irepo/fdt
+    - -Irepo/softfloat
+    - -Irepo/spike_main
+    - -Irepo/spike_dasm
+    - -Irepo/build
+    - -I../../include
+    - -I../../src/isa/riscv32/include
+---
+If:
+  PathMatch:
+    - ^repo/(fesvr|riscv|disasm|customext|spike_main|spike_dasm|build)/.*\.h$
+CompileFlags:
+  Add:
+    - --gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/15
+    - -x
+    - c++-header
+    - -std=c++17

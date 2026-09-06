@@ -1,0 +1,42 @@
+./build*
+obj_dir/
+V*.mk
+V*.h
+V*.cpp
+
+# Verilator 生成的文件
+*.d
+*.o
+*.a
+
+# Profile 和性能分析文件
+profile_exec.dat
+*.prof
+*.profdata
+
+# 波形文件
+./wave.vcd
+*.vcd
+*.fsdb
+
+# 备份文件
+*.bak
+*~
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 保持源代码
+!./vsrc/*.h
+!*.v
+!./csrc/*.cpp
+!./include/*.h
+!compile_flags.txt
+!*.py
+!performance.txt
+
+!csrc-extra/
+!csrc-extra/iverilog-npc-rtc.c
