@@ -1,0 +1,235 @@
+From ce02256960c0b096a99c38496201e52415dabf29 Mon Sep 17 00:00:00 2001
+From: DreamyZonette <lwq2463460061@163.com>
+Date: Sat, 12 Sep 2026 11:12:24 +0800
+Subject: [PATCH 1/2] ci
+
+---
+ bsp/abstract-machine/Makefile      |   4 +-
+ bsp/abstract-machine/src/context.c | 133 ++++++++++++++++++++++++++++-
+ bsp/abstract-machine/src/uart.c    |   1 +
+ include/rtdef.h                    |   5 +-
+ 4 files changed, 137 insertions(+), 6 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..753c16f80 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,9 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
++ifneq ($(ARCH),riscv32e-ysyxsoc)
+ LDFLAGS += -T extra.ld
++endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+@@ -37,4 +39,4 @@ $(AM_APPS_MK): integrate-am-apps.py
+ 	python3 $^ ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE)
+ endif
+ 
+-.PHONY: init menuconfig update
++.PHONY: init menuconfig update
+\ No newline at end of file
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..345dd41fe 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -2,30 +2,155 @@
+ #include <klib.h>
+ #include <rtthread.h>
+ 
++// Context** ctx_from = NULL;
++int is_switch_to = 0;
++
+ static Context* ev_handler(Event e, Context *c) {
++  // PCB
++  rt_thread_t current_thread = rt_thread_self();
++  // Context **temp_to = (Context **)(current_thread->user_data);
++
+   switch (e.event) {
++    case EVENT_YIELD:
++       if (current_thread->ctx_to != NULL) {
++          // 获取目标上下文      
++          if(current_thread->ctx_from != NULL) {
++            *(current_thread->ctx_from) = c;
++          }     
++          Context *next = *(current_thread->ctx_to);   
++          return next;
++        }
++      break;
++    case EVENT_SYSCALL: 
++    case EVENT_PAGEFAULT: 
++    case EVENT_ERROR: 
++    case EVENT_IRQ_TIMER: 
++    case EVENT_IRQ_IODEV: return c;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+ }
+ 
++
+ void __am_cte_init() {
+   cte_init(ev_handler);
+ }
+ 
++//首次切换
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t current_thread = rt_thread_self();
++  rt_ubase_t temp_user_data = current_thread->user_data;  // 保存 user_data
++  //printf("current_thread->user_data = %ld\n", to);
++
++  current_thread->ctx_from = NULL; // 不需要保存
++  current_thread->user_data = to;
++  current_thread->ctx_to = (Context **)to;
++  is_switch_to = 1;
++  yield();
++
++  current_thread->user_data = temp_user_data;        // 恢复 user_data
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t current_thread = rt_thread_self();
++  rt_ubase_t temp_user_data = current_thread->user_data;
++  //printf("current_thread->user_data = %ld\n", to);
++
++  current_thread->ctx_from = (Context**)from;
++  current_thread->ctx_to = (Context **)to;
++  current_thread->user_data = to;
++  is_switch_to = 0;
++  yield();
++
++  current_thread->user_data = temp_user_data;
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++// static void wrapper(void *tentry, void *parameter, void *texit);
++
++// 上下文创建
++// rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
++//   uintptr_t aligned_stack = (uintptr_t)stack_addr;
++//   aligned_stack &= ~(sizeof(uintptr_t) - 1); // 对齐
++
++//   uintptr_t context_addr = aligned_stack - sizeof(Context);// 向下生长，留出 Context 结构的空间
++//   Context *c = (Context*)context_addr;
++//   memset(c, 0, sizeof(Context)); // 初始化
++
++//   c->mepc = (uintptr_t)wrapper; 
++//   c->gpr[2] = context_addr; // 栈顶指针
++//   c->mstatus = 0x1800;
++//   // 参数传给wrapper函数
++//   c->gpr[10] = (uintptr_t)tentry; // a0 = tentry
++//   c->gpr[11] = (uintptr_t)parameter; // a1 = parameter
++//   c->gpr[12] = (uintptr_t)texit;  // a2 = texit
++//   return (rt_uint8_t *)c;
++// }
++
++// 定义参数结构体
++typedef struct {
++  void *tentry;
++  void *parameter;
++  void *texit;
++} WrapperArgs;
++// 包裹函数
++  static void wrapper_entry(void *arg) {
++    WrapperArgs *params = (WrapperArgs *)arg;
++
++    void (*entry_func)(void *) = (void (*)(void *))(params->tentry);
++    void (*exit_func)(void) = (void (*)(void))(params->texit);
++      
++    // 执行入口函数
++    entry_func(params->parameter);
++      
++    // 执行退出函数
++    exit_func();
++      
++    // 安全防护
++    while (1);
++  }
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++    // 对齐栈地址
++    uintptr_t aligned_stack = (uintptr_t)stack_addr;
++    aligned_stack &= ~0xF;
++
++    
++    uintptr_t args_addr = aligned_stack - sizeof(Context) - sizeof(WrapperArgs);
++    WrapperArgs *args = (WrapperArgs *)args_addr;
++    // WrapperArgs *args;
++    args->tentry = tentry;
++    args->parameter = parameter;
++    args->texit = texit;
++
++    // 设置 kcontext 的栈区域（确保覆盖参数和上下文）
++    Area kstack = {
++      .start = (void *)(aligned_stack - sizeof(WrapperArgs) - sizeof(Context)), // 栈起始地址
++      .end = (void *)aligned_stack // 栈结束地址（对齐后的栈顶）
++    };
++
++    // 调用 kcontext，使用包裹函数和参数指针
++    Context *c = kcontext(kstack, wrapper_entry, args);
++
++    return (rt_uint8_t *)c;
+ }
++
++
++// static void wrapper(void *tentry, void *parameter, void *texit) {
++    
++//     void (*entry_func)(void *) = (void (*)(void *))tentry;
++//     void (*exit_func)(void) = (void (*)(void))texit;
++    
++//     // 执行入口函数
++//     entry_func(parameter);
++    
++//     // 执行退出函数
++//     exit_func();
++    
++//     // 安全防护
++//     while (1) {
++//         asm volatile("wfi");
++//     }
++// }
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..55e8f5229 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -37,6 +37,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
++  // return getch();
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   return (*p != '\0' ? *(p ++) : -1);
+ }
+diff --git a/include/rtdef.h b/include/rtdef.h
+index 1c3b1a502..50c4e0eb7 100644
+--- a/include/rtdef.h
++++ b/include/rtdef.h
+@@ -54,6 +54,7 @@
+ #define __RT_DEF_H__
+ 
+ #include <rtconfig.h>
++#include <am.h> // am适配
+ #ifdef RT_USING_LIBC
+ #include <stdint.h>
+ #include <stddef.h>
+@@ -852,7 +853,9 @@ struct rt_thread
+     int tid;
+ #endif
+ 
+-    rt_ubase_t user_data;                             /**< private user data beyond this thread */
++    rt_ubase_t user_data;                                 /**< private user data beyond this thread */
++    Context** ctx_from;
++    Context** ctx_to;
+ };
+ typedef struct rt_thread *rt_thread_t;
+ 
+-- 
+2.43.0
+
