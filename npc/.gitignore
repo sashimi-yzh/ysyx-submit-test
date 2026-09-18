@@ -1,0 +1,15 @@
+*.*
+*
+!*/
+!*.o
+!Makefile
+!*.mk
+!*.[cSh]
+!*.v
+!*.py
+!*.cc
+!*.cpp
+!.gitignore
+!README.md
+build/
+include/ref_so_file.h

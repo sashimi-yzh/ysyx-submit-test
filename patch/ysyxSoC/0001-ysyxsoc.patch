@@ -1,0 +1,1976 @@
+From 73f3779f1980edfcdd4c827e5769fc216f0322f9 Mon Sep 17 00:00:00 2001
+From: Soren <3319253385@qq.com>
+Date: Fri, 18 Sep 2026 23:12:21 +0800
+Subject: [PATCH] =?UTF-8?q?ysyxSoC:=20=E5=8A=A0=E5=85=A5=20PSRAM/SDRAM/del?=
+ =?UTF-8?q?ayer/UART=20=E7=AD=89=209=20=E5=A4=84=E6=94=B9=E5=8A=A8?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .gitignore                                   |   1 +
+ .mill-jvm-opts                               |   1 +
+ Makefile                                     |  11 +
+ perip/amba/apb_delayer.v                     |  68 +++++-
+ perip/amba/axi4_delayer.v                    | 202 +++++++++++++++--
+ perip/bitrev/bitrev.v                        |  25 ++-
+ perip/gpio/gpio_top_apb.v                    |  69 ++++++
+ perip/ps2/ps2_top_apb.v                      |  38 ++++
+ perip/psram/efabless/EF_PSRAM_CTRL.v         |  61 +++---
+ perip/psram/efabless/EF_PSRAM_CTRL_wb.v      |  52 +++--
+ perip/psram/psram.v                          | 132 ++++++++++-
+ perip/sdram/core_sdram_axi4/sdram_axi.v      |   6 +-
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  87 ++++----
+ perip/sdram/sdram.v                          | 218 ++++++++++++++++++-
+ perip/sdram/sdram_bit32.v                    |  40 ++++
+ perip/sdram/sdram_top_apb.v                  |  91 ++++++--
+ perip/sdram/sdram_top_axi.v                  |  80 ++++++-
+ perip/spi/rtl/spi_top_apb.v                  | 149 ++++++++++++-
+ perip/uart16550/rtl/uart_tfifo.v             |   4 +-
+ perip/vga/vga_top_apb.v                      |  67 ++++++
+ spec/cpu-interface.md                        |  11 +-
+ src/Top.scala                                |   2 +-
+ 22 files changed, 1242 insertions(+), 173 deletions(-)
+ create mode 100644 .mill-jvm-opts
+ create mode 100644 perip/sdram/sdram_bit32.v
+
+diff --git a/.gitignore b/.gitignore
+index 3c0160d0..315db007 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,2 +1,3 @@
+ build/
+ out/
++patch/firtool/
+diff --git a/.mill-jvm-opts b/.mill-jvm-opts
+new file mode 100644
+index 00000000..3d9287d6
+--- /dev/null
++++ b/.mill-jvm-opts
+@@ -0,0 +1 @@
++-Xmx8G
+diff --git a/Makefile b/Makefile
+index c30262ea..dfcfc64f 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,7 @@
+ V_FILE_GEN   = build/ysyxSoCTop.sv
+ V_FILE_FINAL = build/ysyxSoCFull.v
+ SCALA_FILES = $(shell find src/ -name "*.scala")
++STUID       = ysyx_26010027
+ 
+ # Firtool version
+ FIRTOOL_VERSION = 1.105.0
+@@ -13,9 +14,19 @@ $(V_FILE_FINAL): $(SCALA_FILES)
+ 	CHISEL_FIRTOOL_PATH=$(FIRTOOL_PATCH_DIR)/firtool-$(FIRTOOL_VERSION)/bin \
+ 	mill -i ysyxsoc.runMain ysyx.Elaborate --target-dir $(@D)
+ 	mv $(V_FILE_GEN) $@
++	sed -i 's/ysyx_00000000/$(STUID)/g' $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+ 
++	# ----- SDRAM 位扩展 -----
++	sed -i 's/  inout  \[15:0\] sdram_dq/  inout  [31:0] sdram_dq/g' $@
++	sed -i 's/                sdram_dqm,/  output [3:0]  sdram_dqm,/g' $@
++	sed -i 's/  inout  \[15:0\] sdram_bundle_dq/  inout  [31:0] sdram_bundle_dq/g' $@
++	sed -i 's/                sdram_bundle_dqm,/  output [3:0]  sdram_bundle_dqm,/g' $@
++	sed -i 's/wire \[1:0\]  _asic_sdram_dqm/wire [3:0]  _asic_sdram_dqm/g' $@
++	sed -i 's/wire \[15:0\] _dq_wire/wire [31:0] _dq_wire/g' $@
++	sed -i 's/^  sdram sdram (/  sdram_bit32 sdram (/g' $@
++
+ verilog: $(V_FILE_FINAL)
+ 
+ clean:
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index c0d20764..cd791f77 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -1,3 +1,4 @@
++`define UNDELAY
+ module apb_delayer(
+   input         clock,
+   input         reset,
+@@ -31,8 +32,71 @@ module apb_delayer(
+   assign out_pwrite  = in_pwrite;
+   assign out_pwdata  = in_pwdata;
+   assign out_pstrb   = in_pstrb;
+-  assign in_pready   = out_pready;
+-  assign in_prdata   = out_prdata;
+   assign in_pslverr  = out_pslverr;
+ 
++`ifdef UNDELAY
++  assign in_pready = out_pready;
++  assign in_prdata = out_prdata;
++`else
++
++  parameter integer r    = 100 / 100;   // 处理器频率 / 设备频率
++  parameter integer s    = 1;    // 用于处理 r 为小数时的放大系数
++  parameter integer base = r * s; // 硬编码常数
++
++  reg [ 1:0] state;
++  reg [31:0] counter;
++
++  localparam IDLE  = 2'b00;
++  localparam WAIT  = 2'b01;
++  localparam DELAY = 2'b10;
++
++  wire start  = in_psel && !in_penable;
++  wire finish = out_pready;
++
++  reg        pready;
++  reg [31:0] prdata_q;
++
++  always @(posedge clock, posedge reset) begin
++    if (reset) begin
++      state <= IDLE;
++      counter <= 32'b0;
++    end
++    else begin
++      case (state)
++        IDLE: begin
++        pready <= 1'b0;
++          if (start) begin
++            state   <= WAIT;
++            counter <= base;
++          end
++        end
++
++        WAIT: begin
++          pready <= 1'b0;
++          if (finish) begin
++            state    <= DELAY;
++            prdata_q <= out_prdata;
++            counter  <= counter >> $clog2(s);
++          end else begin
++            counter <= counter + base;
++          end
++        end
++
++        DELAY: begin
++        pready <= 1'b0;
++          if (counter == 1) begin
++            pready <= 1'b1;
++            state  <= IDLE;
++          end
++          else counter <= counter - 1;
++        end
++        default: state <= IDLE;
++      endcase
++    end
++  end
++
++  assign in_prdata = pready ? prdata_q : 32'b0;
++  assign in_pready = pready;
++
++`endif
+ endmodule
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803b..70ae1d0d 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -1,3 +1,4 @@
++`define UNDELAY
+ module axi4_delayer(
+   input         clock,
+   input         reset,
+@@ -63,34 +64,187 @@ module axi4_delayer(
+   input  [1:0]  out_bresp
+ );
+ 
+-  assign in_arready = out_arready;
++  // ----- AR / AW / W 直通 -----
+   assign out_arvalid = in_arvalid;
+-  assign out_arid = in_arid;
+-  assign out_araddr = in_araddr;
+-  assign out_arlen = in_arlen;
+-  assign out_arsize = in_arsize;
++  assign out_arid    = in_arid;
++  assign out_araddr  = in_araddr;
++  assign out_arlen   = in_arlen;
++  assign out_arsize  = in_arsize;
+   assign out_arburst = in_arburst;
+-  assign out_rready = in_rready;
+-  assign in_rvalid = out_rvalid;
+-  assign in_rid = out_rid;
+-  assign in_rdata = out_rdata;
+-  assign in_rresp = out_rresp;
+-  assign in_rlast = out_rlast;
+-  assign in_awready = out_awready;
++  assign in_arready  = out_arready;
+   assign out_awvalid = in_awvalid;
+-  assign out_awid = in_awid;
+-  assign out_awaddr = in_awaddr;
+-  assign out_awlen = in_awlen;
+-  assign out_awsize = in_awsize;
++  assign out_awid    = in_awid;
++  assign out_awaddr  = in_awaddr;
++  assign out_awlen   = in_awlen;
++  assign out_awsize  = in_awsize;
+   assign out_awburst = in_awburst;
+-  assign in_wready = out_wready;
+-  assign out_wvalid = in_wvalid;
+-  assign out_wdata = in_wdata;
+-  assign out_wstrb = in_wstrb;
+-  assign out_wlast = in_wlast;
+-  assign out_bready = in_bready;
++  assign in_awready  = out_awready;
++
++  assign out_wvalid  = in_wvalid;
++  assign out_wdata   = in_wdata;
++  assign out_wstrb   = in_wstrb;
++  assign out_wlast   = in_wlast;
++  assign in_wready   = out_wready;
++
++  assign out_rready  = in_rready;
++  assign out_bready  = in_bready;
++  // ----------------------------
++
++`ifdef UNDELAY
++  assign in_rvalid = out_rvalid;
++  assign in_rid    = out_rid;
++  assign in_rdata  = out_rdata;
++  assign in_rresp  = out_rresp;
++  assign in_rlast  = out_rlast;
+   assign in_bvalid = out_bvalid;
+-  assign in_bid = out_bid;
+-  assign in_bresp = out_bresp;
++  assign in_bid    = out_bid;
++  assign in_bresp  = out_bresp;
++`else
++  localparam RBUF_DEPTH = 4;  // burst 拍数 ≤ 8 (icache 当前 4 拍)
++
++  parameter integer r    = 100 / 100;   // 处理器频率 / 设备频率
++  parameter integer s    = 1;     // r 为整数时 s=1
++  parameter integer base = r * s;
++
++  // 全局周期计数器
++  reg [31:0] cycle_cnt;
++  always @(posedge clock, posedge reset) begin
++    if (reset) cycle_cnt <= 32'b0;
++    else       cycle_cnt <= cycle_cnt + 1;
++  end
++
++  // ----- R channel 延迟处理 -----
++
++  reg [31:0] rd_start;
++  reg        rd_active;
++
++  wire handshake_ar = in_arvalid && in_arready;
++  wire handshake_r  = in_rvalid && in_rready;
++
++  always @(posedge clock, posedge reset) begin
++    if (reset) begin
++      rd_start  <= 32'b0;
++      rd_active <= 1'b0;
++    end else begin
++      if (handshake_ar) begin
++        rd_start  <= cycle_cnt;
++        rd_active <= 1'b1;
++      end else if (rd_active && in_rlast && handshake_r) begin
++        rd_active <= 1'b0;
++        rbuf_wptr <= 2'b0;
++        rbuf_rptr <= 2'b0;
++        cnt_in    <= 3'b0;
++        cnt_out   <= 3'b0;
++      end
++    end
++  end
++
++  // ----- R beat buffer -----
++  reg [31:0] rbuf_data  [RBUF_DEPTH-1:0];
++  reg [ 3:0] rbuf_id    [RBUF_DEPTH-1:0];
++  reg [ 1:0] rbuf_resp  [RBUF_DEPTH-1:0];
++  reg        rbuf_last  [RBUF_DEPTH-1:0];
++  reg [31:0] rbuf_delay [RBUF_DEPTH-1:0]; // extra_delay 倒计时
++
++  reg [ 1:0] rbuf_wptr, rbuf_rptr; // buf 读/写指针
++  reg [ 2:0] rbuf_cnt, cnt_in, cnt_out; // buf 计数器 (防止 push 和 pop 同时有效造成的奇妙 bug)
++
++  wire rd_push = out_rvalid && out_rready && (rbuf_cnt < RBUF_DEPTH); // 下游握手 push
++  wire rd_pop  = (rbuf_cnt > 0) && (rbuf_delay[rbuf_rptr] == 0) && in_rready; // 校准完成 pop
++
++  integer i;
++  always @(posedge clock, posedge reset) begin
++    if (reset) begin
++      rbuf_wptr <= 2'b0;
++      rbuf_rptr <= 2'b0;
++      cnt_in    <= 3'b0;
++      cnt_out   <= 3'b0;
++      for (i = 0; i < RBUF_DEPTH; i = i + 1) begin
++        rbuf_data [i] <= 32'b0;
++        rbuf_id   [i] <= 4'b0;
++        rbuf_resp [i] <= 2'b0;
++        rbuf_last [i] <= 1'b0;
++        rbuf_delay[i] <= 32'b0;
++      end
++    end else begin
++      for (i = 0; i < RBUF_DEPTH; i = i + 1)
++        if (rbuf_delay[i] > 0) rbuf_delay[i] <= rbuf_delay[i] - 1;
++
++      // push
++      if (rd_push) begin
++        rbuf_data [rbuf_wptr] <= out_rdata;
++        rbuf_id   [rbuf_wptr] <= out_rid;
++        rbuf_resp [rbuf_wptr] <= out_rresp;
++        rbuf_last [rbuf_wptr] <= out_rlast;
++        rbuf_delay[rbuf_wptr] <= (cycle_cnt - rd_start) * (r - 1); // 整数
++        rbuf_wptr <= rbuf_wptr + 1;
++        cnt_in <= cnt_in + 1;
++      end
++
++      // pop
++      if (rd_pop) begin
++        rbuf_rptr <= rbuf_rptr + 1;
++        cnt_out   <= cnt_out + 1;
++      end
++    end
++  end
++
++  // 向上游输出
++  assign rbuf_cnt  = cnt_in - cnt_out;
++  assign in_rvalid = (rbuf_cnt > 0) && (rbuf_delay[rbuf_rptr] == 0);
++  assign in_rdata  = rbuf_data [rbuf_rptr];
++  assign in_rid    = rbuf_id   [rbuf_rptr];
++  assign in_rresp  = rbuf_resp [rbuf_rptr];
++  assign in_rlast  = rbuf_last [rbuf_rptr];
++
++
++
++  // ----- B channel 延迟处理 (no burst) -----
++
++  reg [31:0] wr_start;
++  reg        wr_active;
++  reg [31:0] b_delay;        // B 响应剩余延迟
++  reg        b_buf;     // 是否已缓冲 B 响应
++  reg [ 3:0] b_id;
++  reg [ 1:0] b_resp;
++
++  wire handshake_aw = in_awvalid && in_awready;
++  wire handshake_b  = out_bvalid && out_bready && !b_buf;
++
++  always @(posedge clock, posedge reset) begin
++    if (reset) begin
++      wr_start  <= 32'b0;
++      wr_active <= 1'b0;
++      b_delay   <= 32'b0;
++      b_buf     <= 1'b0;
++      b_id      <= 4'b0;
++      b_resp    <= 2'b0;
++    end else begin
++      if (handshake_aw) begin
++        wr_start  <= cycle_cnt;
++        wr_active <= 1'b1;
++      end
++
++      if (handshake_b) begin
++        b_id    <= out_bid;
++        b_resp  <= out_bresp;
++        b_delay <= (cycle_cnt - wr_start) * (r - 1);
++        b_buf   <= 1'b1;
++      end
++
++      if (b_delay > 0) b_delay <= b_delay - 1;
++
++      if (b_buf && b_delay == 0 && in_bready) begin
++        b_buf <= 1'b0;
++        wr_active <= 1'b0;
++      end
++    end
++  end
++
++  // 向上游输出 B
++  assign in_bvalid = b_buf && (b_delay == 0);
++  assign in_bid    = b_id;
++  assign in_bresp  = b_resp;
+ 
++`endif
+ endmodule
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+index f1c3b363..5d28ad4f 100644
+--- a/perip/bitrev/bitrev.v
++++ b/perip/bitrev/bitrev.v
+@@ -2,7 +2,28 @@ module bitrev (
+   input  sck,
+   input  ss,
+   input  mosi,
+-  output miso
++  output reg miso
+ );
+-  assign miso = 1'b1;
++
++  reg [7:0] data;
++  reg [3:0] cnt0, cnt1;
++
++  always @(posedge sck or posedge ss) begin
++    if (ss) begin
++      miso <= 1'b1;
++      data <= 8'd0;
++      cnt0 <= 4'd0;
++      cnt1 <= 4'd0;
++    end else begin
++      if (cnt0 == 4'd8) begin
++        miso <= data[3'd7 - cnt1[2:0]];
++        cnt1 <= cnt1 + 4'd1;
++      end
++      else begin
++        data[cnt0[2:0]] <= mosi;
++        cnt0       <= cnt0 + 4'd1;
++      end
++    end
++  end
++
+ endmodule
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index ec51ffe5..6a93ae37 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -24,4 +24,73 @@ module gpio_top_apb(
+   output [7:0]  gpio_seg_7
+ );
+ 
++  reg [15:0] led_data;
++  reg [15:0] switch_data;
++  reg [31:0] seg_data;
++
++	wire [7:0] segs [15:0];
++	assign segs[0]  = 8'b11111101;
++	assign segs[1]  = 8'b01100000;
++	assign segs[2]  = 8'b11011010;
++	assign segs[3]  = 8'b11110010;
++	assign segs[4]  = 8'b01100110;
++	assign segs[5]  = 8'b10110110;
++	assign segs[6]  = 8'b10111110;
++	assign segs[7]  = 8'b11100000;
++	assign segs[8]  = 8'b11111110;
++	assign segs[9]  = 8'b11110110;
++  assign segs[10] = 8'b11101110;
++  assign segs[11] = 8'b00111110;
++  assign segs[12] = 8'b10011100;
++  assign segs[13] = 8'b01111010;
++  assign segs[14] = 8'b10011110;
++  assign segs[15] = 8'b10001110;
++
++  assign gpio_seg_0 = ~segs[seg_data[3:0]];
++  assign gpio_seg_1 = ~segs[seg_data[7:4]];
++  assign gpio_seg_2 = ~segs[seg_data[11:8]];
++  assign gpio_seg_3 = ~segs[seg_data[15:12]];
++  assign gpio_seg_4 = ~segs[seg_data[19:16]];
++  assign gpio_seg_5 = ~segs[seg_data[23:20]];
++  assign gpio_seg_6 = ~segs[seg_data[27:24]];
++  assign gpio_seg_7 = ~segs[seg_data[31:28]];
++
++  assign in_pready = in_psel && in_penable;
++  assign gpio_out  = led_data;
++
++  reg        pslverr_q;
++  reg [31:0] prdata_q;
++
++  assign in_pslverr = pslverr_q;
++  assign in_prdata  = prdata_q;
++
++  always @(posedge clock) begin
++    if (reset) begin
++      led_data    <= 16'b0;
++      seg_data    <= 32'b0;
++      switch_data <= 16'b0;
++      pslverr_q   <= 1'b0;
++      prdata_q    <= 32'b0;
++    end
++    else if (in_psel && in_penable) begin
++      switch_data <= gpio_in;
++      if (in_pwrite) begin
++        case(in_paddr[3:0])
++          4'h0: led_data <= in_pwdata[15:0];
++          4'h8: seg_data <= in_pwdata;
++          4'hc: ;
++          default: pslverr_q <= 1'b1;
++        endcase
++      end
++      else
++        case(in_paddr[3:0])
++          4'h0: prdata_q <= {16'b0, led_data};
++          4'h4: prdata_q <= {16'b0, switch_data};
++          4'h8: prdata_q <= seg_data;
++          4'hc: ;
++          default: pslverr_q <= 1'b1;
++        endcase
++    end
++  end
++
+ endmodule
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 080d38fa..7af6b4d4 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -16,4 +16,42 @@ module ps2_top_apb(
+   input         ps2_data
+ );
+ 
++reg [2:0] ps2_clk_sync;
++reg [9:0] buffer;
++reg [3:0] count;
++
++// 检测下降沿
++always @(posedge clock) begin
++  ps2_clk_sync <= {ps2_clk_sync[1:0], ps2_clk};
++end
++
++wire sampling = ps2_clk_sync[2] & ~ps2_clk_sync[1];
++
++always @(posedge clock) begin
++  if (reset) begin
++    count  <= 4'd0;
++    buffer <= 10'd0;
++    prdata <= 32'd0;
++  end
++  else begin
++    if (sampling) begin
++      if(count == 4'd10) begin
++        if(buffer[0] == 1'b0 && ps2_data == 1'b1 && (^buffer[9:1])) begin
++          prdata <= {24'd0, buffer[8:1]};
++        end
++        count  <= 4'd0;
++      end
++      else begin
++        buffer[count] <= ps2_data;
++        count         <= count + 4'd1;
++      end
++    end
++  end
++end
++
++reg [31:0] prdata;
++assign in_prdata = in_pready ? prdata : 32'd0;
++assign in_pready = in_psel && in_penable;
++assign in_pslverr = 1'b0;
++
+ endmodule
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL.v b/perip/psram/efabless/EF_PSRAM_CTRL.v
+index b6e737e9..6d298097 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL.v
+@@ -60,7 +60,7 @@ module PSRAM_READER (
+     localparam  IDLE = 1'b0,
+                 READ = 1'b1;
+ 
+-    wire [7:0]  FINAL_COUNT = 19 + size*2; // was 27: Always read 1 word
++    wire [7:0]  FINAL_COUNT = 13 + size*2; // was 27: Always read 1 word
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -113,22 +113,23 @@ module PSRAM_READER (
+             saddr <= {addr[23:0]};
+ 
+     // Sample with the negedge of sck
+-    wire[1:0] byte_index = {counter[7:1] - 8'd10}[1:0];
++    wire[1:0] byte_index = {counter[7:1] - 8'd7}[1:0];
+     always @ (posedge clk)
+-        if(counter >= 20 && counter <= FINAL_COUNT)
++        if(counter >= 14 && counter <= FINAL_COUNT)
+             if(sck)
+-                data[byte_index] <= {data[byte_index][3:0], din}; // Optimize!
+-
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_EBH[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
++                data[byte_index] <= {data[byte_index][3:0], din};
++
++    assign dout     =   (counter == 0)  ? CMD_EBH[7:4] :
++                        (counter == 1)  ? CMD_EBH[3:0] :
++                        (counter == 2)  ? saddr[23:20] :
++                        (counter == 3)  ? saddr[19:16] :
++                        (counter == 4)  ? saddr[15:12] :
++                        (counter == 5)  ? saddr[11:8]  :
++                        (counter == 6)  ? saddr[7:4]   :
++                        (counter == 7)  ? saddr[3:0]   :
+                         4'h0;
+ 
+-    assign douten   = (counter < 14);
++    assign douten   = (counter < 8);
+ 
+     assign done     = (counter == FINAL_COUNT+1);
+ 
+@@ -161,7 +162,7 @@ module PSRAM_WRITER (
+     localparam  IDLE = 1'b0,
+                 WRITE = 1'b1;
+ 
+-    wire[7:0]        FINAL_COUNT = 13 + size*2;
++    wire[7:0]   FINAL_COUNT = 7 + size*2;  // QPI: 15 for size=4
+ 
+     reg         state, nstate;
+     reg [7:0]   counter;
+@@ -212,21 +213,23 @@ module PSRAM_WRITER (
+         else if((state == IDLE) && wr)
+             saddr <= addr;
+ 
+-    assign dout     =   (counter < 8)   ?   {3'b0, CMD_38H[7 - counter]}:
+-                        (counter == 8)  ?   saddr[23:20]        :
+-                        (counter == 9)  ?   saddr[19:16]        :
+-                        (counter == 10) ?   saddr[15:12]        :
+-                        (counter == 11) ?   saddr[11:8]         :
+-                        (counter == 12) ?   saddr[7:4]          :
+-                        (counter == 13) ?   saddr[3:0]          :
+-                        (counter == 14) ?   line[7:4]           :
+-                        (counter == 15) ?   line[3:0]           :
+-                        (counter == 16) ?   line[15:12]         :
+-                        (counter == 17) ?   line[11:8]          :
+-                        (counter == 18) ?   line[23:20]         :
+-                        (counter == 19) ?   line[19:16]         :
+-                        (counter == 20) ?   line[31:28]         :
+-                        line[27:24];
++    // QPI: 2-cycle command, 6-cycle address, 8-cycle data
++    assign dout     =   (counter == 0)  ? CMD_38H[7:4] :
++                        (counter == 1)  ? CMD_38H[3:0] :
++                        (counter == 2)  ? saddr[23:20] :
++                        (counter == 3)  ? saddr[19:16] :
++                        (counter == 4)  ? saddr[15:12] :
++                        (counter == 5)  ? saddr[11:8]  :
++                        (counter == 6)  ? saddr[7:4]   :
++                        (counter == 7)  ? saddr[3:0]   :
++                        (counter == 8)  ? line[7:4]    :
++                        (counter == 9)  ? line[3:0]    :
++                        (counter == 10) ? line[15:12]  :
++                        (counter == 11) ? line[11:8]   :
++                        (counter == 12) ? line[23:20]  :
++                        (counter == 13) ? line[19:16]  :
++                        (counter == 14) ? line[31:28]  :
++                        line[27:24];  // counter == 15
+ 
+     assign douten   = (~ce_n);
+ 
+diff --git a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+index 7b5296db..cdfd36cd 100644
+--- a/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
++++ b/perip/psram/efabless/EF_PSRAM_CTRL_wb.v
+@@ -39,8 +39,9 @@ module EF_PSRAM_CTRL_wb (
+     output  wire [3:0]      douten
+ );
+ 
+-    localparam  ST_IDLE = 1'b0,
+-                ST_WAIT = 1'b1;
++    localparam  ST_INIT_QPI = 2'd0,
++                ST_IDLE     = 2'd1,
++                ST_WAIT     = 2'd2;
+ 
+     wire        mr_sck;
+     wire        mr_ce_n;
+@@ -60,35 +61,60 @@ module EF_PSRAM_CTRL_wb (
+     wire        mw_wr;
+     wire        mw_done;
+ 
+-    //wire        doe;
+-
+     // WB Control Signals
+     wire        wb_valid        =   cyc_i & stb_i;
+     wire        wb_we           =   we_i & wb_valid;
+     wire        wb_re           =   ~we_i & wb_valid;
+-    //wire[3:0]   wb_byte_sel     =   sel_i & {4{wb_we}};
++
++    // -------- QPI Initialization --------
++    reg         qpi_mode;
++    reg  [4:0]  init_cnt;
++
++    wire        init_sck  = init_cnt[0];
++    wire        init_ce_n = 1'b0;
++    wire [7:0]  init_shift = (8'h35 >> (3'd7 - init_cnt[4:1]));
++    wire [3:0]  init_dout  = {3'b0, init_shift[0]};
++
++    always @(posedge clk_i or posedge rst_i) begin
++        if (rst_i) begin
++            init_cnt <= 5'd0;
++            qpi_mode <= 1'b0;
++        end else if (!qpi_mode) begin
++            init_cnt <= init_cnt + 5'd1;
++            if (init_cnt == 5'd15)
++                qpi_mode <= 1'b1;
++        end
++    end
+ 
+     // The FSM
+-    reg         state, nstate;
++    reg  [1:0]  state, nstate;
+     always @ (posedge clk_i or posedge rst_i)
+         if(rst_i)
+-            state <= ST_IDLE;
++            state <= ST_INIT_QPI;
+         else
+             state <= nstate;
+ 
+     always @* begin
+         case(state)
+-            ST_IDLE :
++            ST_INIT_QPI:
++                if(qpi_mode)
++                    nstate = ST_IDLE;
++                else
++                    nstate = ST_INIT_QPI;
++
++            ST_IDLE:
+                 if(wb_valid)
+                     nstate = ST_WAIT;
+                 else
+                     nstate = ST_IDLE;
+ 
+-            ST_WAIT :
++            ST_WAIT:
+                 if((mw_done & wb_we) | (mr_done & wb_re))
+                     nstate = ST_IDLE;
+                 else
+                     nstate = ST_WAIT;
++
++            default: nstate = ST_IDLE;
+         endcase
+     end
+ 
+@@ -161,10 +187,10 @@ module EF_PSRAM_CTRL_wb (
+         .douten(mw_doe)
+     );
+ 
+-    assign sck  = wb_we ? mw_sck  : mr_sck;
+-    assign ce_n = wb_we ? mw_ce_n : mr_ce_n;
+-    assign dout = wb_we ? mw_dout : mr_dout;
+-    assign douten  = wb_we ? {4{mw_doe}}  : {4{mr_doe}};
++    assign sck     = (!qpi_mode) ? init_sck  : (wb_we ? mw_sck  : mr_sck);
++    assign ce_n    = (!qpi_mode) ? init_ce_n : (wb_we ? mw_ce_n : mr_ce_n);
++    assign dout    = (!qpi_mode) ? init_dout : (wb_we ? mw_dout : mr_dout);
++    assign douten  = (!qpi_mode) ? 4'b0001   : (wb_we ? {4{mw_doe}} : {4{mr_doe}});
+ 
+     assign mw_din = din;
+     assign mr_din = din;
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index d9bdd882..b45e0bda 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -1,9 +1,137 @@
+ module psram(
+   input sck,
+-  input ce_n,
++  input ce_n,          // SS, active low
+   inout [3:0] dio
+ );
+ 
+-  assign dio = 4'bz;
++  reg [7:0] mem [0:16777215];
++
++  // ----- state -----
++  reg [2:0] state;
++  localparam cmd_t   = 3'd0;
++  localparam addr_t  = 3'd1;
++  localparam dummy_t = 3'd2;
++  localparam rdata_t = 3'd3;
++  localparam wdata_t = 3'd4;
++
++  reg [ 7:0] cmd;
++  reg [23:0] addr;
++  reg [ 7:0] counter;
++  reg [31:0] rdata;
++  reg [31:0] wbuf;
++
++  reg qpi_mode;
++
++  // ----- QPI -----
++  localparam CMD_END      = 8'd1;
++  localparam ADDR_END     = 8'd7;
++  localparam DUMMY_END    = 8'd13;
++  localparam RDATA_END    = 8'd21;
++  localparam WDATA_END    = 8'd15;
++  localparam RDATA_LATCH  = 8'd8;
++  localparam R_BYTE_BASE  = 8'd7;
++  localparam W_BYTE_BASE  = 8'd4;
++
++  // ----- dio -----
++  reg  [3:0] dio_out;
++  wire       dio_oe;
++  assign dio = dio_oe ? dio_out : 4'bz;
++
++  always @(posedge sck or posedge ce_n) begin
++    if (ce_n) begin
++      state   <= cmd_t;
++      counter <= 8'd0;
++    end else begin
++      counter <= counter + 8'd1;
++
++      case (state)
++        cmd_t: begin
++          if (qpi_mode) begin
++            cmd <= {cmd[3:0], dio};
++            if (counter == CMD_END)
++              state <= addr_t;
++          end else begin
++            cmd <= {cmd[6:0], dio[0]};
++            if (counter == 8'd7) begin
++              if ({cmd[6:0], dio[0]} == 8'h35) begin
++                qpi_mode <= 1'b1;
++                counter  <= 8'd0;
++              end else
++                state <= addr_t;
++            end
++          end
++        end
++
++        addr_t: begin
++          addr <= {addr[19:0], dio};
++          if (counter == ADDR_END) begin
++            case (cmd)
++              8'hEB: state <= dummy_t;
++              8'h38: state <= wdata_t;
++              default: state <= cmd_t;
++            endcase
++          end
++        end
++
++        dummy_t: begin
++          if (counter == RDATA_LATCH) begin
++            rdata[ 7: 0] <= mem[{addr[23:2], 2'b00}];
++            rdata[15: 8] <= mem[{addr[23:2], 2'b01}];
++            rdata[23:16] <= mem[{addr[23:2], 2'b10}];
++            rdata[31:24] <= mem[{addr[23:2], 2'b11}];
++          end
++          if (counter == DUMMY_END)
++            state <= rdata_t;
++        end
++
++        rdata_t: begin
++          if (counter == RDATA_END)
++            state <= cmd_t;
++        end
++
++        wdata_t: begin
++          if (counter == WDATA_END)
++            state <= cmd_t;
++        end
++
++        default: state <= cmd_t;
++      endcase
++    end
++  end
++
++  // ----- Read -----
++  wire [1:0] r_byte_idx = {counter[7:1] - R_BYTE_BASE}[1:0];
++  wire       r_high     = !counter[0];
++
++  always @(posedge sck or posedge ce_n) begin
++    if (ce_n) begin
++      rdata <= 32'd0;
++    end else if (state == rdata_t) begin
++      if (r_high)
++        dio_out <= rdata[r_byte_idx*8 + 4 +: 4];
++      else
++        dio_out <= rdata[r_byte_idx*8 +: 4];
++    end
++  end
++
++  assign dio_oe = (state == rdata_t) || (counter == (RDATA_END + 8'd1));
++
++  // ----- Write -----
++  wire [1:0] w_byte_idx = {counter[7:1] - W_BYTE_BASE}[1:0];
++  wire       w_high     = !counter[0];
++  wire [23:0] waddr     = addr + {22'b0, w_byte_idx};
++
++  always @(posedge sck or posedge ce_n) begin
++    if (ce_n) begin
++      wbuf  <= 32'd0;
++    end else if (state == wdata_t) begin
++      if (w_high)
++        wbuf[w_byte_idx*8 + 4 +: 4] <= dio;
++      else begin
++        wbuf[w_byte_idx*8 +: 4] <= dio;
++        mem[waddr] <= {wbuf[w_byte_idx*8 + 4 +: 4], dio};
++      end
++    end
++  end
+ 
+ endmodule
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f58..e743eb16 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index cedbf77b..fdd70057 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -37,33 +37,37 @@ module sdram_axi_core
+     // Inputs
+      input           clk_i
+     ,input           rst_i
+-    ,input  [  3:0]  inport_wr_i
+-    ,input           inport_rd_i
++    ,input  [  3:0]  inport_wr_i // 写选通
++    ,input           inport_rd_i // 读请求
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i // 读数据 <- sdram
+ 
+     // Outputs
+     ,output          inport_accept_o
+     ,output          inport_ack_o
+     ,output          inport_error_o
+     ,output [ 31:0]  inport_read_data_o
++
++    // to SDRAM
+     ,output          sdram_clk_o
+     ,output          sdram_cke_o
+     ,output          sdram_cs_o
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
+-    ,output          sdram_data_out_en_o
++    ,output [ 31:0]  sdram_data_output_o // 写数据 -> sdram
++    ,output          sdram_data_out_en_o // 写
+ );
+ 
+ 
+ 
++
++
+ //-----------------------------------------------------------------
+ // Key Params
+ //-----------------------------------------------------------------
+@@ -76,7 +80,7 @@ parameter SDRAM_READ_LATENCY     = 2;
+ // Defines / Local params
+ //-----------------------------------------------------------------
+ localparam SDRAM_BANK_W          = 2;
+-localparam SDRAM_DQM_W           = 2;
++localparam SDRAM_DQM_W           = 4;
+ localparam SDRAM_BANKS           = 2 ** SDRAM_BANK_W;
+ localparam SDRAM_ROW_W           = SDRAM_ADDR_W - SDRAM_COL_W - SDRAM_BANK_W;
+ localparam SDRAM_REFRESH_CNT     = 2 ** SDRAM_ROW_W;
+@@ -94,7 +98,7 @@ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+ // Mode: Burst Length = 4 bytes, CAS=2
+-localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -112,7 +116,7 @@ localparam STATE_REFRESH     = 4'd9;
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+ 
+-localparam SDRAM_DATA_W      = 16;
++localparam SDRAM_DATA_W      = 32;
+ 
+ localparam CYCLE_TIME_NS     = 1000 / SDRAM_MHZ;
+ 
+@@ -160,8 +164,8 @@ reg                    cke_q;
+ reg [SDRAM_BANK_W-1:0] bank_q;
+ 
+ // Buffer half word during read and write commands
+-reg [SDRAM_DATA_W-1:0] data_buffer_q;
+-reg [SDRAM_DQM_W-1:0]  dqm_buffer_q;
++// reg [SDRAM_DATA_W-1:0] data_buffer_q;
++// reg [SDRAM_DQM_W-1:0]  dqm_buffer_q;
+ 
+ wire [SDRAM_DATA_W-1:0] sdram_data_in_w;
+ 
+@@ -177,9 +181,9 @@ reg  [STATE_W-1:0]     target_state_q;
+ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
+-wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W:2], 1'b0};
+-wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+-wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W+1:2]};
++wire [SDRAM_ROW_W-1:0]  addr_row_w  = {1'b0, ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+3+1]};
++wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+3:SDRAM_COL_W+2];
+ 
+ //-----------------------------------------------------------------
+ // SDRAM State Machine
+@@ -460,19 +464,20 @@ else if (state_q == STATE_REFRESH)
+ // Input sampling
+ //-----------------------------------------------------------------
+ 
+-reg [SDRAM_DATA_W-1:0] sample_data0_q;
+-always @ (posedge clk_i or posedge rst_i)
+-if (rst_i)
+-    sample_data0_q <= {SDRAM_DATA_W{1'b0}};
+-else
+-    sample_data0_q <= sdram_data_in_w;
++// reg [SDRAM_DATA_W-1:0] sample_data0_q;
++// always @ (posedge clk_i or posedge rst_i)
++// if (rst_i)
++//     sample_data0_q <= {SDRAM_DATA_W{1'b0}};
++// else
++//     sample_data0_q <= sdram_data_in_w;
+ 
+ reg [SDRAM_DATA_W-1:0] sample_data_q;
+ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+     sample_data_q <= {SDRAM_DATA_W{1'b0}};
+ else
+-    sample_data_q <= sample_data0_q;
++    // sample_data_q <= sample_data0_q;
++    sample_data_q <= rd_q[SDRAM_READ_LATENCY-1] ? sdram_data_in_w : sample_data_q; // 及时锁存
+ 
+ //-----------------------------------------------------------------
+ // Command Output
+@@ -483,13 +488,13 @@ always @ (posedge clk_i or posedge rst_i)
+ if (rst_i)
+ begin
+     command_q       <= CMD_NOP;
+-    data_q          <= 16'b0;
++    data_q          <= 32'b0;
+     addr_q          <= {SDRAM_ROW_W{1'b0}};
+     bank_q          <= {SDRAM_BANK_W{1'b0}};
+     cke_q           <= 1'b0;
+     dqm_q           <= {SDRAM_DQM_W{1'b0}};
+     data_rd_en_q    <= 1'b1;
+-    dqm_buffer_q    <= {SDRAM_DQM_W{1'b0}};
++    // dqm_buffer_q    <= {SDRAM_DQM_W{1'b0}};
+ 
+     for (idx=0;idx<SDRAM_BANKS;idx=idx+1)
+         active_row_q[idx] <= {SDRAM_ROW_W{1'b0}};
+@@ -616,14 +621,14 @@ begin
+         command_q       <= CMD_WRITE;
+         addr_q          <= addr_col_w;
+         bank_q          <= addr_bank_w;
+-        data_q          <= ram_write_data_w[15:0];
++        data_q          <= ram_write_data_w;
+ 
+         // Disable auto precharge (auto close of row)
+         addr_q[AUTO_PRECHARGE]  <= 1'b0;
+ 
+         // Write mask
+-        dqm_q           <= ~ram_wr_w[1:0];
+-        dqm_buffer_q    <= ~ram_wr_w[3:2];
++        dqm_q           <= ~ram_wr_w;
++        // dqm_buffer_q    <= ~ram_wr_w[3:2];
+ 
+         data_rd_en_q    <= 1'b0;
+     end
+@@ -632,16 +637,7 @@ begin
+     //-----------------------------------------
+     STATE_WRITE1 :
+     begin
+-        // Burst continuation
+         command_q   <= CMD_NOP;
+-
+-        data_q      <= data_buffer_q;
+-
+-        // Disable auto precharge (auto close of row)
+-        addr_q[AUTO_PRECHARGE]  <= 1'b0;
+-
+-        // Write mask
+-        dqm_q       <= dqm_buffer_q;
+     end
+     endcase
+ end
+@@ -663,16 +659,17 @@ else
+ 
+ // Buffer upper 16-bits of write data so write command can be accepted
+ // in WRITE0. Also buffer lower 16-bits of read data.
+-always @ (posedge clk_i or posedge rst_i)
+-if (rst_i)
+-    data_buffer_q <= 16'b0;
+-else if (state_q == STATE_WRITE0)
+-    data_buffer_q <= ram_write_data_w[31:16];
+-else if (rd_q[SDRAM_READ_LATENCY+1])
+-    data_buffer_q <= sample_data_q;
++// always @ (posedge clk_i or posedge rst_i)
++// if (rst_i)
++//     data_buffer_q <= 16'b0;
++// else if (state_q == STATE_WRITE0)
++//     data_buffer_q <= ram_write_data_w[31:16];
++// else if (rd_q[SDRAM_READ_LATENCY+1])
++//     data_buffer_q <= sample_data_q;
+ 
+ // Read data output
+-assign ram_read_data_w = {sample_data_q, data_buffer_q};
++// assign ram_read_data_w = {sample_data_q, data_buffer_q};
++  assign ram_read_data_w = sample_data_q;
+ 
+ //-----------------------------------------------------------------
+ // ACK
+@@ -686,7 +683,7 @@ else
+ begin
+     if (state_q == STATE_WRITE1)
+         ack_q <= 1'b1;
+-    else if (rd_q[SDRAM_READ_LATENCY+1])
++    else if (rd_q[SDRAM_READ_LATENCY]) //
+         ack_q <= 1'b1;
+     else
+         ack_q <= 1'b0;
+@@ -730,7 +727,7 @@ begin
+     STATE_READ        : dbg_state = "READ";
+     STATE_READ_WAIT   : dbg_state = "READ_WAIT";
+     STATE_WRITE0      : dbg_state = "WRITE0";
+-    STATE_WRITE1      : dbg_state = "WRITE1";
++    // STATE_WRITE1      : dbg_state = "WRITE1";
+     STATE_PRECHARGE   : dbg_state = "PRECHARGE";
+     STATE_REFRESH     : dbg_state = "REFRESH";
+     default           : dbg_state = "UNKNOWN";
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 3613b231..c1fddc01 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -1,16 +1,216 @@
++import "DPI-C" function void sdram_trace(input int addr, input int data, input int is_write);
++/* verilator lint_off WIDTHEXPAND */
++
+ module sdram(
+   input        clk,
+   input        cke,
+-  input        cs,
+-  input        ras,
+-  input        cas,
+-  input        we,
+-  input [12:0] a,
+-  input [ 1:0] ba,
+-  input [ 1:0] dqm,
+-  inout [15:0] dq
++  input        cs,   // 片选, 低有效
++  input        ras,  // 行地址选通
++  input        cas,  // 列地址选通
++  input        we,   // 写使能
++  input [12:0] a,    // 地址总线 (行/列/模式复用)
++  input [ 1:0] ba,   // bank 地址
++  input [ 1:0] dqm,  // 字节掩码 (高=屏蔽对应字节)
++  inout [15:0] dq    // 数据总线
+ );
+ 
+-  assign dq = 16'bz;
++  reg [15:0] mem [0:16777215]; // 16MB
++
++  // ----- dp -----
++  wire       dq_oe;
++  reg [15:0] dq_out;
++  assign dq = dq_oe ? dq_out : 16'bz;
++
++  // ----- cmd -----
++  wire [3:0] cmd = {cs, ras, cas, we};
++  localparam CMD_NOP       = 4'b0111;
++  localparam CMD_ACTIVE    = 4'b0011;
++  localparam CMD_READ      = 4'b0101;
++  localparam CMD_WRITE     = 4'b0100;
++  localparam CMD_PRECHARGE = 4'b0010;
++  localparam CMD_REFRESH   = 4'b0001;
++  localparam CMD_LOAD_MODE = 4'b0000;
++
++  // ----- bank 行缓冲 -----
++  reg [12:0] active_row [0:3];
++  reg [ 3:0] row_open;
++
++  // ----- mode 寄存器 -----
++  reg [12:0] mode_reg;
++
++  // ----- STATE -----
++  reg [3:0] state;
++  localparam STATE_IDLE      = 4'd0;
++  localparam STATE_ACTIVATE  = 4'd1;
++  localparam STATE_READ      = 4'd2;
++  localparam STATE_WRITE     = 4'd3;
++  localparam STATE_PRECHARGE = 4'd5;
++  localparam STATE_REFRESH   = 4'd6;
++  localparam STATE_INIT      = 4'd7;
++  localparam STATE_LOAD_MODE = 4'd8;
++
++  // ----- read -----
++  reg [23:0] read_addr;      // {row, bank, col}
++  reg [15:0] read_buf; // Beat0, Beat1
++  reg [ 2:0] read_cnt;       // 0=CL wait, 1=mem latch, 2=drv Beat0, 3=drv Beat1, 4=done
++
++  // ----- write -----
++  reg [23:0] write_addr;
++  reg [15:0] l_wdata;     // Beat0, 在 WRITE 命令当拍锁存
++  reg [ 1:0] l_dqm;           // Beat0 的 DQM, 同样在 WRITE 当拍锁存
++
++  // ----- 刷新 -----
++  reg [2:0] refresh_cnt; // tRFC
++
++  wire [23:0] word_addr = {active_row[ba], ba, a[8:0]};
++
++  // -----  FSM -----
++  always @(posedge clk) begin
++
++    if (!cke) begin
++      ;
++    end
++
++    // INIT
++    else if (state == STATE_INIT) begin
++      case (cmd)
++        CMD_PRECHARGE: begin
++          row_open <= 4'b0; // 预充电 bank
++        end
++        CMD_REFRESH: begin
++          ; // NOP
++        end
++        CMD_LOAD_MODE: begin
++          mode_reg <= a;  // MODE_REG = 0x0021
++          state    <= STATE_IDLE;
++        end
++        default: ;
++      endcase
++    end
++
++    // IDLE
++    else if (state == STATE_IDLE) begin
++      case (cmd)
++        CMD_ACTIVE: begin
++          // 打开对应 bank 的行
++          active_row[ba] <= a;
++          row_open[ba]   <= 1'b1;
++          state          <= STATE_ACTIVATE;
++        end
++
++        CMD_READ: begin
++          // Row hit
++          read_addr <= word_addr;
++          read_cnt  <= 3'd0;
++          state     <= STATE_READ;
++        end
++
++        CMD_WRITE: begin
++          // 控制器同时发 WRITE 命令 + Beat0, 当拍锁存
++          write_addr <= word_addr;
++          l_wdata    <= dq;
++          l_dqm      <= dqm;
++          state      <= STATE_WRITE;
++        end
++
++        CMD_PRECHARGE: begin
++          if (a[10]) row_open <= 4'b0; // all banks
++          else row_open[ba]   <= 1'b0; // specific bank
++          state <= STATE_PRECHARGE;
++        end
++
++        CMD_REFRESH: begin
++          refresh_cnt <= 3'd0;
++          state       <= STATE_REFRESH;
++        end
++
++        CMD_LOAD_MODE: begin
++          mode_reg <= a;
++          state    <= STATE_LOAD_MODE;
++        end
++
++        default: ;
++      endcase
++    end
++
++    // ACTIVATE
++    else if (state == STATE_ACTIVATE) begin
++      case (cmd)
++        CMD_READ: begin
++          read_addr <= word_addr;
++          read_cnt  <= 3'd0;
++          state     <= STATE_READ;
++        end
++        CMD_WRITE: begin
++          // 控制器同时发 WRITE 命令 + Beat0, 当拍锁存
++          write_addr <= word_addr;
++          l_wdata    <= dq;
++          l_dqm      <= dqm;
++          state      <= STATE_WRITE;
++        end
++        CMD_PRECHARGE: begin
++          if (a[10]) row_open <= 4'b0;
++          else       row_open[ba] <= 1'b0;
++          state <= STATE_PRECHARGE;
++        end
++        CMD_NOP: ; // 等待 tRCD
++        default: ;
++      endcase
++    end
++
++    // READ
++    else if (state == STATE_READ) begin
++      read_cnt <= read_cnt + 3'd1;
++      case (read_cnt)
++        3'd0: begin
++          read_buf <= mem[read_addr];
++          // sdram_trace(read_addr, mem[read_addr], 1'b0);
++        end
++        3'd1: begin
++          if (cmd == CMD_READ) begin
++            read_addr <= word_addr;
++            read_cnt  <= 3'd0;
++          end else begin
++            state <= STATE_IDLE;
++          end
++        end
++        default: state <= STATE_IDLE;
++      endcase
++    end
++
++    // WRITE 位扩展保留一个状态
++    else if (state == STATE_WRITE) begin
++      if (!l_dqm[0]) mem[write_addr][7:0]  <= l_wdata[7:0];
++      if (!l_dqm[1]) mem[write_addr][15:8] <= l_wdata[15:8];
++      // sdram_trace(write_addr, l_wdata, 1'b1);
++      state <= STATE_IDLE;
++    end
++
++    // PRECHARGE
++    else if (state == STATE_PRECHARGE) begin
++      state <= STATE_IDLE;
++    end
++
++    // REFRESH
++    else if (state == STATE_REFRESH) begin
++      refresh_cnt <= refresh_cnt + 3'd1;
++      if (refresh_cnt == 3'd5) // 6 cycles (tRFC)
++        state <= STATE_IDLE;
++    end
++
++    // LOAD_MODE
++    else if (state == STATE_LOAD_MODE) begin
++      state <= STATE_IDLE;
++    end
++  end
++
++
++  always @(*) begin
++    dq_out = 16'b0;
++    if (state == STATE_READ)
++      if (read_cnt == 3'd1) dq_out = read_buf;
++  end
++
++  assign dq_oe = (state == STATE_READ) && (read_cnt == 3'd1);
+ 
+ endmodule
+diff --git a/perip/sdram/sdram_bit32.v b/perip/sdram/sdram_bit32.v
+new file mode 100644
+index 00000000..a076c2ef
+--- /dev/null
++++ b/perip/sdram/sdram_bit32.v
+@@ -0,0 +1,40 @@
++module sdram_bit32(
++  input        clk,
++  input        cke,
++  input        cs,   // 片选, 低有效
++  input        ras,  // 行地址选通
++  input        cas,  // 列地址选通
++  input        we,   // 写使能
++  input [12:0] a,    // 地址总线 (行/列/模式复用)
++  input [ 1:0] ba,   // bank 地址
++  input [ 3:0] dqm,  // 字节掩码 (高=屏蔽对应字节)
++  inout [31:0] dq    // 数据总线
++);
++
++  sdram u0(
++    .clk(clk),
++    .cke(cke),
++    .cs(cs),
++    .ras(ras),
++    .cas(cas),
++    .we(we),
++    .a(a),
++    .ba(ba),
++    .dqm(dqm[1:0]),
++    .dq(dq[15:0])
++  );
++  
++  sdram u1(
++    .clk(clk),
++    .cke(cke),
++    .cs(cs),
++    .ras(ras),
++    .cas(cas),
++    .we(we),
++    .a(a),
++    .ba(ba),
++    .dqm(dqm[3:2]),
++    .dq(dq[31:16])
++  );
++
++endmodule
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 3bc5b93b..9d4187d8 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -20,14 +20,19 @@ module sdram_top_apb (
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+-  wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  // ----- 控制器接口 -----
++  wire        ctrl_cs, ctrl_ras, ctrl_cas, ctrl_we;
++  wire        ctrl_dout_en;
++  wire [12:0] ctrl_a;
++  wire [ 1:0] ctrl_ba;
++  wire [ 3:0] ctrl_dqm;
++  wire [31:0] ctrl_dout;
+ 
++  // ----- APB 握手状态机 -----
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+   wire req_accept;
+@@ -36,15 +41,17 @@ module sdram_top_apb (
+     if (reset) state <= ST_IDLE;
+     else
+       case (state)
+-        ST_IDLE: state <= (is_read || is_write ? (req_accept ? ST_WAIT_ACK : ST_WAIT_ACCEPT) : ST_IDLE);
++        ST_IDLE:       state <= (is_read || is_write ? (req_accept ? ST_WAIT_ACK : ST_WAIT_ACCEPT) : ST_IDLE);
+         ST_WAIT_ACCEPT: state <= req_accept ? ST_WAIT_ACK : ST_WAIT_ACCEPT;
+-        ST_WAIT_ACK: if (in_pready) state <= ST_IDLE;
+-        default: state <= state;
++        ST_WAIT_ACK:    if (in_pready) state <= ST_IDLE;
++        default:        state <= state;
+       endcase
+   end
+ 
+   wire is_read  = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) && !in_pwrite;
+   wire is_write = ((in_psel && !in_penable) || (state == ST_WAIT_ACCEPT)) &&  in_pwrite;
++
++  // ----- SDRAM 控制器 -----
+   sdram_axi_core #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+@@ -65,16 +72,66 @@ module sdram_top_apb (
+ 
+     .sdram_clk_o(sdram_clk),
+     .sdram_cke_o(sdram_cke),
+-    .sdram_cs_o(sdram_cs),
+-    .sdram_ras_o(sdram_ras),
+-    .sdram_cas_o(sdram_cas),
+-    .sdram_we_o(sdram_we),
+-    .sdram_dqm_o(sdram_dqm),
+-    .sdram_addr_o(sdram_a),
+-    .sdram_ba_o(sdram_ba),
++    .sdram_cs_o(ctrl_cs),
++    .sdram_ras_o(ctrl_ras),
++    .sdram_cas_o(ctrl_cas),
++    .sdram_we_o(ctrl_we),
++    .sdram_dqm_o(ctrl_dqm),
++    .sdram_addr_o(ctrl_a),
++    .sdram_ba_o(ctrl_ba),
+     .sdram_data_input_i(sdram_dq),
+-    .sdram_data_output_o(sdram_dout),
+-    .sdram_data_out_en_o(sdram_dout_en)
++    .sdram_data_output_o(ctrl_dout),
++    .sdram_data_out_en_o(ctrl_dout_en)
++  );
++
++  assign sdram_cs   = ctrl_cs;
++  assign sdram_ras  = ctrl_ras;
++  assign sdram_cas  = ctrl_cas;
++  assign sdram_we   = ctrl_we;
++  assign sdram_a    = ctrl_a;
++  assign sdram_ba   = ctrl_ba;
++  assign sdram_dqm  = ctrl_dqm;
++
++  assign sdram_dq = ctrl_dout_en ? ctrl_dout : 32'bz;
++
++  // 锁存请求地址用于 CS 选择
++  reg [31:0] req_addr;
++  always @(posedge clock) begin
++    if (reset)
++      req_addr <= 32'b0;
++    else if (in_psel && !in_penable)
++      req_addr <= in_paddr;
++  end
++
++  wire cs0 = ctrl_cs && !req_addr[25];
++  wire cs1 = ctrl_cs &&  req_addr[25];
++
++  // rank0: 颗粒 A + B (位扩展)
++  sdram_bit32 u_rank0 (
++    .clk (sdram_clk),
++    .cke (sdram_cke),
++    .cs  (cs0),
++    .ras (sdram_ras),
++    .cas (sdram_cas),
++    .we  (sdram_we),
++    .a   (sdram_a),
++    .ba  (sdram_ba),
++    .dqm (sdram_dqm),
++    .dq  (sdram_dq)
++  );
++
++  // rank1: 颗粒 C + D (位扩展)
++  sdram_bit32 u_rank1 (
++    .clk (sdram_clk),
++    .cke (sdram_cke),
++    .cs  (cs1),
++    .ras (sdram_ras),
++    .cas (sdram_cas),
++    .we  (sdram_we),
++    .a   (sdram_a),
++    .ba  (sdram_ba),
++    .dqm (sdram_dqm),
++    .dq  (sdram_dq)
+   );
+ 
+ endmodule
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fdb..2dee04f9 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -39,13 +39,19 @@ module sdram_top_axi(
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+-  wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  // ----- 控制器接口 -----
++  wire        ctrl_cs, ctrl_ras, ctrl_cas, ctrl_we;
++  wire [12:0] ctrl_a;
++  wire [ 1:0] ctrl_ba;
++  wire [ 3:0] ctrl_dqm;
++  wire        sdram_dout_en;
++  wire [31:0] sdram_dout;
++
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+@@ -84,16 +90,66 @@ module sdram_top_axi(
+     .inport_rlast_o(in_rlast),
+     .sdram_clk_o(sdram_clk),
+     .sdram_cke_o(sdram_cke),
+-    .sdram_cs_o(sdram_cs),
+-    .sdram_ras_o(sdram_ras),
+-    .sdram_cas_o(sdram_cas),
+-    .sdram_we_o(sdram_we),
+-    .sdram_dqm_o(sdram_dqm),
+-    .sdram_addr_o(sdram_a),
+-    .sdram_ba_o(sdram_ba),
++    .sdram_cs_o(ctrl_cs),
++    .sdram_ras_o(ctrl_ras),
++    .sdram_cas_o(ctrl_cas),
++    .sdram_we_o(ctrl_we),
++    .sdram_dqm_o(ctrl_dqm),
++    .sdram_addr_o(ctrl_a),
++    .sdram_ba_o(ctrl_ba),
+     .sdram_data_input_i(sdram_dq),
+     .sdram_data_output_o(sdram_dout),
+     .sdram_data_out_en_o(sdram_dout_en)
+   );
+ 
++  assign sdram_cs   = ctrl_cs;
++  assign sdram_ras  = ctrl_ras;
++  assign sdram_cas  = ctrl_cas;
++  assign sdram_we   = ctrl_we;
++  assign sdram_a    = ctrl_a;
++  assign sdram_ba   = ctrl_ba;
++  assign sdram_dqm  = ctrl_dqm;
++
++  // 锁存请求地址用于 CS 选择
++  reg [31:0] req_addr;
++  always @(posedge clock) begin
++    if (reset)
++      req_addr <= 32'b0;
++    else if (in_awvalid)
++      req_addr <= in_awaddr;
++    else if (in_arvalid)
++      req_addr <= in_araddr;
++  end
++
++  wire cs0 = ctrl_cs && !req_addr[25];
++  wire cs1 = ctrl_cs &&  req_addr[25];
++
++  // rank0: 颗粒 A + B
++  sdram_bit32 u_rank0 (
++    .clk (sdram_clk),
++    .cke (sdram_cke),
++    .cs  (cs0),
++    .ras (sdram_ras),
++    .cas (sdram_cas),
++    .we  (sdram_we),
++    .a   (sdram_a),
++    .ba  (sdram_ba),
++    .dqm (sdram_dqm),
++    .dq  (sdram_dq)
++  );
++
++  // rank1: 颗粒 C + D
++  sdram_bit32 u_rank1 (
++    .clk (sdram_clk),
++    .cke (sdram_cke),
++    .cs  (cs1),
++    .ras (sdram_ras),
++    .cas (sdram_cas),
++    .we  (sdram_we),
++    .a   (sdram_a),
++    .ba  (sdram_ba),
++    .dqm (sdram_dqm),
++    .dq  (sdram_dq)
++  );
++
+ endmodule
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d37516..11962d92 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -1,6 +1,6 @@
+ // define this macro to enable fast behavior simulation
+ // for flash by skipping SPI transfers
+-//`define FAST_FLASH
++// `define FAST_FLASH
+ 
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+@@ -48,17 +48,20 @@ assign in_prdata  = data[31:0];
+ 
+ `else
+ 
++wire        wb_ack;
++wire [31:0] wb_rdata;
++
+ spi_top u0_spi_top (
+   .wb_clk_i(clock),
+   .wb_rst_i(reset),
+-  .wb_adr_i(in_paddr[4:0]),
+-  .wb_dat_i(in_pwdata),
+-  .wb_dat_o(in_prdata),
+-  .wb_sel_i(in_pstrb),
+-  .wb_we_i (in_pwrite),
+-  .wb_stb_i(in_psel),
+-  .wb_cyc_i(in_penable),
+-  .wb_ack_o(in_pready),
++  .wb_adr_i(wb_adr),
++  .wb_dat_i(wb_dat_i),
++  .wb_dat_o(wb_rdata),
++  .wb_sel_i(wb_sel),
++  .wb_we_i (wb_we),
++  .wb_stb_i(wb_stb),
++  .wb_cyc_i(wb_cyc),
++  .wb_ack_o(wb_ack),
+   .wb_err_o(in_pslverr),
+   .wb_int_o(spi_irq_out),
+ 
+@@ -68,6 +71,134 @@ spi_top u0_spi_top (
+   .miso_pad_i(spi_miso)
+ );
+ 
++// ----- XIP 状态机 -----
++reg [ 3:0] xip_state;
++reg [31:0] xip_rdata;
++
++wire is_xip     = (in_paddr >= flash_addr_start) && (in_paddr <= flash_addr_end);
++wire xip_active = (xip_state != 4'd0);
++wire xip_trig   = is_xip && in_psel && !in_penable && !in_pwrite;
++
++reg [ 4:0] xip_wb_adr;
++reg [31:0] xip_wb_dat;
++reg        xip_wb_we;
++reg        xip_wb_stb;
++reg        xip_wb_cyc;
++
++wire [ 4:0] wb_adr   = xip_active ? xip_wb_adr : in_paddr[4:0];
++wire [31:0] wb_dat_i = xip_active ? xip_wb_dat : in_pwdata;
++wire [ 3:0] wb_sel   = xip_active ? 4'b1111    : in_pstrb;
++wire        wb_we    = xip_active ? xip_wb_we  : in_pwrite;
++wire        wb_stb   = xip_active ? xip_wb_stb : in_psel;
++wire        wb_cyc   = xip_active ? xip_wb_cyc : in_penable;
++
++assign in_pready = xip_active ? (xip_state == 4'd8) : wb_ack;
++assign in_prdata = xip_active ? {wb_rdata[7:0], wb_rdata[15:8], wb_rdata[23:16], wb_rdata[31:24]} : wb_rdata;
++
++// XIP 状态编码
++localparam IDLE    = 4'd0;
++localparam WR_DIV  = 4'd1;
++localparam WR_SS   = 4'd2;
++localparam WR_TX1  = 4'd3;
++localparam WR_TX0  = 4'd4;
++localparam WR_CTRL = 4'd5;
++localparam POLL_GO = 4'd6;
++localparam RD_RX   = 4'd7;
++localparam DONE    = 4'd8;
++
++always @(posedge clock, posedge reset) begin
++  if (reset) begin
++    xip_state   <= IDLE;
++    xip_rdata   <= 32'd0;
++    xip_wb_adr  <= 5'd0;
++    xip_wb_dat  <= 32'd0;
++    xip_wb_we   <= 1'b0;
++    xip_wb_stb  <= 1'b0;
++    xip_wb_cyc  <= 1'b0;
++  end else begin
++    case (xip_state)
++      IDLE: begin
++        xip_wb_stb <= 1'b0;
++        xip_wb_cyc <= 1'b0;
++        if (xip_trig) begin
++          xip_state <= WR_DIV;
++        end
++      end
++
++      WR_DIV: begin
++        xip_wb_adr <= 5'd20;
++        xip_wb_dat <= 32'd0;
++        xip_wb_we  <= 1'b1;
++        xip_wb_stb <= 1'b1;
++        xip_wb_cyc <= 1'b1;
++        if (wb_ack) xip_state <= WR_SS;
++      end
++
++      WR_SS: begin
++        xip_wb_adr <= 5'd24;
++        xip_wb_dat <= 32'd1;
++        xip_wb_we  <= 1'b1;
++        xip_wb_stb <= 1'b1;
++        xip_wb_cyc <= 1'b1;
++        if (wb_ack) xip_state <= WR_TX1;
++      end
++
++      WR_TX1: begin
++        xip_wb_adr <= 5'd4;
++        xip_wb_dat <= {8'h03, in_paddr[23:0]};
++        xip_wb_we  <= 1'b1;
++        xip_wb_stb <= 1'b1;
++        xip_wb_cyc <= 1'b1;
++        if (wb_ack) xip_state <= WR_TX0;
++      end
++
++      WR_TX0: begin
++        xip_wb_adr <= 5'd0;
++        xip_wb_dat <= 32'd0;
++        xip_wb_we  <= 1'b1;
++        xip_wb_stb <= 1'b1;
++        xip_wb_cyc <= 1'b1;
++        if (wb_ack) xip_state <= WR_CTRL;
++      end
++
++      WR_CTRL: begin
++        xip_wb_adr <= 5'd16;
++        xip_wb_dat <= (1 << 13) | (0 << 11) | (1 << 10) | (0 << 9) | (1 << 8) | 64;
++        xip_wb_we  <= 1'b1;
++        xip_wb_stb <= 1'b1;
++        xip_wb_cyc <= 1'b1;
++        if (wb_ack) xip_state <= POLL_GO;
++      end
++
++      POLL_GO: begin
++        xip_wb_adr <= 5'd16;
++        xip_wb_we  <= 1'b0;
++        xip_wb_stb <= 1'b1;
++        xip_wb_cyc <= 1'b1;
++        if (wb_ack && !wb_rdata[8]) xip_state <= RD_RX;
++      end
++
++      RD_RX: begin
++        xip_wb_adr <= 5'd0;
++        xip_wb_we  <= 1'b0;
++        xip_wb_stb <= 1'b1;
++        xip_wb_cyc <= 1'b1;
++        if (wb_ack) begin
++          xip_state <= DONE;
++        end
++      end
++
++      DONE: begin
++        xip_wb_stb <= 1'b0;
++        xip_wb_cyc <= 1'b0;
++        if (!in_psel) xip_state <= IDLE;
++      end
++
++      default: xip_state <= IDLE;
++    endcase
++  end
++end
++
+ `endif // FAST_FLASH
+ 
+ endmodule
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 71329116..57adf1bf 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,7 +211,7 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
+-                $write("%c", data_in);
++                // $write("%c", data_in);
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -221,7 +221,7 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
+-                $write("%c", data_in);
++                // $write("%c", data_in);
+                 end
+         default: ;
+         endcase
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 5c74cfbe..b98c6793 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -19,5 +19,72 @@ module vga_top_apb(
+   output        vga_vsync,
+   output        vga_valid
+ );
++parameter h_frontporch = 96;
++parameter h_active = 144;
++parameter h_backporch = 784;
++parameter h_total = 800;
++
++parameter v_frontporch = 2;
++parameter v_active = 35;
++parameter v_backporch = 515;
++parameter v_total = 525;
++
++reg [23:0] vga_mem[524287:0];
++
++reg [18:0] x_cnt;
++reg [18:0] y_cnt;
++
++wire h_valid;
++wire v_valid;
++
++wire [18:0] h_addr, v_addr;
++
++// APB接口信号
++// 计算偏移地址（去除基地址0x2100000）
++wire [31:0] address_offset = in_paddr;
++// 生成显存索引（每4字节对应一个像素）
++wire [18:0] apb_addr = address_offset[20:2]; 
++
++always @(posedge clock) begin
++	if (reset) begin
++		x_cnt <= 1;
++		y_cnt <= 1;
++	end
++	else begin
++		if (x_cnt == h_total) begin
++			x_cnt <= 1;
++			if (y_cnt == v_total) y_cnt <= 1;
++			else y_cnt <= y_cnt + 1;
++		end
++		else x_cnt <= x_cnt + 1;
++	end
++end
++
++always @(posedge clock) begin
++  if (in_psel && in_penable && in_pwrite) begin
++    // 根据字节选通信号写入数据
++		vga_mem[apb_addr] <= in_pwdata[23:0];
++  end
++end
++
++// APB读数据输出
++assign in_prdata = (in_psel && in_penable && !in_pwrite) ? {8'h0, vga_mem[apb_addr]} : 32'h0;
++
++// APB控制信号
++assign in_pready = 1'b1;   // 立即响应
++assign in_pslverr = 1'b0;  // 无错误响应
++
++assign h_valid = (x_cnt > h_active) & (x_cnt <= h_backporch);
++assign v_valid = (y_cnt > v_active) & (y_cnt <= v_backporch);
++assign vga_valid = h_valid & v_valid;
++
++assign vga_hsync = (x_cnt > h_frontporch);
++assign vga_vsync = (y_cnt > v_frontporch);
++
++assign h_addr = h_valid ? (x_cnt - 19'd145) : 19'd0;
++assign v_addr = v_valid ? (y_cnt - 19'd36) : 19'd0;
++
++wire [18:0] pixel_address = v_addr * 640 + h_addr;
++assign {vga_r, vga_g, vga_b} = vga_mem[pixel_address];
+ 
+ endmodule
+diff --git a/spec/cpu-interface.md b/spec/cpu-interface.md
+index a8d70cc4..28358f28 100644
+--- a/spec/cpu-interface.md
++++ b/spec/cpu-interface.md
+@@ -1,10 +1,11 @@
+ # CPU接口命名规范
+ 
++学号: 26010027
+ | | | | | | |
+ | --- | --- | --- | --- | --- | --- |
+-| CPU文件名 | | `ysyx_8位学号.v`          | 如`ysyx_23060000.v`   |
+-| CPU顶层模块名 | | `ysyx_8位学号`        | 如`ysyx_23060000`     |
+-| CPU内部模块名 | | `ysyx_8位学号_模块名` | 如`ysyx_23060000_ALU` |
++| CPU文件名 | | `ysyx_8位学号.v`
++| CPU顶层模块名 | | `ysyx_8位学号`
++| CPU内部模块名 | | `ysyx_8位学号_模块名`
+ | 时钟 | input | `clock` |
+ | 复位(高电平有效) | input | `reset` |
+ | 外部中断 | input | `io_interrupt` |
+@@ -16,15 +17,18 @@
+ | `output` | `[7:0]`  | `io_master_awlen`   | `input`  | `[7:0]`  | `io_slave_awlen`   |
+ | `output` | `[2:0]`  | `io_master_awsize`  | `input`  | `[2:0]`  | `io_slave_awsize`  |
+ | `output` | `[1:0]`  | `io_master_awburst` | `input`  | `[1:0]`  | `io_slave_awburst` |
++
+ | `input`  |          | `io_master_wready`  | `output` |          | `io_slave_wready`  |
+ | `output` |          | `io_master_wvalid`  | `input`  |          | `io_slave_wvalid`  |
+ | `output` | `[31:0]` | `io_master_wdata`   | `input`  | `[31:0]` | `io_slave_wdata`   |
+ | `output` | `[3:0]`  | `io_master_wstrb`   | `input`  | `[3:0]`  | `io_slave_wstrb`   |
+ | `output` |          | `io_master_wlast`   | `input`  |          | `io_slave_wlast`   |
++
+ | `output` |          | `io_master_bready`  | `input`  |          | `io_slave_bready`  |
+ | `input`  |          | `io_master_bvalid`  | `output` |          | `io_slave_bvalid`  |
+ | `input`  | `[1:0]`  | `io_master_bresp`   | `output` | `[1:0]`  | `io_slave_bresp`   |
+ | `input`  | `[3:0]`  | `io_master_bid`     | `output` | `[3:0]`  | `io_slave_bid`     |
++
+ | `input`  |          | `io_master_arready` | `output` |          | `io_slave_arready` |
+ | `output` |          | `io_master_arvalid` | `input`  |          | `io_slave_arvalid` |
+ | `output` | `[31:0]` | `io_master_araddr`  | `input`  | `[31:0]` | `io_slave_araddr`  |
+@@ -32,6 +36,7 @@
+ | `output` | `[7:0]`  | `io_master_arlen`   | `input`  | `[7:0]`  | `io_slave_arlen`   |
+ | `output` | `[2:0]`  | `io_master_arsize`  | `input`  | `[2:0]`  | `io_slave_arsize`  |
+ | `output` | `[1:0]`  | `io_master_arburst` | `input`  | `[1:0]`  | `io_slave_arburst` |
++
+ | `output` |          | `io_master_rready`  | `input`  |          | `io_slave_rready`  |
+ | `input`  |          | `io_master_rvalid`  | `output` |          | `io_slave_rvalid`  |
+ | `input`  | `[1:0]`  | `io_master_rresp`   | `output` | `[1:0]`  | `io_slave_rresp`   |
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.43.0

@@ -1,0 +1,143 @@
+mainmenu "NPC Configuration Menu"
+
+menu "Tracing Options"
+
+config WAVE_DUMP
+    bool "Enable wave dump"
+    default y
+
+config TRACE
+    bool "Enable Tracer"
+    default y
+    help
+        Enable Trace to help debug
+
+if TRACE
+
+config TRACE_START
+    int "When tracing is enabled (unit: number of instructions)"
+    default 0
+
+config TRACE_END
+    int "When tracing is disabled (unit: number of instructions)"
+    default 10000
+
+config MTRACE
+    bool "Enable memory tracer"
+    default n
+
+config FTRACE
+    bool "Enable function tracer"
+    default n
+
+config ETRACE
+    bool "Enable exception tracer"
+    default n
+
+config ITRACE
+    bool "Enable instruction tracer"
+    default n
+
+endif
+
+config STATISTICS
+    bool "Enable statistics tracer"
+    default n
+
+endmenu
+
+menu "Device Options"
+
+config DEVICE
+    bool "Enable device support"
+    default y
+    help
+        Enable MMIO device support for NPC.
+
+if DEVICE
+
+menuconfig HAS_SERIAL
+    bool "Enable serial port (UART 16550)"
+    default y
+
+if HAS_SERIAL
+config SERIAL_MMIO
+    hex "MMIO base address of serial port"
+    default 0x10000000
+endif # HAS_SERIAL
+
+menuconfig HAS_TIMER
+    bool "Enable RTC timer"
+    default y
+
+if HAS_TIMER
+config RTC_MMIO
+    hex "MMIO base address of RTC timer"
+    default 0x10000048
+endif # HAS_TIMER
+
+endif # DEVICE
+
+endmenu
+
+menu "Memory Configuration"
+
+config PSRAM_BASE
+    hex "PSRAM base address"
+    default 0x80000000
+
+config PSRAM_SIZE
+    hex "PSRAM size"
+    default 0x400000
+
+config MROM_BASE
+    hex "MROM base address"
+    default 0x20000000
+
+config MROM_SIZE
+    hex "MROM size"
+    default 0x1000
+
+config SRAM_BASE
+    hex "SRAM base address"
+    default 0x0f000000
+
+config SRAM_SIZE
+    hex "SRAM size"
+    default 0x2000
+
+config FLASH_BASE
+    hex "Flash base address"
+    default 0x30000000
+
+config FLASH_SIZE
+    hex "Flash size"
+    default 0x1000000
+
+config SDRAM_BASE
+    hex "SDRAM base address"
+    default 0xa0000000
+
+config SDRAM_SIZE
+    hex "SDRAM size"
+    default 0x2000000
+
+endmenu
+
+menu "Testing and Debugging"
+
+config DIFFTEST
+    bool "Enable differential testing"
+    default n
+    help
+        Enable differential testing with NEMU.
+
+config WATCHPOINT
+    bool "Enable watchpoint support"
+    default y
+
+config BATCH_MODE
+    bool "Enable batch mode"
+    default y
+
+endmenu
