@@ -1,0 +1,415 @@
+From e4e5b25e0a982db12091e2214ef12997d635953d Mon Sep 17 00:00:00 2001
+From: 100021301-Huang ZhenLong <13235099106@163.com>
+Date: Mon, 28 Sep 2026 19:20:57 +0800
+Subject: [PATCH 2/3] complete b
+
+---
+ Makefile                                |   7 +-
+ perip/amba/apb_delayer.v                |  83 ++++++++++--
+ perip/amba/axi4_delayer.v               | 161 ++++++++++++++++++++++--
+ perip/sdram/core_sdram_axi4/sdram_axi.v |   8 +-
+ perip/sdram/sdram.v                     |  12 +-
+ perip/sdram/sdram_top_axi.v             |  10 +-
+ src/Top.scala                           |   2 +-
+ 7 files changed, 245 insertions(+), 38 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 0258ebe6..f9a01850 100644
+--- a/Makefile
++++ b/Makefile
+@@ -15,7 +15,10 @@ $(V_FILE_FINAL): $(SCALA_FILES) Makefile
+ 	mv $(V_FILE_GEN) $@
+ 	sed -i -e 's/_\(aw\|ar\|w\|r\|b\)_\(\|bits_\)/_\1/g' $@
+ 	sed -i '/firrtl_black_box_resource_files.f/, $$d' $@
+-sdram32: $(V_FILE_FINAL)
++verilog:$(V_FILE_FINAL)
++	sed -i -E 's/ysyx_00000000/ysyx_26040117/g' $(V_FILE_FINAL)
++	$(MAKE) sdram32 
++sdram32:
+ 	sed -i -E \
+ 		-e 's/^([[:space:]]*)(sdram_bundle_dqm|sdram_dqm)[[:space:]]*,/\1output [3:0] \2,/' \
+ 		-e 's/^([[:space:]]*)inout[[:space:]]*\[15:0\][[:space:]]*(sdram_bundle_dq|sdram_dq)/\1inout [31:0] \2/' \
+@@ -26,8 +29,6 @@ sdram32: $(V_FILE_FINAL)
+ 		$(V_FILE_FINAL)
+ 	@grep -nE 'sdram_bundle_dq|sdram_bundle_dqm|_asic_sdram_dqm|_dq_wire' $(V_FILE_FINAL)
+ 
+-verilog: $(V_FILE_FINAL)
+-
+ clean:
+ 	-rm -rf build/
+ 
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index c0d20764..587a1756 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -23,16 +23,79 @@ module apb_delayer(
+   input  [31:0] out_prdata,
+   input         out_pslverr
+ );
++    localparam S_WIDTH             = 8;
++    localparam [31:0] SCALE        = 32'd1 << S_WIDTH;
++    localparam [31:0] R_SCALED     = 32'd512;//r*s
++    localparam [31:0] EXTRA_SCALED = R_SCALED-SCALE;//(r-1)*s
++    localparam [1:0] IDLE=2'd0,WAIT=2'd1,DELAY=2'd2;
++    assign out_paddr   = in_paddr;
++    assign out_psel    = (state==IDLE||state==WAIT)?in_psel:1'b0;
++    assign out_penable = (state==IDLE||state==WAIT)?in_penable:1'b0;
++    assign out_pprot   = in_pprot;
++    assign out_pwrite  = in_pwrite;
++    assign out_pwdata  = in_pwdata;
++    assign out_pstrb   = in_pstrb;
++    assign in_pready   = delay_over;
++    assign in_prdata   = delay_over?(requal1?out_prdata:prdata_reg):32'd0;
++    assign in_pslverr  = delay_over?(requal1?out_pslverr:pslverr_reg):1'b0;
++
++    wire in_start,out_end,delay_over;
++    wire requal1;
++    reg[31:0] counter;
++    assign requal1=EXTRA_SCALED==32'd0;
++    assign in_start=in_psel&&!in_penable;
++    assign out_end=out_psel&&out_penable&&out_pready;
++    assign delay_over=requal1?(state==WAIT&&out_end):(state==DELAY&&(counter==32'd1));
++
++    reg[1:0] state,next_state;
++    always @(posedge clock) begin
++        if(reset)
++            state<=IDLE;
++        else
++            state<=next_state;
++    end
++    always @(*) begin
++        next_state=state;
++        case(state)
++            IDLE: if(in_start)   next_state=WAIT;
++            WAIT: if(out_end)begin
++                    if(requal1)next_state=IDLE;
++                    else next_state=DELAY;
++                  end
++            DELAY:if(delay_over) next_state=IDLE;
++            default:             next_state=IDLE;
++        endcase
++    end
++
++    always @(posedge clock) begin
++        if(reset)begin
++            counter<=32'd0;
++        end else begin
++            case(state)
++                IDLE: if(in_start)counter<=EXTRA_SCALED;
++                WAIT: begin
++                      if(out_end)counter<=counter>>S_WIDTH;
++                      else counter<=counter+EXTRA_SCALED;
++                end
++                DELAY:if(counter!=32'd0)counter<=counter-32'd1;
++                default:counter<=32'd0;
++            endcase
++        end
++    end
++    reg pslverr_reg;
++    reg[31:0] prdata_reg;
++    always @(posedge clock) begin
++        if(reset)begin
++            prdata_reg<=32'd0;
++            pslverr_reg<=1'b0;
++        end else begin
++            if(out_end)begin
++                prdata_reg<=out_prdata;
++                pslverr_reg<=out_pslverr;
++            end
++        end
++    end
++
+ 
+-  assign out_paddr   = in_paddr;
+-  assign out_psel    = in_psel;
+-  assign out_penable = in_penable;
+-  assign out_pprot   = in_pprot;
+-  assign out_pwrite  = in_pwrite;
+-  assign out_pwdata  = in_pwdata;
+-  assign out_pstrb   = in_pstrb;
+-  assign in_pready   = out_pready;
+-  assign in_prdata   = out_prdata;
+-  assign in_pslverr  = out_pslverr;
+ 
+ endmodule
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803b..9481a3ac 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -62,20 +62,26 @@ module axi4_delayer(
+   input  [3:0]  out_bid,
+   input  [1:0]  out_bresp
+ );
+-
+-  assign in_arready = out_arready;
+-  assign out_arvalid = in_arvalid;
++    localparam S_WIDTH             = 8;
++    localparam [31:0] SCALE        = 32'd1 << S_WIDTH;
++    localparam [31:0] R_SCALED     = 32'd512;//2162r*s
++    localparam [31:0] EXTRA_SCALED = R_SCALED-SCALE;//(r-1)*s
++    localparam [1:0] IDLE=2'd0,WAIT=2'd1,DELAY=2'd2,SEND=2'd3;
++  assign in_arready = out_arready&&(rstate==IDLE);
++  assign out_arvalid =in_arvalid&&(rstate==IDLE);
+   assign out_arid = in_arid;
+   assign out_araddr = in_araddr;
+   assign out_arlen = in_arlen;
+   assign out_arsize = in_arsize;
+   assign out_arburst = in_arburst;
+-  assign out_rready = in_rready;
+-  assign in_rvalid = out_rvalid;
+-  assign in_rid = out_rid;
+-  assign in_rdata = out_rdata;
+-  assign in_rresp = out_rresp;
+-  assign in_rlast = out_rlast;
++
++  assign out_rready = rstate==WAIT;
++  assign in_rvalid = (rstate==SEND);
++  assign in_rid   = rid_reg;
++  assign in_rdata = rdata_buf[read_count];
++  assign in_rresp = rresp_buf[read_count];
++  assign in_rlast = (rstate==SEND)&&({1'b0,read_count}==beat_count-1);
++
+   assign in_awready = out_awready;
+   assign out_awvalid = in_awvalid;
+   assign out_awid = in_awid;
+@@ -88,9 +94,138 @@ module axi4_delayer(
+   assign out_wdata = in_wdata;
+   assign out_wstrb = in_wstrb;
+   assign out_wlast = in_wlast;
+-  assign out_bready = in_bready;
+-  assign in_bvalid = out_bvalid;
+-  assign in_bid = out_bid;
+-  assign in_bresp = out_bresp;
+ 
++  assign out_bready = wstate==WAIT;
++  assign in_bvalid = (wstate==DELAY)&&wdelay_over;
++  assign in_bid    = bid_reg;
++  assign in_bresp  = bresp_reg;
++
++    reg [31:0] rdata_buf[0:7];
++    reg [1:0] rresp_buf[0:7];
++    reg [3:0] rid_reg,bid_reg;
++    reg [1:0] bresp_reg;
++    reg [2:0] read_count;
++    reg[3:0] beat_count;
++
++    wire rin_start,rout_end,rdelay_over;
++    reg[31:0] rcounter;
++    assign rin_start=in_arvalid&&in_arready;
++    assign rout_end=(rfire_out&&out_rlast);
++    assign rdelay_over=(rcounter==32'd0);
++
++    //r state
++    reg[1:0] rstate,rnext_state;
++    wire rfire_in,rfire_out;
++    assign rfire_out=out_rvalid&&out_rready;
++    assign rfire_in=in_rready&&in_rvalid;
++    always @(posedge clock) begin
++        if(reset)
++            rstate<=IDLE;
++        else
++            rstate<=rnext_state;
++    end
++    always @(*) begin
++        rnext_state=rstate;
++        case(rstate)
++            IDLE: if(rin_start)   rnext_state=WAIT;
++            WAIT: if(rout_end)    rnext_state=DELAY;
++            DELAY:if(rdelay_over) rnext_state=SEND;
++            SEND: if(in_rlast&&rfire_in)    rnext_state=IDLE;
++            default:             rnext_state=IDLE;
++        endcase
++    end
++    wire [31:0] rdelay_count;
++    assign rdelay_count=((rcounter>>S_WIDTH)>{28'd0,beat_count}+32'd2)?((rcounter>>S_WIDTH)-{28'd0,beat_count}-32'd2):32'd0;
++    always @(posedge clock) begin
++        if(reset)begin
++            rcounter<=32'd0;
++        end else begin
++            case(rstate)
++                IDLE: if(rin_start)rcounter<=EXTRA_SCALED;
++                WAIT: begin
++                      if(rout_end)rcounter<=rdelay_count;
++                      else rcounter<=rcounter+EXTRA_SCALED;
++                end
++                DELAY:if(rcounter!=32'd0)rcounter<=rcounter-32'd1;
++                default:rcounter<=32'd0;
++            endcase
++        end
++    end
++    always @(posedge clock) begin
++        if(reset)
++            read_count<=3'd0;
++        else if(rin_start)
++            read_count<=3'd0;
++        else if(rfire_in)
++            read_count<=read_count+3'd1;
++    end
++    always @(posedge clock) begin
++        if(reset)
++            beat_count<=4'd0;
++        else if(rin_start)
++            beat_count<=4'd0;
++        else if(rfire_out)begin
++            beat_count<=beat_count+3'd1;
++            rdata_buf[beat_count[2:0]]<=out_rdata;
++            rresp_buf[beat_count[2:0]]<=out_rresp;
++        end
++    end
++    //w state
++    wire win_start,wout_end,wdelay_over;
++    reg[1:0] wstate,wnext_state;
++    reg[31:0] wcounter;
++    assign win_start=(in_awvalid&&in_awready)||(in_wvalid&&in_wready);
++    assign wout_end=(wfire_out);
++    assign wdelay_over=(wstate==DELAY)&&(wcounter==32'd1);
++    wire wfire_in,wfire_out;
++    assign wfire_in=in_bready&&in_bvalid;
++    assign wfire_out=out_bready&&out_bvalid;
++    always @(posedge clock) begin
++        if(reset)
++            wstate<=IDLE;
++        else
++            wstate<=wnext_state;
++    end
++    always @(*) begin
++        wnext_state=wstate;
++        case(wstate)
++            IDLE: if(win_start)   wnext_state=WAIT;
++            WAIT: if(wout_end) wnext_state=DELAY;
++            DELAY:if(wdelay_over&&wfire_in) wnext_state=IDLE;
++            default:             wnext_state=IDLE;
++        endcase
++    end
++
++    always @(posedge clock) begin
++        if(reset)begin
++            wcounter<=32'd0;
++        end else begin
++            case(wstate)
++                IDLE: if(win_start)wcounter<=EXTRA_SCALED;
++                WAIT: begin
++                      if(wout_end)wcounter<=wcounter>>S_WIDTH;
++                      else wcounter<=wcounter+EXTRA_SCALED;
++                end
++                DELAY:if(wcounter!=32'd1)wcounter<=wcounter-32'd1;
++                default:wcounter<=32'd0;
++            endcase
++        end
++    end
++
++    //FIFO
++    always @(posedge clock) begin
++        if(reset)begin
++            rid_reg<=0;
++            bid_reg<=0;
++            bresp_reg<=0;
++        end else begin
++            if(rout_end)begin
++                rid_reg<=out_rid;
++            end
++            if(wout_end)begin
++                bid_reg<=out_bid;
++                bresp_reg<=out_bresp;
++            end
++        end
++    end
+ endmodule
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index 64641f58..f6b4695e 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -73,10 +73,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
+-    ,output [ 12:0]  sdram_addr_o
++    ,output [  3:0]  sdram_dqm_o
++    ,output [ 13:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 01572286..39b25971 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -84,7 +84,15 @@ module sdram_chip(
+                             next_state=WRITE;
+             end
+             WAIT:if(latency_end) next_state=READ;
+-            READ:if(burst_end||tend) next_state=IDLE;
++            READ:if(burst_end||tend) begin
++                    next_state=IDLE;
++                    if(cmd==4'b0101)begin
++                        if(cas_latency>3'd1)
++                            next_state=WAIT;
++                        else 
++                            next_state=READ;
++                    end
++            end
+             WRITE:if(burst_end||cmd==4'b0110) next_state=IDLE;
+             default:next_state=IDLE;
+         endcase
+@@ -137,7 +145,7 @@ module sdram_chip(
+                 4'b0011:begin //active
+                     active_row[ba]<=a[12:0];
+                 end
+-                4'b0101:if(state==IDLE) begin //READ
++                4'b0101:if(state==IDLE||((state==READ)&&(burst_end||tend))) begin //READ
+                     addr_reg<={ba,active_row[ba],a[8:0]};
+                 end
+                 4'b0100:if(state==IDLE) begin //WRITE
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index f0fd6fdb..3f0d6be9 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -37,15 +37,15 @@ module sdram_top_axi(
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+-  output [12:0] sdram_a,
++  output [13:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [31:0] sdram_dq
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.43.0
+

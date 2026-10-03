@@ -1,0 +1,24 @@
+From 8af7f5aa095e2bc2d6e3c2f0b4c18e61fb7f5062 Mon Sep 17 00:00:00 2001
+From: 100021301-Huang ZhenLong <13235099106@163.com>
+Date: Tue, 29 Sep 2026 21:29:11 +0800
+Subject: [PATCH 2/2] wnoerr
+
+---
+ bsp/abstract-machine/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index bbe3f33c3..b555ec911 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -17,6 +17,7 @@ endif
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+ 
++CFLAGS += -Wno-error
+ $(RTCONFIG_H):
+ 	touch $@
+ 	scons --useconfig=.config
+-- 
+2.43.0
+

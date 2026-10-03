@@ -1,0 +1,290 @@
+From 57c20b4a3c3b6b5657e1542da268e070989b6fb7 Mon Sep 17 00:00:00 2001
+From: 100021301-Huang ZhenLong <13235099106@163.com>
+Date: Mon, 28 Sep 2026 19:24:21 +0800
+Subject: [PATCH 3/3] final0
+
+---
+ perip/amba/apb_delayer.v  |  83 +++-----------------
+ perip/amba/axi4_delayer.v | 161 +++-----------------------------------
+ 2 files changed, 23 insertions(+), 221 deletions(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index 587a1756..c0d20764 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -23,79 +23,16 @@ module apb_delayer(
+   input  [31:0] out_prdata,
+   input         out_pslverr
+ );
+-    localparam S_WIDTH             = 8;
+-    localparam [31:0] SCALE        = 32'd1 << S_WIDTH;
+-    localparam [31:0] R_SCALED     = 32'd512;//r*s
+-    localparam [31:0] EXTRA_SCALED = R_SCALED-SCALE;//(r-1)*s
+-    localparam [1:0] IDLE=2'd0,WAIT=2'd1,DELAY=2'd2;
+-    assign out_paddr   = in_paddr;
+-    assign out_psel    = (state==IDLE||state==WAIT)?in_psel:1'b0;
+-    assign out_penable = (state==IDLE||state==WAIT)?in_penable:1'b0;
+-    assign out_pprot   = in_pprot;
+-    assign out_pwrite  = in_pwrite;
+-    assign out_pwdata  = in_pwdata;
+-    assign out_pstrb   = in_pstrb;
+-    assign in_pready   = delay_over;
+-    assign in_prdata   = delay_over?(requal1?out_prdata:prdata_reg):32'd0;
+-    assign in_pslverr  = delay_over?(requal1?out_pslverr:pslverr_reg):1'b0;
+-
+-    wire in_start,out_end,delay_over;
+-    wire requal1;
+-    reg[31:0] counter;
+-    assign requal1=EXTRA_SCALED==32'd0;
+-    assign in_start=in_psel&&!in_penable;
+-    assign out_end=out_psel&&out_penable&&out_pready;
+-    assign delay_over=requal1?(state==WAIT&&out_end):(state==DELAY&&(counter==32'd1));
+-
+-    reg[1:0] state,next_state;
+-    always @(posedge clock) begin
+-        if(reset)
+-            state<=IDLE;
+-        else
+-            state<=next_state;
+-    end
+-    always @(*) begin
+-        next_state=state;
+-        case(state)
+-            IDLE: if(in_start)   next_state=WAIT;
+-            WAIT: if(out_end)begin
+-                    if(requal1)next_state=IDLE;
+-                    else next_state=DELAY;
+-                  end
+-            DELAY:if(delay_over) next_state=IDLE;
+-            default:             next_state=IDLE;
+-        endcase
+-    end
+-
+-    always @(posedge clock) begin
+-        if(reset)begin
+-            counter<=32'd0;
+-        end else begin
+-            case(state)
+-                IDLE: if(in_start)counter<=EXTRA_SCALED;
+-                WAIT: begin
+-                      if(out_end)counter<=counter>>S_WIDTH;
+-                      else counter<=counter+EXTRA_SCALED;
+-                end
+-                DELAY:if(counter!=32'd0)counter<=counter-32'd1;
+-                default:counter<=32'd0;
+-            endcase
+-        end
+-    end
+-    reg pslverr_reg;
+-    reg[31:0] prdata_reg;
+-    always @(posedge clock) begin
+-        if(reset)begin
+-            prdata_reg<=32'd0;
+-            pslverr_reg<=1'b0;
+-        end else begin
+-            if(out_end)begin
+-                prdata_reg<=out_prdata;
+-                pslverr_reg<=out_pslverr;
+-            end
+-        end
+-    end
+-
+ 
++  assign out_paddr   = in_paddr;
++  assign out_psel    = in_psel;
++  assign out_penable = in_penable;
++  assign out_pprot   = in_pprot;
++  assign out_pwrite  = in_pwrite;
++  assign out_pwdata  = in_pwdata;
++  assign out_pstrb   = in_pstrb;
++  assign in_pready   = out_pready;
++  assign in_prdata   = out_prdata;
++  assign in_pslverr  = out_pslverr;
+ 
+ endmodule
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 9481a3ac..f692803b 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -62,26 +62,20 @@ module axi4_delayer(
+   input  [3:0]  out_bid,
+   input  [1:0]  out_bresp
+ );
+-    localparam S_WIDTH             = 8;
+-    localparam [31:0] SCALE        = 32'd1 << S_WIDTH;
+-    localparam [31:0] R_SCALED     = 32'd512;//2162r*s
+-    localparam [31:0] EXTRA_SCALED = R_SCALED-SCALE;//(r-1)*s
+-    localparam [1:0] IDLE=2'd0,WAIT=2'd1,DELAY=2'd2,SEND=2'd3;
+-  assign in_arready = out_arready&&(rstate==IDLE);
+-  assign out_arvalid =in_arvalid&&(rstate==IDLE);
++
++  assign in_arready = out_arready;
++  assign out_arvalid = in_arvalid;
+   assign out_arid = in_arid;
+   assign out_araddr = in_araddr;
+   assign out_arlen = in_arlen;
+   assign out_arsize = in_arsize;
+   assign out_arburst = in_arburst;
+-
+-  assign out_rready = rstate==WAIT;
+-  assign in_rvalid = (rstate==SEND);
+-  assign in_rid   = rid_reg;
+-  assign in_rdata = rdata_buf[read_count];
+-  assign in_rresp = rresp_buf[read_count];
+-  assign in_rlast = (rstate==SEND)&&({1'b0,read_count}==beat_count-1);
+-
++  assign out_rready = in_rready;
++  assign in_rvalid = out_rvalid;
++  assign in_rid = out_rid;
++  assign in_rdata = out_rdata;
++  assign in_rresp = out_rresp;
++  assign in_rlast = out_rlast;
+   assign in_awready = out_awready;
+   assign out_awvalid = in_awvalid;
+   assign out_awid = in_awid;
+@@ -94,138 +88,9 @@ module axi4_delayer(
+   assign out_wdata = in_wdata;
+   assign out_wstrb = in_wstrb;
+   assign out_wlast = in_wlast;
++  assign out_bready = in_bready;
++  assign in_bvalid = out_bvalid;
++  assign in_bid = out_bid;
++  assign in_bresp = out_bresp;
+ 
+-  assign out_bready = wstate==WAIT;
+-  assign in_bvalid = (wstate==DELAY)&&wdelay_over;
+-  assign in_bid    = bid_reg;
+-  assign in_bresp  = bresp_reg;
+-
+-    reg [31:0] rdata_buf[0:7];
+-    reg [1:0] rresp_buf[0:7];
+-    reg [3:0] rid_reg,bid_reg;
+-    reg [1:0] bresp_reg;
+-    reg [2:0] read_count;
+-    reg[3:0] beat_count;
+-
+-    wire rin_start,rout_end,rdelay_over;
+-    reg[31:0] rcounter;
+-    assign rin_start=in_arvalid&&in_arready;
+-    assign rout_end=(rfire_out&&out_rlast);
+-    assign rdelay_over=(rcounter==32'd0);
+-
+-    //r state
+-    reg[1:0] rstate,rnext_state;
+-    wire rfire_in,rfire_out;
+-    assign rfire_out=out_rvalid&&out_rready;
+-    assign rfire_in=in_rready&&in_rvalid;
+-    always @(posedge clock) begin
+-        if(reset)
+-            rstate<=IDLE;
+-        else
+-            rstate<=rnext_state;
+-    end
+-    always @(*) begin
+-        rnext_state=rstate;
+-        case(rstate)
+-            IDLE: if(rin_start)   rnext_state=WAIT;
+-            WAIT: if(rout_end)    rnext_state=DELAY;
+-            DELAY:if(rdelay_over) rnext_state=SEND;
+-            SEND: if(in_rlast&&rfire_in)    rnext_state=IDLE;
+-            default:             rnext_state=IDLE;
+-        endcase
+-    end
+-    wire [31:0] rdelay_count;
+-    assign rdelay_count=((rcounter>>S_WIDTH)>{28'd0,beat_count}+32'd2)?((rcounter>>S_WIDTH)-{28'd0,beat_count}-32'd2):32'd0;
+-    always @(posedge clock) begin
+-        if(reset)begin
+-            rcounter<=32'd0;
+-        end else begin
+-            case(rstate)
+-                IDLE: if(rin_start)rcounter<=EXTRA_SCALED;
+-                WAIT: begin
+-                      if(rout_end)rcounter<=rdelay_count;
+-                      else rcounter<=rcounter+EXTRA_SCALED;
+-                end
+-                DELAY:if(rcounter!=32'd0)rcounter<=rcounter-32'd1;
+-                default:rcounter<=32'd0;
+-            endcase
+-        end
+-    end
+-    always @(posedge clock) begin
+-        if(reset)
+-            read_count<=3'd0;
+-        else if(rin_start)
+-            read_count<=3'd0;
+-        else if(rfire_in)
+-            read_count<=read_count+3'd1;
+-    end
+-    always @(posedge clock) begin
+-        if(reset)
+-            beat_count<=4'd0;
+-        else if(rin_start)
+-            beat_count<=4'd0;
+-        else if(rfire_out)begin
+-            beat_count<=beat_count+3'd1;
+-            rdata_buf[beat_count[2:0]]<=out_rdata;
+-            rresp_buf[beat_count[2:0]]<=out_rresp;
+-        end
+-    end
+-    //w state
+-    wire win_start,wout_end,wdelay_over;
+-    reg[1:0] wstate,wnext_state;
+-    reg[31:0] wcounter;
+-    assign win_start=(in_awvalid&&in_awready)||(in_wvalid&&in_wready);
+-    assign wout_end=(wfire_out);
+-    assign wdelay_over=(wstate==DELAY)&&(wcounter==32'd1);
+-    wire wfire_in,wfire_out;
+-    assign wfire_in=in_bready&&in_bvalid;
+-    assign wfire_out=out_bready&&out_bvalid;
+-    always @(posedge clock) begin
+-        if(reset)
+-            wstate<=IDLE;
+-        else
+-            wstate<=wnext_state;
+-    end
+-    always @(*) begin
+-        wnext_state=wstate;
+-        case(wstate)
+-            IDLE: if(win_start)   wnext_state=WAIT;
+-            WAIT: if(wout_end) wnext_state=DELAY;
+-            DELAY:if(wdelay_over&&wfire_in) wnext_state=IDLE;
+-            default:             wnext_state=IDLE;
+-        endcase
+-    end
+-
+-    always @(posedge clock) begin
+-        if(reset)begin
+-            wcounter<=32'd0;
+-        end else begin
+-            case(wstate)
+-                IDLE: if(win_start)wcounter<=EXTRA_SCALED;
+-                WAIT: begin
+-                      if(wout_end)wcounter<=wcounter>>S_WIDTH;
+-                      else wcounter<=wcounter+EXTRA_SCALED;
+-                end
+-                DELAY:if(wcounter!=32'd1)wcounter<=wcounter-32'd1;
+-                default:wcounter<=32'd0;
+-            endcase
+-        end
+-    end
+-
+-    //FIFO
+-    always @(posedge clock) begin
+-        if(reset)begin
+-            rid_reg<=0;
+-            bid_reg<=0;
+-            bresp_reg<=0;
+-        end else begin
+-            if(rout_end)begin
+-                rid_reg<=out_rid;
+-            end
+-            if(wout_end)begin
+-                bid_reg<=out_bid;
+-                bresp_reg<=out_bresp;
+-            end
+-        end
+-    end
+ endmodule
+-- 
+2.43.0
+
