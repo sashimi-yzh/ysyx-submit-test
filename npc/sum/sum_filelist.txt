@@ -1,0 +1,13 @@
+vsrc/ysyx_25020042.v
+vsrc/IFU/ysyx_25020042_icache.v
+vsrc/IFU/ysyx_25020042_IFU.v
+vsrc/IDU/ysyx_25020042_IDU.v
+vsrc/IDU/ysyx_25020042_gpr.v
+vsrc/EXU/ysyx_25020042_EXU.v
+vsrc/EXU/ysyx_25020042_alu.v
+vsrc/LSU/ysyx_25020042_LSU.v
+vsrc/WBU/ysyx_25020042_WBU.v
+vsrc/ysyx_25020042_axi_arbiter.v
+vsrc/ysyx_25020042_csr.v
+vsrc/ysyx_25020042_data_branch.v
+vsrc/device/ysyx_25020042_clint.v

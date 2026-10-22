@@ -1,0 +1,27 @@
+From 7449016fe11a85a97c747eda9be7ef79c6482e19 Mon Sep 17 00:00:00 2001
+From: DreamyZonette <lwq2463460061@163.com>
+Date: Wed, 21 Oct 2026 10:28:58 +0800
+Subject: [PATCH 3/3] add YSYXSOC
+
+---
+ bsp/abstract-machine/src/uart.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e731e6c12..56b795b2a 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -37,7 +37,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  return getch();
++  #ifdef PLATFORM_YSYXSOC
++    return getch();
++  #endif
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   return (*p != '\0' ? *(p ++) : -1);
+ }
+-- 
+2.43.0
+

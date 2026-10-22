@@ -1,0 +1,86 @@
+From e52fa900f273fe43418b0a265061047d3d6cd065 Mon Sep 17 00:00:00 2001
+From: DreamyZonette <lwq2463460061@163.com>
+Date: Mon, 19 Oct 2026 22:10:45 +0800
+Subject: [PATCH 2/2] fix ps2
+
+---
+ perip/ps2/ps2_top_apb.v | 36 +++++++++++-------------------------
+ 1 file changed, 11 insertions(+), 25 deletions(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index a93d39a2..66fa5e81 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -20,19 +20,18 @@ localparam IDLE  = 0;
+ localparam READ = 1;
+ 
+ reg        read_valid;
+-reg [31:0] read_data;
++reg [7:0] read_data;
+ reg        ack_reg;
+-reg  [3:0] delay_counter;
+ reg        state;
+-reg        hi_read_done;
+-reg        lo_pad;
++reg        read_pad;
+ wire       read_ready;
+ wire [7:0] ps2_read_data;
+ wire       overflow;
+ wire       ps2_active;
+ 
+ assign ps2_active = in_psel && in_paddr >= 32'h1001_1000 && in_paddr < 32'h1001_1008;
+-assign in_prdata = read_data;
++assign in_prdata = {24'b0, read_data};
++// assign in_prdata = read_data;
+ assign in_pready = ack_reg;
+ 
+ always @(posedge clock) begin
+@@ -41,38 +40,25 @@ always @(posedge clock) begin
+     ack_reg <= 0;
+     read_valid <= 0;
+     read_data <= 0;
+-    hi_read_done <= 0;
+-    lo_pad <= 0;
+   end
+   else begin
+     case (state)
+       IDLE: begin
+         ack_reg <= 0;
+-        hi_read_done <= 0;
+         read_valid <= 0;
+         read_data <= 0;
+         if (ps2_active && in_penable && !in_pwrite) begin
+-          // $display("ps2_keyboard read state");
++          read_valid <= 1;
+           state <= READ;
+         end
+       end
+       READ: begin
+-        // $display("read_ready%d", read_ready);
+-        if (read_ready) begin
+-          // $display("ps2_keyboard IDLE state");
+-            read_valid <= 1;
+-          if ((ps2_read_data == 8'hE0 || ps2_read_data == 8'hF0) && !hi_read_done) begin
+-            read_data[15:8] <= ps2_read_data;
+-            hi_read_done <= 1;
+-            // $display("ps2_data hi = %02x", ps2_read_data);
+-          end
+-          else begin
+-            read_data[7:0] <= ps2_read_data;
+-            ack_reg <= 1;
+-            state <= IDLE;
+-            // $display("ps2_data lo = %02x", ps2_read_data);
+-          end
+-        end
++            if (read_ready && read_valid) begin
++              read_data <= ps2_read_data;
++              read_valid <= 0;
++              ack_reg <= 1;
++              state  <= IDLE;
++            end
+       end
+     endcase
+   end
+-- 
+2.43.0
+
