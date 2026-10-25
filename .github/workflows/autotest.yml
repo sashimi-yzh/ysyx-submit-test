@@ -282,7 +282,8 @@ jobs:
           # kconfig 的 Makefile 并行时会同时运行两次 bison 写坏 parser.tab.c，工具单线程构建
           make -s -j1 -C tools/kconfig NAME=conf
           make -s -j1 -C tools/fixdep
-          tools/kconfig/build/conf -s --alldefconfig Kconfig
+          # 有学生提交的 .config 时以它为准，否则生成默认配置
+          tools/kconfig/build/conf -s --olddefconfig Kconfig
           make
 
       - name: Get ysyxSoC tag
