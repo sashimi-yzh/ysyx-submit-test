@@ -270,6 +270,22 @@ jobs:
           fi
           mill --version
 
+      - name: Check NEMU compilation
+        run: |
+          # 默认配置可能开启 ITRACE（依赖 LLVM）或设备（依赖 SDL2）
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm llvm-dev libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev
+          # NEMU 的 capstone 子模块使用 SSH 地址，runner 上没有密钥
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          cd $NEMU_HOME
+          make clean
+          # kconfig 的 Makefile 并行时会同时运行两次 bison 写坏 parser.tab.c，工具单线程构建
+          make -s -j1 -C tools/kconfig NAME=conf
+          make -s -j1 -C tools/fixdep
+          # 有学生提交的 .config 时以它为准，否则生成默认配置
+          tools/kconfig/build/conf -s --olddefconfig Kconfig
+          make
+
       - name: Get ysyxSoC tag
         id: soc-tag
         run: |
