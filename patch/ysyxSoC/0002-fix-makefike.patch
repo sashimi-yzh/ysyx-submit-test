@@ -1,0 +1,25 @@
+From b4f50273d4e436abed28cbbc07c4a24408e9a7ad Mon Sep 17 00:00:00 2001
+From: DreamyZonette <lwq2463460061@163.com>
+Date: Thu, 5 Nov 2026 16:06:13 +0800
+Subject: [PATCH 2/3] fix makefike
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index a37884d5..1736ed92 100644
+--- a/Makefile
++++ b/Makefile
+@@ -34,7 +34,7 @@ clean:
+ 	-rm -rf build/
+ 
+ dev-init:
+-	git submodule update --init --recursive
++	git submodule update --init --recursive --depth 1
+ 	cd rocket-chip && git apply ../patch/rocket-chip.patch
+ 
+ .PHONY: verilog clean dev-init 
+-- 
+2.43.0
+

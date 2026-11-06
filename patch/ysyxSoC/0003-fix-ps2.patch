@@ -1,0 +1,58 @@
+From aea0d5bbd5240ae93b2279e7b3a69b125c3c04cf Mon Sep 17 00:00:00 2001
+From: DreamyZonette <lwq2463460061@163.com>
+Date: Fri, 6 Nov 2026 21:23:41 +0800
+Subject: [PATCH 3/3] fix ps2
+
+---
+ perip/ps2/ps2_top_apb.v | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 66fa5e81..b7fbb138 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -25,6 +25,7 @@ reg        ack_reg;
+ reg        state;
+ reg        read_pad;
+ wire       read_ready;
++reg  [7:0] counter;
+ wire [7:0] ps2_read_data;
+ wire       overflow;
+ wire       ps2_active;
+@@ -40,6 +41,7 @@ always @(posedge clock) begin
+     ack_reg <= 0;
+     read_valid <= 0;
+     read_data <= 0;
++    counter <= 0;
+   end
+   else begin
+     case (state)
+@@ -47,6 +49,7 @@ always @(posedge clock) begin
+         ack_reg <= 0;
+         read_valid <= 0;
+         read_data <= 0;
++        counter <= 0;
+         if (ps2_active && in_penable && !in_pwrite) begin
+           read_valid <= 1;
+           state <= READ;
+@@ -58,6 +61,17 @@ always @(posedge clock) begin
+               read_valid <= 0;
+               ack_reg <= 1;
+               state  <= IDLE;
++              counter <= 0;
++            end
++            else if (counter == 8'hff) begin
++              read_data <= 8'hff;
++              read_valid <= 0;
++              ack_reg <= 1;
++              state  <= IDLE;
++              counter <= 0;
++            end
++            else begin
++              counter <= counter + 1;
+             end
+       end
+     endcase
+-- 
+2.43.0
+
