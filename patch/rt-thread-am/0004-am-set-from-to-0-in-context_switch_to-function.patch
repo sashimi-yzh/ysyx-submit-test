@@ -1,0 +1,35 @@
+From 26754ec51d56b2aff117b98630e2f085e378a59e Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Sat, 28 Jun 2025 17:40:05 +0800
+Subject: [PATCH 4/9] [am] set from to 0 in context_switch_to() function
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/src/context.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 976af5980..747ca68cb 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -46,6 +46,7 @@ void rt_hw_context_switch_to(rt_ubase_t to) {
+   rt_ubase_t user_data_tmp = current->user_data;
+   rt_ubase_t context_p = *(rt_ubase_t *)to;
+   Ft *ft = (Ft *) (context_p - sizeof(Ft));
++  ft->from = 0;
+   ft->to = to;
+   ft->to_flag = 1;
+   current->user_data = (rt_ubase_t) ft;
+@@ -58,8 +59,8 @@ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+   rt_ubase_t user_data_tmp = current->user_data;
+   rt_ubase_t context_p = *(rt_ubase_t *)to;
+   Ft *ft = (Ft *) (context_p - sizeof(Ft));
+-  ft->to = to;
+   ft->from = from;
++  ft->to = to;
+   ft->to_flag = 0;
+   current->user_data = (rt_ubase_t) ft;
+   yield();
+-- 
+2.34.1
+

@@ -1,0 +1,26 @@
+From 133edf2dbad61e4019d1b8a995a68f5921b1de46 Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Thu, 19 Nov 2026 14:28:32 +0800
+Subject: [PATCH 14/15] [uart] add am_hello to the uart cmdlist
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/src/uart.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index bfd162187..90c7711d9 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -38,7 +38,7 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   // feed the preset commands first, then switch to manual input
+-  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\nam_hello\n";
+   if (*p != '\0') return *(p ++);
+   // getch() returns 0xff when no data; rt-thread serial expects -1
+   char ch = getch();
+-- 
+2.34.1
+

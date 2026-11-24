@@ -1,0 +1,68 @@
+From 2cbaa723f734aeebc4ee48754682acd21000820b Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Wed, 11 Mar 2026 06:50:49 +0000
+Subject: [PATCH 19/40] [keyboard] update keyboard rx logic
+
+The SDL getch has different word orders on different xlaunch.
+So it may still have issues with different Xlaunch for ordering.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 19 ++++++-------------
+ 1 file changed, 6 insertions(+), 13 deletions(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index dcfd39f1..45a7b5f8 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -65,7 +65,7 @@ module ps2_top_apb(
+   assign fifo_empty = (fifo_count == 0);
+   assign fifo_wr_en = data_ready & ~parity_error & ~frame_error & ~fifo_full;
+   assign fifo_rd_en = apb_read & (addr_offset == ADDR_DATA) & ~fifo_empty;
+-  assign debug_data = buffer_data[8:1];
++  assign debug_data = buffer_data[9:2];
+ 
+   // PS/2 clock and data synchronization
+   always @(posedge clock or posedge reset) begin
+@@ -85,25 +85,18 @@ module ps2_top_apb(
+   always @(posedge clock or posedge reset) begin
+     if (reset) begin
+       bit_count    <= 4'h0;
+-      buffer_data    <= 11'h0;
++      buffer_data  <= 11'h0;
+       data_ready   <= 1'b0;
+       parity_error <= 1'b0;
+       frame_error  <= 1'b0;
+     end else begin
+       data_ready <= 1'b0;
+-
+       if (sampling) begin
+-        if (bit_count == 4'h0) begin
+-          // Start bit check
+-          if (ps2_data_sync[1] == 1'b0) begin
+-            bit_count <= bit_count + 1;
+-            buffer_data <= {ps2_data_sync[1], buffer_data[10:1]};
+-          end
+-        end else if (bit_count == 4'd10) begin
++       if (bit_count == 4'd10) begin
+           // Check stop bit
+-          if (ps2_data_sync[1] == 1'b1) begin
++          if (ps2_data_sync[1] == 1'b1 && buffer_data[1] == 1'b0) begin
+             // Check parity
+-            if (^buffer_data[9:1]) begin
++            if (^buffer_data[10:2]) begin
+               data_ready   <= 1'b1;
+               parity_error <= 1'b0;
+               frame_error  <= 1'b0;
+@@ -159,7 +152,7 @@ module ps2_top_apb(
+   // FIFO memory write
+   always @(posedge clock) begin
+     if (fifo_wr_en) begin
+-      fifo_mem[wr_ptr] <= buffer_data[8:1];  // Store 8-bit data
++      fifo_mem[wr_ptr] <= buffer_data[9:2];  // Store 8-bit data
+     end
+   end
+ 
+-- 
+2.34.1
+

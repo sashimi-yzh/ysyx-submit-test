@@ -1,0 +1,32 @@
+From 81a2de02b21c204a112a8ef49775a50892095de3 Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Wed, 18 Nov 2026 21:49:40 +0800
+Subject: [PATCH 11/13] [uart] add default input back
+
+This is for nemu test since it cannot support
+get_char.
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/src/uart.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 69206386d..bfd162187 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -37,8 +37,9 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ }
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+-  //static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  //return (*p != '\0' ? *(p ++) : -1);
++  // feed the preset commands first, then switch to manual input
++  static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
++  if (*p != '\0') return *(p ++);
+   // getch() returns 0xff when no data; rt-thread serial expects -1
+   char ch = getch();
+   return ch == (char)0xff ? -1 : (unsigned char)ch;
+-- 
+2.34.1
+

@@ -1,0 +1,164 @@
+From a9e30fb6b93d8d48b9d569857d58bf4e7ef24980 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Sat, 20 Jun 2026 15:21:15 +0800
+Subject: [PATCH 36/40] [axi-delay] fix the issue for rd delay
+
+The signals to upstream should all be hold.
+However, it cannot support burst delay yet.
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ perip/amba/axi4_delayer.v | 90 +++++++++++++++++++++++++--------------
+ 1 file changed, 58 insertions(+), 32 deletions(-)
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 527df3ba..7690138f 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -65,35 +65,43 @@ module axi4_delayer(
+ 
+   reg  [ 2:0] state_rd, state_wr;
+ 
+-  localparam [2:0] ST_IDLE_RD = 3'd0;
+-  localparam [2:0] ST_SETUP_RD = 3'd1;
+-  localparam [2:0] ST_ACCESS_RD = 3'd2;
+-  localparam [2:0] ST_DELAY_RD = 3'd3;
+-  localparam [2:0] ST_RESP_RD = 3'd4;
++  localparam logic [2:0] ST_IDLE_RD = 3'd0;
++  localparam logic [2:0] ST_SETUP_RD = 3'd1;
++  localparam logic [2:0] ST_ACCESS_RD = 3'd2;
++  localparam logic [2:0] ST_DELAY_RD = 3'd3;
++  localparam logic [2:0] ST_RESP_RD = 3'd4;
+ 
+-  localparam [2:0] ST_IDLE_WR = 3'd0;
+-  localparam [2:0] ST_SETUP_WR = 3'd1;
+-  localparam [2:0] ST_ACCESS_WR = 3'd2;
+-  localparam [2:0] ST_DELAY_WR = 3'd3;
+-  localparam [2:0] ST_RESP_WR = 3'd4;
++  localparam logic [2:0] ST_IDLE_WR = 3'd0;
++  localparam logic [2:0] ST_SETUP_WR = 3'd1;
++  localparam logic [2:0] ST_ACCESS_WR = 3'd2;
++  localparam logic [2:0] ST_DELAY_WR = 3'd3;
++  localparam logic [2:0] ST_RESP_WR = 3'd4;
+ 
+-  reg  [31:0] delay_cnt_rd, delay_cnt_wr;
+-  reg  [31:0] rsp_rdata;
++  reg [31:0] delay_cnt_rd;
++  reg [ 3:0] inter_rid;
++  reg [31:0] inter_rdata;
++  reg [ 1:0] inter_rresp;
++  reg inter_rvalid, inter_rlast;
+ 
+-  assign in_arready  = out_arready;
+-  assign out_arvalid = in_arvalid;
++  reg [31:0] delay_cnt_wr;
++  reg inter_wready;
++
++  wire rd_ar_can_pass = (state_rd == ST_IDLE_RD);
++
++  assign in_arready  = rd_ar_can_pass & out_arready;
++  assign out_arvalid = rd_ar_can_pass & in_arvalid;
+   assign out_arid    = in_arid;
+   assign out_araddr  = in_araddr;
+   assign out_arlen   = in_arlen;
+   assign out_arsize  = in_arsize;
+   assign out_arburst = in_arburst;
+-  // the out_rready is only asserted when delay is done
+-  assign out_rready  = (state_rd == ST_RESP_RD);
+-  assign in_rvalid   = (state_rd == ST_RESP_RD);
+-  assign in_rid      = out_rid;
+-  assign in_rdata    = rsp_rdata;
+-  assign in_rresp    = out_rresp;
+-  assign in_rlast    = out_rlast;
++  // Accept one downstream R beat only when waiting for it and buffer is empty.
++  assign out_rready  = (state_rd == ST_ACCESS_RD) & ~inter_rvalid;
++  assign in_rvalid   = (state_rd == ST_RESP_RD) & inter_rvalid;
++  assign in_rid      = inter_rid;
++  assign in_rdata    = inter_rdata;
++  assign in_rresp    = inter_rresp;
++  assign in_rlast    = inter_rlast;
+ 
+   assign in_awready  = out_awready;
+   assign out_awvalid = in_awvalid;
+@@ -114,13 +122,17 @@ module axi4_delayer(
+ 
+   always @(posedge clock) begin
+     if (reset) begin
+-      state_rd <= ST_IDLE_RD;
++      state_rd     <= ST_IDLE_RD;
+       delay_cnt_rd <= 32'b0;
+-      delay_cnt_wr <= 32'b0;
++      inter_rid    <= 4'b0;
++      inter_rdata  <= 32'b0;
++      inter_rresp  <= 2'b0;
++      inter_rvalid <= 1'b0;
++      inter_rlast  <= 1'b0;
+     end else begin
+       case (state_rd)
+         ST_IDLE_RD: begin
+-          if (in_arvalid && in_arready) begin
++          if (out_arvalid && out_arready) begin
+             state_rd <= ST_SETUP_RD;
+           end
+         end
+@@ -128,9 +140,13 @@ module axi4_delayer(
+           state_rd <= ST_ACCESS_RD;
+         end
+         ST_ACCESS_RD: begin
+-          if (out_rvalid) begin
+-            rsp_rdata <= out_rdata;
+-            state_rd <= ST_DELAY_RD;
++          if (out_rvalid && out_rready) begin
++            inter_rid    <= out_rid;
++            inter_rdata  <= out_rdata;
++            inter_rresp  <= out_rresp;
++            inter_rvalid <= 1'b1;
++            inter_rlast  <= out_rlast;
++            state_rd     <= ST_DELAY_RD;
+           end else begin
+             // delay it by 5 * 8 since the device clock is 100MHz and system clock is 506MHz
+             // from yosys result
+@@ -148,10 +164,13 @@ module axi4_delayer(
+           end
+         end
+         ST_RESP_RD: begin
+-          if (in_rvalid && in_rready && in_rlast) begin
+-            state_rd <= ST_IDLE_RD;
+-          end else if (in_rvalid && in_rready && !in_rlast) begin
+-            state_rd <= ST_ACCESS_RD;
++          if (inter_rvalid && in_rready) begin
++            inter_rvalid <= 1'b0;
++            if (inter_rlast) begin
++              state_rd <= ST_IDLE_RD;
++            end else begin
++              state_rd <= ST_ACCESS_RD;
++            end
+           end
+         end
+         default: begin
+@@ -165,6 +184,7 @@ module axi4_delayer(
+   always @(posedge clock) begin
+     if (reset) begin
+       state_wr <= ST_IDLE_WR;
++      delay_cnt_wr <= 32'b0;
+     end else begin
+       case (state_wr)
+         ST_IDLE_WR: begin
+@@ -181,7 +201,13 @@ module axi4_delayer(
+           end
+         end
+         ST_DELAY_WR: begin
+-          state_wr <= ST_RESP_WR;
++          if (delay_cnt_wr > 32'd1) begin
++            // actually / by 8
++            delay_cnt_wr <= delay_cnt_wr >> 32'd3;
++          end else begin
++            delay_cnt_wr <= 32'b0;
++            state_wr     <= ST_RESP_WR;
++          end
+         end
+         ST_RESP_WR: begin
+           if (in_bvalid && in_bready) begin
+-- 
+2.34.1
+

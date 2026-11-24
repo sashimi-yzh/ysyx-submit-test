@@ -1,0 +1,57 @@
+From d001a4aa2729bc38c0b32813f74bf88078c0254e Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Sat, 14 Feb 2026 06:27:08 +0000
+Subject: [PATCH 17/40] [gpio] update 7-seg coding
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/gpio/gpio_top_apb.v | 31 ++++++++++++++++---------------
+ 1 file changed, 16 insertions(+), 15 deletions(-)
+
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index e9e39d9b..637fe876 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -103,23 +103,24 @@ module gpio_top_apb(
+     input [3:0] digit;
+     begin
+       case (digit)
+-        4'h0: seg7_decode = 8'b11000000;  // 0
+-        4'h1: seg7_decode = 8'b11111001;  // 1
+-        4'h2: seg7_decode = 8'b10100100;  // 2
+-        4'h3: seg7_decode = 8'b10110000;  // 3
+-        4'h4: seg7_decode = 8'b10011001;  // 4
+-        4'h5: seg7_decode = 8'b10010010;  // 5
+-        4'h6: seg7_decode = 8'b10000010;  // 6
+-        4'h7: seg7_decode = 8'b11111000;  // 7
+-        4'h8: seg7_decode = 8'b10000000;  // 8
+-        4'h9: seg7_decode = 8'b10010000;  // 9
+-        4'ha: seg7_decode = 8'b10001000;  // A
+-        4'hb: seg7_decode = 8'b10000011;  // b
+-        4'hc: seg7_decode = 8'b11000110;  // C
+-        4'hd: seg7_decode = 8'b10100001;  // d
+-        4'he: seg7_decode = 8'b10000110;  // E
++        4'h0: seg7_decode = 8'b11111101;  // 0
++        4'h1: seg7_decode = 8'b01100000;  // 1
++        4'h2: seg7_decode = 8'b11011010;  // 2
++        4'h3: seg7_decode = 8'b11110010;  // 3
++        4'h4: seg7_decode = 8'b01100110;  // 4
++        4'h5: seg7_decode = 8'b10110110;  // 5
++        4'h6: seg7_decode = 8'b10111110;  // 6
++        4'h7: seg7_decode = 8'b11100000;  // 7
++        4'h8: seg7_decode = 8'b11111110;  // 8
++        4'h9: seg7_decode = 8'b11110110;  // 9
++        4'ha: seg7_decode = 8'b11101110;  // A
++        4'hb: seg7_decode = 8'b00111110;  // B
++        4'hc: seg7_decode = 8'b10011100;  // C
++        4'hd: seg7_decode = 8'b01111010;  // D
++        4'he: seg7_decode = 8'b10011110;  // E
+         4'hf: seg7_decode = 8'b10001110;  // F
+       endcase
++      seg7_decode = ~seg7_decode;
+     end
+   endfunction
+ 
+-- 
+2.34.1
+

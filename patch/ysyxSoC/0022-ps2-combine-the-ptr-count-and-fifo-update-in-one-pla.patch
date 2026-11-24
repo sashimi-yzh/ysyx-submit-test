@@ -1,0 +1,72 @@
+From 06a08d303c303aeb6a347c45fc155ac967fbf7ac Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Thu, 12 Mar 2026 02:40:35 +0000
+Subject: [PATCH 22/40] [ps2] combine the ptr count and fifo update in one
+ place
+
+Still have issues which empty is set too early.
+
+TODO: resolve above issue which perhaps is to let the fifo update
+together with ps2 rx and apb tx.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 25 ++++++-------------------
+ 1 file changed, 6 insertions(+), 19 deletions(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 6c159adf..babf6743 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -124,24 +124,6 @@ module ps2_top_apb(
+     end
+   end
+ 
+-  // FIFO write pointer management
+-  always @(posedge clock or posedge reset) begin
+-    if (reset) begin
+-      wr_ptr <= 0;
+-    end else if (fifo_wr_en) begin
+-      wr_ptr <= wr_ptr + 1;
+-    end
+-  end
+-
+-  // FIFO read pointer management
+-  always @(posedge clock or posedge reset) begin
+-    if (reset) begin
+-      rd_ptr <= 0;
+-    end else if (fifo_rd_en) begin
+-      rd_ptr <= rd_ptr + 1;
+-    end
+-  end
+-
+   // // FIFO count management
+   // always @(posedge clock or posedge reset) begin
+   //   if (reset) begin
+@@ -160,17 +142,22 @@ module ps2_top_apb(
+ 
+   // FIFO memory write
+   always @(posedge clock) begin
+-    if (fifo_wr_en) begin
++    if (reset) begin
++      wr_ptr <= 0;
++    end else if (fifo_wr_en) begin
+       fifo_mem[wr_ptr] <= buffer_data[9:2];  // Store 8-bit data
++      wr_ptr <= wr_ptr + 1;
+     end
+   end
+ 
+   // FIFO memory read
+   always @(posedge clock or posedge reset) begin
+     if (reset) begin
++      rd_ptr <= 0;
+       fifo_dout <= 8'h0;
+     end else if (fifo_rd_en) begin
+       fifo_dout <= fifo_mem[rd_ptr];
++      rd_ptr <= rd_ptr + 1;
+     end
+   end
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,60 @@
+From d21ee504f95d657d46202f70a2cf11f7fb30c8bb Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Tue, 9 Jun 2026 02:17:11 +0000
+Subject: [PATCH 30/40] [axi] enable axi to replace apb
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/sdram/sdram_top_axi.v | 12 +++++++-----
+ src/Top.scala               |  2 +-
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/perip/sdram/sdram_top_axi.v b/perip/sdram/sdram_top_axi.v
+index 0cb24f74..f983ec83 100644
+--- a/perip/sdram/sdram_top_axi.v
++++ b/perip/sdram/sdram_top_axi.v
+@@ -40,13 +40,15 @@ module sdram_top_axi(
+   output        sdram_we,
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+-  output [ 1:0] sdram_dqm,
+-  inout  [15:0] sdram_dq
++  output [ 3:0] sdram_dqm,
++  inout  [15:0] sdram_dq0,
++  inout  [15:0] sdram_dq1
+ );
+ 
+   wire sdram_dout_en;
+-  wire [15:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 16'bz;
++  wire [31:0] sdram_dout;
++  assign sdram_dq0 = sdram_dout_en ? sdram_dout[15:0] : 16'bz;
++  assign sdram_dq1 = sdram_dout_en ? sdram_dout[31:16] : 16'bz;
+   sdram_axi #(
+     .SDRAM_MHZ(100),
+     .SDRAM_ADDR_W(24),
+@@ -93,7 +95,7 @@ module sdram_top_axi(
+     .sdram_dqm_o(sdram_dqm),
+     .sdram_addr_o(sdram_a),
+     .sdram_ba_o(sdram_ba),
+-    .sdram_data_input_i(sdram_dq),
++    .sdram_data_input_i({sdram_dq1, sdram_dq0}),
+     .sdram_data_output_o(sdram_dout),
+     .sdram_data_out_en_o(sdram_dout_en)
+   );
+diff --git a/src/Top.scala b/src/Top.scala
+index c00378a6..2913155b 100644
+--- a/src/Top.scala
++++ b/src/Top.scala
+@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.LazyModule
+ 
+ object Config {
+   def hasChipLink: Boolean = false
+-  def sdramUseAXI: Boolean = false
++  def sdramUseAXI: Boolean = true
+ }
+ 
+ class ysyxSoCTop extends Module {
+-- 
+2.34.1
+

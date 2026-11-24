@@ -1,0 +1,399 @@
+From 44ff8c29476e1a5f9c6ac6b90e548bf7fca91a79 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Mon, 29 Dec 2025 08:09:12 +0000
+Subject: [PATCH 02/40] [XIP] add flash XIP mode draft code
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/spi/rtl/spi_top_apb.v | 359 +++++++++++++++++++++++++++++++++++-
+ 1 file changed, 349 insertions(+), 10 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 92d37516..98b1b310 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -2,6 +2,306 @@
+ // for flash by skipping SPI transfers
+ //`define FAST_FLASH
+ 
++module xip_controller #(
++  parameter flash_addr_start = 32'h30000000,
++  parameter flash_addr_end   = 32'h3fffffff,
++  parameter spi_base_addr    = 32'h10001000
++) (
++  input clock,
++  input reset,
++
++  // APB interface input
++  input [31:0] apb_paddr,
++  input        apb_psel,
++  input        apb_penable,
++  input        apb_pwrite,
++  input [31:0] apb_pwdata,
++  input [ 3:0] apb_pstrb,
++
++  // APB interface output
++  output [31:0] apb_prdata,
++  output        apb_pready,
++  output        apb_pslverr,
++
++  // Direct Wishbone interface to SPI
++  output [ 4:0] wb_adr_o,
++  output [31:0] wb_dat_o,
++  input  [31:0] wb_dat_i,
++  output [ 3:0] wb_sel_o,
++  output        wb_we_o,
++  output        wb_stb_o,
++  output        wb_cyc_o,
++  input         wb_ack_i,
++  input         wb_err_i
++);
++
++  // State machine state definitions
++  parameter [3:0] IDLE = 4'h0;
++  parameter [3:0] CHECK_ADDR = 4'h1;
++  parameter [3:0] NORMAL_ACCESS = 4'h2;
++  parameter [3:0] XIP_INIT = 4'h3;
++  parameter [3:0] XIP_WRITE_CMD = 4'h4;
++  parameter [3:0] XIP_WRITE_ADDR = 4'h5;
++  parameter [3:0] XIP_START = 4'h6;
++  parameter [3:0] XIP_WAIT = 4'h7;
++  parameter [3:0] XIP_READ = 4'h8;
++  parameter [3:0] XIP_COMPLETE = 4'h9;
++  parameter [3:0] ERROR_STATE = 4'hA;
++
++  // SPI register offset addresses
++  parameter [4:0] SPI_RX0 = 5'h00;
++  parameter [4:0] SPI_TX0 = 5'h00;
++  parameter [4:0] SPI_TX1 = 5'h04;
++  parameter [4:0] SPI_CTRL = 5'h10;
++
++  // Flash commands
++  parameter [7:0] FLASH_READ_CMD = 8'h03;
++
++  // State machine registers
++  reg [3:0] current_state, next_state;
++
++  // Internal signals
++  reg        addr_in_flash_space;
++  reg        addr_in_spi_space;
++  reg [31:0] flash_addr;
++  reg        xip_mode;
++
++  // Output registers
++  reg [31:0] apb_prdata_reg;
++  reg        apb_pready_reg;
++  reg        apb_pslverr_reg;
++
++  // Wishbone output registers
++  reg [ 4:0] wb_adr_reg;
++  reg [31:0] wb_dat_reg;
++  reg [ 3:0] wb_sel_reg;
++  reg        wb_we_reg;
++  reg        wb_stb_reg;
++  reg        wb_cyc_reg;
++
++  // Address checking logic
++  always @(*) begin
++    addr_in_flash_space = (apb_paddr >= flash_addr_start) && (apb_paddr <= flash_addr_end);
++    addr_in_spi_space   = (apb_paddr[31:16] == spi_base_addr[31:16]);
++  end
++
++  // State machine sequential logic
++  always @(posedge clock) begin
++    if (reset) begin
++      current_state <= IDLE;
++    end else begin
++      current_state <= next_state;
++    end
++  end
++
++  // State machine combinational logic
++  always @(*) begin
++    next_state = current_state;
++
++    case (current_state)
++      IDLE: begin
++        if (apb_psel && !apb_penable) begin
++          next_state = CHECK_ADDR;
++        end
++      end
++
++      CHECK_ADDR: begin
++        if (addr_in_spi_space) begin
++          next_state = NORMAL_ACCESS;
++        end else if (addr_in_flash_space) begin
++          next_state = XIP_INIT;
++        end else begin
++          next_state = ERROR_STATE;
++        end
++      end
++
++      NORMAL_ACCESS: begin
++        if (wb_ack_i) begin
++          next_state = IDLE;
++        end
++      end
++
++      XIP_INIT: begin
++        next_state = XIP_WRITE_CMD;
++      end
++
++      XIP_WRITE_CMD: begin
++        if (wb_ack_i) begin
++          next_state = XIP_WRITE_ADDR;
++        end
++      end
++
++      XIP_WRITE_ADDR: begin
++        if (wb_ack_i) begin
++          next_state = XIP_START;
++        end
++      end
++
++      XIP_START: begin
++        if (wb_ack_i) begin
++          next_state = XIP_WAIT;
++        end
++      end
++
++      XIP_WAIT: begin
++        if (wb_ack_i && (wb_dat_i[0] == 1'b0)) begin  // Check busy flag
++          next_state = XIP_READ;
++        end
++      end
++
++      XIP_READ: begin
++        if (wb_ack_i) begin
++          next_state = XIP_COMPLETE;
++        end
++      end
++
++      XIP_COMPLETE: begin
++        next_state = IDLE;
++      end
++
++      ERROR_STATE: begin
++        next_state = IDLE;
++      end
++
++      default: begin
++        next_state = IDLE;
++      end
++    endcase
++  end
++
++  // Control logic
++  always @(posedge clock) begin
++    if (reset) begin
++      apb_prdata_reg  <= 32'h0;
++      apb_pready_reg  <= 1'b0;
++      apb_pslverr_reg <= 1'b0;
++      wb_adr_reg      <= 5'h0;
++      wb_dat_reg      <= 32'h0;
++      wb_sel_reg      <= 4'h0;
++      wb_we_reg       <= 1'b0;
++      wb_stb_reg      <= 1'b0;
++      wb_cyc_reg      <= 1'b0;
++      flash_addr      <= 32'h0;
++      xip_mode        <= 1'b0;
++    end else begin
++      // Default values
++      wb_stb_reg      <= 1'b0;
++      wb_cyc_reg      <= 1'b0;
++      apb_pready_reg  <= 1'b0;
++      apb_pslverr_reg <= 1'b0;
++
++      case (current_state)
++        IDLE: begin
++          apb_prdata_reg <= 32'h0;
++          xip_mode       <= 1'b0;
++        end
++
++        CHECK_ADDR: begin
++          if (addr_in_flash_space) begin
++            flash_addr <= apb_paddr - flash_addr_start;
++            xip_mode   <= 1'b1;
++          end
++        end
++
++        NORMAL_ACCESS: begin
++          // Direct APB to Wishbone conversion
++          wb_adr_reg <= apb_paddr[4:0];
++          wb_dat_reg <= apb_pwdata;
++          wb_sel_reg <= apb_pstrb;
++          wb_we_reg  <= apb_pwrite;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++          if (wb_ack_i) begin
++            apb_prdata_reg  <= wb_dat_i;
++            apb_pready_reg  <= 1'b1;
++            apb_pslverr_reg <= wb_err_i;
++          end
++        end
++
++        XIP_WRITE_CMD: begin
++          // Write read command to TX0 register
++          wb_adr_reg <= SPI_TX0;
++          wb_dat_reg <= {24'h0, FLASH_READ_CMD};
++          wb_sel_reg <= 4'hF;
++          wb_we_reg  <= 1'b1;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++        end
++
++        XIP_WRITE_ADDR: begin
++          // Write flash address to TX1 register
++          wb_adr_reg <= SPI_TX1;
++          wb_dat_reg <= flash_addr;
++          wb_sel_reg <= 4'hF;
++          wb_we_reg  <= 1'b1;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++        end
++
++        XIP_START: begin
++          // Start SPI transmission
++          wb_adr_reg <= SPI_CTRL;
++          wb_dat_reg <= 32'h00000100;  // Start transmission, 4-byte length
++          wb_sel_reg <= 4'hF;
++          wb_we_reg  <= 1'b1;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++        end
++
++        XIP_WAIT: begin
++          // Read control register to check busy status
++          wb_adr_reg <= SPI_CTRL;
++          wb_sel_reg <= 4'hF;
++          wb_we_reg  <= 1'b0;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++        end
++
++        XIP_READ: begin
++          // Read data from RX0 register
++          wb_adr_reg <= SPI_RX0;
++          wb_sel_reg <= 4'hF;
++          wb_we_reg  <= 1'b0;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++
++          if (wb_ack_i) begin
++            apb_prdata_reg <= wb_dat_i;
++          end
++        end
++
++        XIP_COMPLETE: begin
++          apb_pready_reg <= 1'b1;
++        end
++
++        ERROR_STATE: begin
++          apb_pslverr_reg <= 1'b1;
++          apb_pready_reg  <= 1'b1;
++        end
++        default: begin
++          wb_stb_reg      <= 1'b0;
++          wb_cyc_reg      <= 1'b0;
++          apb_pready_reg  <= 1'b0;
++          apb_pslverr_reg <= 1'b0;
++        end
++      endcase
++    end
++  end
++
++  // Output assignments
++  assign apb_prdata  = apb_prdata_reg;
++  assign apb_pready  = apb_pready_reg;
++  assign apb_pslverr = apb_pslverr_reg;
++
++  assign wb_adr_o    = wb_adr_reg;
++  assign wb_dat_o    = wb_dat_reg;
++  assign wb_sel_o    = wb_sel_reg;
++  assign wb_we_o     = wb_we_reg;
++  assign wb_stb_o    = wb_stb_reg;
++  assign wb_cyc_o    = wb_cyc_reg;
++
++endmodule
++
+ module spi_top_apb #(
+   parameter flash_addr_start = 32'h30000000,
+   parameter flash_addr_end   = 32'h3fffffff,
+@@ -48,25 +348,64 @@ assign in_prdata  = data[31:0];
+ 
+ `else
+ 
++  // Wishbone signals
++  wire [ 4:0] wb_adr;
++  wire [31:0] wb_dat_o;
++  wire [31:0] wb_dat_i;
++  wire [ 3:0] wb_sel;
++  wire        wb_we;
++  wire        wb_stb;
++  wire        wb_cyc;
++  wire        wb_ack;
++  wire        wb_err;
++
++  // XIP controller instance
++  xip_controller #() u_xip_controller (
++  .clock(clock),
++  .reset(reset),
++
++  // APB interface
++  .apb_paddr  (in_paddr),
++  .apb_psel   (in_psel),
++  .apb_penable(in_penable),
++  .apb_pwrite (in_pwrite),
++  .apb_pwdata (in_pwdata),
++  .apb_pstrb  (in_pstrb),
++  .apb_prdata (in_prdata),
++  .apb_pready (in_pready),
++  .apb_pslverr(in_pslverr),
++
++  // Direct Wishbone interface to SPI
++  .wb_adr_o(wb_adr),
++  .wb_dat_o(wb_dat_o),
++  .wb_dat_i(wb_dat_i),
++  .wb_sel_o(wb_sel),
++  .wb_we_o (wb_we),
++  .wb_stb_o(wb_stb),
++  .wb_cyc_o(wb_cyc),
++  .wb_ack_i(wb_ack),
++  .wb_err_i(wb_err)
++  );
++
+ spi_top u0_spi_top (
+   .wb_clk_i(clock),
+   .wb_rst_i(reset),
+-  .wb_adr_i(in_paddr[4:0]),
+-  .wb_dat_i(in_pwdata),
+-  .wb_dat_o(in_prdata),
+-  .wb_sel_i(in_pstrb),
+-  .wb_we_i (in_pwrite),
+-  .wb_stb_i(in_psel),
+-  .wb_cyc_i(in_penable),
+-  .wb_ack_o(in_pready),
+-  .wb_err_o(in_pslverr),
++  .wb_adr_i(wb_adr),
++  .wb_dat_i(wb_dat_o),
++  .wb_dat_o(wb_dat_i),
++  .wb_sel_i(wb_sel),
++  .wb_we_i (wb_we),
++  .wb_stb_i(wb_stb),
++  .wb_cyc_i(wb_cyc),
++  .wb_ack_o(wb_ack),
++  .wb_err_o(wb_err),
+   .wb_int_o(spi_irq_out),
+ 
+   .ss_pad_o(spi_ss),
+   .sclk_pad_o(spi_sck),
+   .mosi_pad_o(spi_mosi),
+   .miso_pad_i(spi_miso)
+-);
++  );
+ 
+ `endif // FAST_FLASH
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,74 @@
+From b1bd2f3a694535743b5233e9fa5dd71f39571c64 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Wed, 11 Mar 2026 10:18:14 +0000
+Subject: [PATCH 21/40] [ps2] replace fifo_count with wt/rd comparing
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 36 ++++++++++++++++++------------------
+ 1 file changed, 18 insertions(+), 18 deletions(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 4ef3b129..6c159adf 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -42,7 +42,7 @@ module ps2_top_apb(
+   reg  [     FIFO_WIDTH-1:0] fifo_mem [0:FIFO_DEPTH-1];
+   reg  [FIFO_ADDR_WIDTH-1:0] wr_ptr;
+   reg  [FIFO_ADDR_WIDTH-1:0] rd_ptr;
+-  reg  [  FIFO_ADDR_WIDTH:0] fifo_count;
++//  reg  [  FIFO_ADDR_WIDTH:0] fifo_count;
+   wire                       fifo_full;
+   wire                       fifo_empty;
+   wire                       fifo_wr_en;
+@@ -61,8 +61,8 @@ module ps2_top_apb(
+   assign in_pslverr = pslverr_reg;
+ 
+   // FIFO control signals
+-  assign fifo_full  = (fifo_count == FIFO_DEPTH);
+-  assign fifo_empty = (fifo_count == 0);
++  assign fifo_full  = (wr_ptr + 1 == rd_ptr);
++  assign fifo_empty = (wr_ptr == rd_ptr);
+   assign fifo_wr_en = data_ready & ~parity_error & ~frame_error & ~fifo_full;
+   assign fifo_rd_en = apb_read_pulse & (addr_offset == ADDR_DATA) & ~fifo_empty;
+   assign debug_data = buffer_data[9:2];
+@@ -142,21 +142,21 @@ module ps2_top_apb(
+     end
+   end
+ 
+-  // FIFO count management
+-  always @(posedge clock or posedge reset) begin
+-    if (reset) begin
+-      fifo_count <= 0;
+-    end else begin
+-      case ({
+-        fifo_wr_en, fifo_rd_en
+-      })
+-        2'b01:   fifo_count <= fifo_count - 1;  // Read only
+-        2'b10:   fifo_count <= fifo_count + 1;  // Write only
+-        2'b11:   fifo_count <= fifo_count;  // Read and write
+-        default: fifo_count <= fifo_count;  // No operation
+-      endcase
+-    end
+-  end
++  // // FIFO count management
++  // always @(posedge clock or posedge reset) begin
++  //   if (reset) begin
++  //     fifo_count <= 0;
++  //   end else begin
++  //     case ({
++  //       fifo_wr_en, fifo_rd_en
++  //     })
++  //       2'b01:   fifo_count <= fifo_count - 1;  // Read only
++  //       2'b10:   fifo_count <= fifo_count + 1;  // Write only
++  //       2'b11:   fifo_count <= fifo_count;  // Read and write
++  //       default: fifo_count <= fifo_count;  // No operation
++  //     endcase
++  //   end
++  // end
+ 
+   // FIFO memory write
+   always @(posedge clock) begin
+-- 
+2.34.1
+

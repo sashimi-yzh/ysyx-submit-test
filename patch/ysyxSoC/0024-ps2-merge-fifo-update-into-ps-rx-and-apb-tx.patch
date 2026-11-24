@@ -1,0 +1,112 @@
+From eeb71d74bf191b28fa53e1a1f41cf8932f4a5120 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Thu, 12 Mar 2026 03:06:58 +0000
+Subject: [PATCH 24/40] [ps2] merge fifo update into ps rx and apb tx
+
+The original way will always delay 1 cycle where
+the empty signal is asserted 1 cycle earlier. Hence
+merge these logic together to avoid delay.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 43 +++++++++++++----------------------------
+ 1 file changed, 13 insertions(+), 30 deletions(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 14c9ed98..d1ffdc70 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -39,10 +39,9 @@ module ps2_top_apb(
+   reg                        frame_error;
+ 
+   // FIFO signals
+-  reg  [     FIFO_WIDTH-1:0] fifo_mem [0:FIFO_DEPTH-1];
++  reg  [     FIFO_WIDTH-1:0] fifo_mem                                     [0:FIFO_DEPTH-1];
+   reg  [FIFO_ADDR_WIDTH-1:0] wr_ptr;
+   reg  [FIFO_ADDR_WIDTH-1:0] rd_ptr;
+-//  reg  [  FIFO_ADDR_WIDTH:0] fifo_count;
+   wire                       fifo_full;
+   wire                       fifo_empty;
+   wire                       fifo_wr_en;
+@@ -98,17 +97,20 @@ module ps2_top_apb(
+       data_ready   <= 1'b0;
+       parity_error <= 1'b0;
+       frame_error  <= 1'b0;
++      wr_ptr       <= 0;
+     end else begin
+       data_ready <= 1'b0;
+       if (sampling) begin
+-       if (bit_count == 4'd10) begin
++        if (bit_count == 4'd10) begin
+           // Check stop bit
+           if (ps2_data_sync[1] == 1'b1 && buffer_data[1] == 1'b0) begin
+             // Check parity
+             if (^buffer_data[10:2]) begin
+-              data_ready   <= 1'b1;
+-              parity_error <= 1'b0;
+-              frame_error  <= 1'b0;
++              data_ready       <= 1'b1;
++              parity_error     <= 1'b0;
++              frame_error      <= 1'b0;
++              fifo_mem[wr_ptr] <= buffer_data[9:2];  // Store 8-bit data
++              wr_ptr           <= wr_ptr + 1;
+             end else begin
+               parity_error <= 1'b1;
+             end
+@@ -118,39 +120,19 @@ module ps2_top_apb(
+           bit_count <= 4'h0;
+         end else begin
+           buffer_data <= {ps2_data_sync[1], buffer_data[10:1]};
+-          bit_count <= bit_count + 1;
++          bit_count   <= bit_count + 1;
+         end
+       end
+     end
+   end
+ 
+-  // FIFO memory write
+-  always @(posedge clock) begin
+-    if (reset) begin
+-      wr_ptr <= 0;
+-    end else if (fifo_wr_en) begin
+-      fifo_mem[wr_ptr] <= buffer_data[9:2];  // Store 8-bit data
+-      wr_ptr <= wr_ptr + 1;
+-    end
+-  end
+-
+-  // FIFO memory read
+-  always @(posedge clock or posedge reset) begin
+-    if (reset) begin
+-      rd_ptr <= 0;
+-      fifo_dout <= 8'h0;
+-    end else if (fifo_rd_en) begin
+-      fifo_dout <= fifo_mem[rd_ptr];
+-      rd_ptr <= rd_ptr + 1;
+-    end
+-  end
+-
+   // APB bus read/write operations
+   always @(posedge clock or posedge reset) begin
+     if (reset) begin
+       pready_reg  <= 1'b0;
+       prdata_reg  <= 32'h0;
+       pslverr_reg <= 1'b0;
++      rd_ptr      <= 0;
+     end else begin
+       pready_reg  <= 1'b0;
+       pslverr_reg <= 1'b0;
+@@ -166,8 +148,9 @@ module ps2_top_apb(
+             // Read operation
+             case (addr_offset)
+               ADDR_DATA: begin
+-                if (~fifo_empty) begin
+-                  prdata_reg <= {24'h0, fifo_dout};
++                if (fifo_rd_en) begin
++                  prdata_reg <= {24'h0, fifo_mem[rd_ptr]};
++                  rd_ptr     <= rd_ptr + 1;
+                 end else begin
+                   prdata_reg <= 32'h0;  // Return 0 when FIFO is empty
+                 end
+-- 
+2.34.1
+

@@ -1,0 +1,158 @@
+From f021beaf27a8fe7cf0b81a75600a5a7dcb60de5a Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Wed, 11 Feb 2026 08:21:23 +0000
+Subject: [PATCH 14/40] [sdram] update sdram extent with scala module instead
+
+This is to make the code clean and easy to maintain.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/sdram/sdram_top_apb.v |  8 +++++---
+ src/CPU.scala               |  4 ++--
+ src/SoC.scala               | 32 ++++++++++++++++++++++++++++++--
+ src/device/SDRAM.scala      | 20 ++++++++++++++++++--
+ 4 files changed, 55 insertions(+), 9 deletions(-)
+
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 8f33d42e..2bce21fa 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -22,12 +22,14 @@ module sdram_top_apb (
+   output [12:0] sdram_a,
+   output [ 1:0] sdram_ba,
+   output [ 3:0] sdram_dqm,
+-  inout  [31:0] sdram_dq
++  inout  [15:0] sdram_dq0,
++  inout  [15:0] sdram_dq1
+ );
+ 
+   wire sdram_dout_en;
+   wire [31:0] sdram_dout;
+-  assign sdram_dq = sdram_dout_en ? sdram_dout : 32'bz;
++  assign sdram_dq0 = sdram_dout_en ? sdram_dout[15:0] : 16'bz;
++  assign sdram_dq1 = sdram_dout_en ? sdram_dout[31:16] : 16'bz;
+ 
+   typedef enum [1:0] { ST_IDLE, ST_WAIT_ACCEPT, ST_WAIT_ACK } state_t;
+   reg [1:0] state;
+@@ -74,7 +76,7 @@ module sdram_top_apb (
+     .sdram_dqm_o(sdram_dqm),
+     .sdram_addr_o(sdram_a),
+     .sdram_ba_o(sdram_ba),
+-    .sdram_data_input_i(sdram_dq),
++    .sdram_data_input_i({sdram_dq1, sdram_dq0}),
+     .sdram_data_output_o(sdram_dout),
+     .sdram_data_out_en_o(sdram_dout_en)
+   );
+diff --git a/src/CPU.scala b/src/CPU.scala
+index 7559195f..23607f1e 100644
+--- a/src/CPU.scala
++++ b/src/CPU.scala
+@@ -13,7 +13,7 @@ object CPUAXI4BundleParameters {
+   def apply() = AXI4BundleParameters(addrBits = 32, dataBits = 32, idBits = ChipLinkParam.idBits)
+ }
+ 
+-class ysyx_00000000 extends BlackBox {
++class ysyx_24110012 extends BlackBox {
+   val io = IO(new Bundle {
+     val clock = Input(Clock())
+     val reset = Input(Reset())
+@@ -35,7 +35,7 @@ class CPU(idBits: Int)(implicit p: Parameters) extends LazyModule {
+     val interrupt = IO(Input(Bool()))
+     val slave = IO(Flipped(AXI4Bundle(CPUAXI4BundleParameters())))
+ 
+-    val cpu = Module(new ysyx_00000000)
++    val cpu = Module(new ysyx_24110012)
+     cpu.io.clock := clock
+     cpu.io.reset := reset
+     cpu.io.io_interrupt := interrupt
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 917a6e7d..c427866d 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -2,6 +2,8 @@ package ysyx
+ 
+ import chisel3._
+ import chisel3.util._
++import chisel3.experimental.attach
++import chisel3.experimental.Analog
+ 
+ import freechips.rocketchip.diplomacy._
+ import org.chipsalliance.cde.config.Parameters
+@@ -142,8 +144,34 @@ class ysyxSoCFull(implicit p: Parameters) extends LazyModule {
+ 
+     val psram = Module(new psram)
+     psram.io <> masic.psram
+-    val sdram = Module(new sdram)
+-    sdram.io <> masic.sdram
++
++    val sdram0 = Module(new sdram(0))
++    val sdram1 = Module(new sdram(1))
++    val sdram2 = Module(new sdram(0))
++    val sdram3 = Module(new sdram(1))
++
++    attach(sdram0.io.dq, masic.sdram.dq0)
++    attach(sdram1.io.dq, masic.sdram.dq1)
++    attach(sdram2.io.dq, masic.sdram.dq0)
++    attach(sdram3.io.dq, masic.sdram.dq1)
++
++    sdram0.io.dqm := masic.sdram.dqm(1,0)
++    sdram1.io.dqm := masic.sdram.dqm(3,2)
++    sdram2.io.dqm := masic.sdram.dqm(1,0)
++    sdram3.io.dqm := masic.sdram.dqm(3,2)
++
++    sdram0.io.cs := masic.sdram.cs0
++    sdram1.io.cs := masic.sdram.cs0
++    sdram2.io.cs := masic.sdram.cs1
++    sdram3.io.cs := masic.sdram.cs1
++
++    val common = List("clk", "cke", "ras", "cas", "we", "a", "ba")
++    common.foreach(signal => {
++      sdram0.io.elements(signal) := masic.sdram.elements(signal)
++      sdram1.io.elements(signal) := masic.sdram.elements(signal)
++      sdram2.io.elements(signal) := masic.sdram.elements(signal)
++      sdram3.io.elements(signal) := masic.sdram.elements(signal)
++    })
+ 
+     val externalPins = IO(new Bundle{
+       val gpio = chiselTypeOf(masic.gpio)
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index a823c718..18a95d06 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -11,6 +11,21 @@ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
+ 
+ class SDRAMIO extends Bundle {
++  val clk = Output(Bool())
++  val cke = Output(Bool())
++  val cs0  = Output(Bool())
++  val cs1  = Output(Bool())
++  val ras = Output(Bool())
++  val cas = Output(Bool())
++  val we  = Output(Bool())
++  val a   = Output(UInt(13.W))
++  val ba  = Output(UInt(2.W))
++  val dqm = Output(UInt(4.W))
++  val dq0 = Analog(16.W)
++  val dq1 = Analog(16.W)
++}
++
++class SDRAMDEVIO extends Bundle {
+   val clk = Output(Bool())
+   val cke = Output(Bool())
+   val cs  = Output(Bool())
+@@ -41,8 +56,9 @@ class sdram_top_apb extends BlackBox {
+   })
+ }
+ 
+-class sdram extends BlackBox {
+-  val io = IO(Flipped(new SDRAMIO))
++class sdram (chipId: Int = 0) extends BlackBox(Map("CHIPID" -> chipId)) {
++  val io = IO(Flipped(new SDRAMDEVIO))
++  override def desiredName = "sdram"
+ }
+ 
+ class sdramChisel extends RawModule {
+-- 
+2.34.1
+

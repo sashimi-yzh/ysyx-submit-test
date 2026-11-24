@@ -1,0 +1,34 @@
+From 8e21d8684562968ab511b95b8665309e55bcf432 Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Wed, 18 Nov 2026 21:49:50 +0800
+Subject: [PATCH 13/13] [npc] reduce integrated apps for npc
+
+The NPC only has 4M PSRAM. Reduce the apps number
+to fit the size of PSRAM.
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/integrate-am-apps.py | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df387..48231a005 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -26,6 +26,13 @@ if not sys.argv[2].startswith("CROSS_COMPILE="):
+     exit(-1)
+ CROSS_COMPILE = sys.argv[2][14:]
+ 
++# npc only has 4MB PSRAM (linker-npc.ld): keep the small apps only
++if ARCH.endswith("-npc"):
++    app_dir_list = [
++      AM_KERNELS_HOME / "kernels" / "hello",
++      AM_KERNELS_HOME / "benchmarks" / "microbench",
++    ]
++
+ Path("build").mkdir(exist_ok=True)
+ am_app_mk_fp = open(f"build/{ARCH}/am-apps.mk", "w")
+ am_app_c_fp  = open("build/am-apps.c" , "w")
+-- 
+2.34.1
+

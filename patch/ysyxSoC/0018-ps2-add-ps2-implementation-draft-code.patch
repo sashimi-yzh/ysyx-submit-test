@@ -1,0 +1,218 @@
+From 967ab1b55d9e77d18b232fc19fa1c69d18f999ee Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Tue, 10 Mar 2026 11:44:56 +0000
+Subject: [PATCH 18/40] [ps2] add ps2 implementation draft code
+
+TODO: still have issues
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 194 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 194 insertions(+)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 080d38fa..dcfd39f1 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -16,4 +16,198 @@ module ps2_top_apb(
+   input         ps2_data
+ );
+ 
++  // Register address definitions
++  localparam ADDR_DATA = 4'h0;  // Data register
++
++  // FIFO parameters
++  localparam FIFO_DEPTH = 16;
++  localparam FIFO_WIDTH = 8;
++  localparam FIFO_ADDR_WIDTH = 4;
++
++  // Internal registers
++  reg                        pready_reg;
++  reg  [               31:0] prdata_reg;
++  reg                        pslverr_reg;
++
++  // PS/2 receive related signals
++  reg  [                2:0] ps2_clk_sync;
++  reg  [                2:0] ps2_data_sync;
++  reg  [                3:0] bit_count;
++  reg  [               10:0] buffer_data;
++  reg                        data_ready;
++  reg                        parity_error;
++  reg                        frame_error;
++
++  // FIFO signals
++  reg  [     FIFO_WIDTH-1:0] fifo_mem [0:FIFO_DEPTH-1];
++  reg  [FIFO_ADDR_WIDTH-1:0] wr_ptr;
++  reg  [FIFO_ADDR_WIDTH-1:0] rd_ptr;
++  reg  [  FIFO_ADDR_WIDTH:0] fifo_count;
++  wire                       fifo_full;
++  wire                       fifo_empty;
++  wire                       fifo_wr_en;
++  wire                       fifo_rd_en;
++  reg  [     FIFO_WIDTH-1:0] fifo_dout;
++  reg  [     FIFO_WIDTH-1:0] debug_data;
++
++  // APB bus signals
++  wire                       apb_write = in_psel & in_penable & in_pwrite;
++  wire                       apb_read = in_psel & in_penable & ~in_pwrite;
++  wire [                3:0] addr_offset = in_paddr[3:0];
++
++  // Output assignments
++  assign in_pready  = pready_reg;
++  assign in_prdata  = prdata_reg;
++  assign in_pslverr = pslverr_reg;
++
++  // FIFO control signals
++  assign fifo_full  = (fifo_count == FIFO_DEPTH);
++  assign fifo_empty = (fifo_count == 0);
++  assign fifo_wr_en = data_ready & ~parity_error & ~frame_error & ~fifo_full;
++  assign fifo_rd_en = apb_read & (addr_offset == ADDR_DATA) & ~fifo_empty;
++  assign debug_data = buffer_data[8:1];
++
++  // PS/2 clock and data synchronization
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      ps2_clk_sync  <= 3'b000;
++      ps2_data_sync <= 3'b000;
++    end else begin
++      ps2_clk_sync  <= {ps2_clk_sync[1:0], ps2_clk};
++      ps2_data_sync <= {ps2_data_sync[1:0], ps2_data};
++    end
++  end
++
++  // Detect PS/2 clock falling edge
++  wire sampling = ps2_clk_sync[2] & ~ps2_clk_sync[1];
++
++  // PS/2 data receive state machine
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      bit_count    <= 4'h0;
++      buffer_data    <= 11'h0;
++      data_ready   <= 1'b0;
++      parity_error <= 1'b0;
++      frame_error  <= 1'b0;
++    end else begin
++      data_ready <= 1'b0;
++
++      if (sampling) begin
++        if (bit_count == 4'h0) begin
++          // Start bit check
++          if (ps2_data_sync[1] == 1'b0) begin
++            bit_count <= bit_count + 1;
++            buffer_data <= {ps2_data_sync[1], buffer_data[10:1]};
++          end
++        end else if (bit_count == 4'd10) begin
++          // Check stop bit
++          if (ps2_data_sync[1] == 1'b1) begin
++            // Check parity
++            if (^buffer_data[9:1]) begin
++              data_ready   <= 1'b1;
++              parity_error <= 1'b0;
++              frame_error  <= 1'b0;
++            end else begin
++              parity_error <= 1'b1;
++            end
++          end else begin
++            frame_error <= 1'b1;
++          end
++          bit_count <= 4'h0;
++        end else begin
++          buffer_data <= {ps2_data_sync[1], buffer_data[10:1]};
++          bit_count <= bit_count + 1;
++        end
++      end
++    end
++  end
++
++  // FIFO write pointer management
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      wr_ptr <= 0;
++    end else if (fifo_wr_en) begin
++      wr_ptr <= wr_ptr + 1;
++    end
++  end
++
++  // FIFO read pointer management
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      rd_ptr <= 0;
++    end else if (fifo_rd_en) begin
++      rd_ptr <= rd_ptr + 1;
++    end
++  end
++
++  // FIFO count management
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      fifo_count <= 0;
++    end else begin
++      case ({
++        fifo_wr_en, fifo_rd_en
++      })
++        2'b01:   fifo_count <= fifo_count - 1;  // Read only
++        2'b10:   fifo_count <= fifo_count + 1;  // Write only
++        2'b11:   fifo_count <= fifo_count;  // Read and write
++        default: fifo_count <= fifo_count;  // No operation
++      endcase
++    end
++  end
++
++  // FIFO memory write
++  always @(posedge clock) begin
++    if (fifo_wr_en) begin
++      fifo_mem[wr_ptr] <= buffer_data[8:1];  // Store 8-bit data
++    end
++  end
++
++  // FIFO memory read
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      fifo_dout <= 8'h0;
++    end else if (fifo_rd_en) begin
++      fifo_dout <= fifo_mem[rd_ptr];
++    end
++  end
++
++  // APB bus read/write operations
++  always @(posedge clock or posedge reset) begin
++    if (reset) begin
++      pready_reg  <= 1'b0;
++      prdata_reg  <= 32'h0;
++      pslverr_reg <= 1'b0;
++    end else begin
++      pready_reg  <= 1'b0;
++      pslverr_reg <= 1'b0;
++
++      if (in_psel) begin
++        if (in_penable) begin
++          pready_reg <= 1'b1;
++
++          if (in_pwrite) begin
++            // Write operation - not supported
++            pslverr_reg <= 1'b1;  // Write operation not allowed
++          end else begin
++            // Read operation
++            case (addr_offset)
++              ADDR_DATA: begin
++                if (~fifo_empty) begin
++                  prdata_reg <= {24'h0, fifo_dout};
++                end else begin
++                  prdata_reg <= 32'h0;  // Return 0 when FIFO is empty
++                end
++              end
++              default: begin
++                prdata_reg  <= 32'h0;
++                pslverr_reg <= 1'b1;  // Invalid address
++              end
++            endcase
++          end
++        end
++      end
++    end
++  end
++
+ endmodule
+-- 
+2.34.1
+

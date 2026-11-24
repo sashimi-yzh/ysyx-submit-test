@@ -1,0 +1,40 @@
+From bcc726acde8d5a478521e57344acd0c370f7cb2d Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Thu, 12 Mar 2026 02:47:17 +0000
+Subject: [PATCH 23/40] [ps2] remove unused code for fifo mgmt
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 16 ----------------
+ 1 file changed, 16 deletions(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index babf6743..14c9ed98 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -124,22 +124,6 @@ module ps2_top_apb(
+     end
+   end
+ 
+-  // // FIFO count management
+-  // always @(posedge clock or posedge reset) begin
+-  //   if (reset) begin
+-  //     fifo_count <= 0;
+-  //   end else begin
+-  //     case ({
+-  //       fifo_wr_en, fifo_rd_en
+-  //     })
+-  //       2'b01:   fifo_count <= fifo_count - 1;  // Read only
+-  //       2'b10:   fifo_count <= fifo_count + 1;  // Write only
+-  //       2'b11:   fifo_count <= fifo_count;  // Read and write
+-  //       default: fifo_count <= fifo_count;  // No operation
+-  //     endcase
+-  //   end
+-  // end
+-
+   // FIFO memory write
+   always @(posedge clock) begin
+     if (reset) begin
+-- 
+2.34.1
+

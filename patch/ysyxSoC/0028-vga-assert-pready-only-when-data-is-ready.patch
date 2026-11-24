@@ -1,0 +1,102 @@
+From bdc4206b411144c0e1931b728e43823b775148fe Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Mon, 16 Mar 2026 11:18:52 +0000
+Subject: [PATCH 28/40] [vga] assert pready only when data is ready
+
+1) assert pready only when data is ready otherwise it
+   will return incorrect data at incorrect time.
+2) add debug code for easy debug
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/vga/vga_top_apb.v | 33 +++++++++++++++++++++++++++++++--
+ 1 file changed, 31 insertions(+), 2 deletions(-)
+
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index c97c6a83..2a791572 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -1,3 +1,6 @@
++//`define VGA_FB_DEBUG
++//`define VGA_FB_DEBUG_INIT
++
+ module vga_top_apb(
+   input         clock,
+   input         reset,
+@@ -48,6 +51,16 @@ module vga_top_apb(
+   reg [31:0] canvas[WIDTH * HEIGHT - 1:0];
+   reg rendering;
+ 
++`ifdef VGA_FB_DEBUG_INIT
++  localparam DEFAULT_COLOR = 32'h00ff0000;
++  integer init_i;
++  initial begin
++    for (init_i = 0; init_i < WIDTH * HEIGHT; init_i = init_i + 1) begin
++      canvas[init_i] = DEFAULT_COLOR;
++    end
++  end
++`endif
++
+   // output
+   assign in_prdata  = prdata_reg;
+   assign in_pready  = pready_reg;
+@@ -56,11 +69,11 @@ module vga_top_apb(
+   always @(posedge clock) begin
+     if (reset) begin
+       prdata_reg  <= 32'h0;
+-      pready_reg  <= 1'b1;
++      pready_reg  <= 1'b0;
+       pslverr_reg <= 1'b0;
+       rendering   <= 1'b0;
+     end else begin
+-      pready_reg  <= 1'b1;
++      pready_reg  <= 1'b0;
+       pslverr_reg <= 1'b0;
+ 
+       if (frame_done) begin
+@@ -72,7 +85,13 @@ module vga_top_apb(
+           if (fb_addr_match) begin
+             if ((in_paddr[1:0] == 2'b00) && (canvas_wr_addr < WIDTH * HEIGHT)) begin
+               canvas[canvas_wr_addr] <= masked_wdata;
++`ifdef VGA_FB_DEBUG
++              $display("[VGA_FB_WR] t=%0t apb_addr=%h idx=%0d old=%h new=%h strb=%b",
++                       $time, in_paddr, canvas_wr_addr, canvas[canvas_wr_addr], masked_wdata, in_pstrb);
++`endif
++            pready_reg  <= 1'b1;
+             end else begin
++              pready_reg  <= 1'b1;
+               pslverr_reg <= 1'b1;
+             end
+           end else begin
+@@ -86,6 +105,7 @@ module vga_top_apb(
+                 pslverr_reg <= 1'b1;
+               end
+             endcase
++            pready_reg  <= 1'b1;
+           end
+         end else begin
+           case (in_paddr)
+@@ -96,6 +116,7 @@ module vga_top_apb(
+               pslverr_reg <= 1'b1;
+             end
+           endcase
++          pready_reg  <= 1'b1;
+         end
+       end
+     end
+@@ -157,4 +178,12 @@ module vga_top_apb(
+   assign vga_g     = pixel_data[15:8];
+   assign vga_b     = pixel_data[7:0];
+ 
++`ifdef VGA_FB_DEBUG
++  always @(posedge clock) begin
++    if (vga_valid)
++      $display("[VGA_PIXEL] t=%0t x=%0d y=%0d idx=%0d data=%h",
++               $time, h_addr, v_addr, pixel_idx, pixel_data);
++  end
++`endif
++
+ endmodule
+-- 
+2.34.1
+

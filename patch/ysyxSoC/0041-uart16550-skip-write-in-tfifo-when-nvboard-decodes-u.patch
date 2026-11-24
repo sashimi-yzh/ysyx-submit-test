@@ -1,0 +1,45 @@
+From 3026c155c7ab1b7bab6d02a1371746129e78f7e8 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Tue, 17 Nov 2026 23:23:38 +0800
+Subject: [PATCH] [uart16550] skip $write in tfifo when nvboard decodes uart
+
+When nvboard is enabled, the uart tx line is decoded by nvboard
+and the char is printed by nvboard. Printing it again with $write
+in uart_tfifo results in every char being output twice, especially
+in CI where nvboard interacts through stdin/stdout.
+
+Guard the $write with `ifndef NVBOARD_UART so the simulator can
+disable it by passing -DNVBOARD_UART.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/uart16550/rtl/uart_tfifo.v | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 71329116..0434e4e2 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,7 +211,9 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
++`ifndef NVBOARD_UART
+                 $write("%c", data_in);
++`endif
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -221,7 +223,9 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
++`ifndef NVBOARD_UART
+                 $write("%c", data_in);
++`endif
+                 end
+         default: ;
+         endcase
+-- 
+2.34.1
+

@@ -1,0 +1,76 @@
+From cb4354711b04db5322579e96660bfa136eb6fede Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Fri, 19 Jun 2026 21:21:56 +0800
+Subject: [PATCH 35/40] [axi-delay] update delay uncorrect logic
+
+1) hold rdata until rvalid is assert
+2) write state machine transit logic
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ perip/amba/axi4_delayer.v | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index fc81df92..527df3ba 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -78,6 +78,7 @@ module axi4_delayer(
+   localparam [2:0] ST_RESP_WR = 3'd4;
+ 
+   reg  [31:0] delay_cnt_rd, delay_cnt_wr;
++  reg  [31:0] rsp_rdata;
+ 
+   assign in_arready  = out_arready;
+   assign out_arvalid = in_arvalid;
+@@ -87,10 +88,10 @@ module axi4_delayer(
+   assign out_arsize  = in_arsize;
+   assign out_arburst = in_arburst;
+   // the out_rready is only asserted when delay is done
+-  assign out_rready  = in_rready;
++  assign out_rready  = (state_rd == ST_RESP_RD);
+   assign in_rvalid   = (state_rd == ST_RESP_RD);
+   assign in_rid      = out_rid;
+-  assign in_rdata    = out_rdata;
++  assign in_rdata    = rsp_rdata;
+   assign in_rresp    = out_rresp;
+   assign in_rlast    = out_rlast;
+ 
+@@ -128,6 +129,7 @@ module axi4_delayer(
+         end
+         ST_ACCESS_RD: begin
+           if (out_rvalid) begin
++            rsp_rdata <= out_rdata;
+             state_rd <= ST_DELAY_RD;
+           end else begin
+             // delay it by 5 * 8 since the device clock is 100MHz and system clock is 506MHz
+@@ -148,6 +150,8 @@ module axi4_delayer(
+         ST_RESP_RD: begin
+           if (in_rvalid && in_rready && in_rlast) begin
+             state_rd <= ST_IDLE_RD;
++          end else if (in_rvalid && in_rready && !in_rlast) begin
++            state_rd <= ST_ACCESS_RD;
+           end
+         end
+         default: begin
+@@ -164,7 +168,7 @@ module axi4_delayer(
+     end else begin
+       case (state_wr)
+         ST_IDLE_WR: begin
+-          if (in_awvalid) begin
++          if (in_awvalid && in_awready) begin
+             state_wr <= ST_SETUP_WR;
+           end
+         end
+@@ -172,7 +176,7 @@ module axi4_delayer(
+           state_wr <= ST_ACCESS_WR;
+         end
+         ST_ACCESS_WR: begin
+-          if (out_awvalid && out_awready) begin
++          if (in_wvalid && in_wready) begin
+             state_wr <= ST_DELAY_WR;
+           end
+         end
+-- 
+2.34.1
+

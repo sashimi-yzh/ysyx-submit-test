@@ -1,0 +1,95 @@
+From c5f21cd30982b59ad1606ebd3ef58d05d56a6c74 Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Thu, 26 Jun 2025 18:10:10 +0800
+Subject: [PATCH 3/9] [rt-thread] update from/to to stack of to
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/src/context.c | 35 +++++++++++++++---------------
+ 1 file changed, 18 insertions(+), 17 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index cbeb72901..976af5980 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -6,15 +6,18 @@ typedef struct {
+   void (*entry)(void *);
+   void *parameter;
+   void (*exit)(void);
++} Ee;
++
++typedef struct {
+   rt_ubase_t to;
+   rt_ubase_t from;
+   rt_ubase_t to_flag;
+-} Ee;
++} Ft;
+ 
+ 
+ static Context* ev_handler(Event e, Context *c) {
+   struct rt_thread *current = rt_thread_self();
+-  Ee *ee = (Ee *)(current->user_data);
++  Ft *ft = (Ft *)(current->user_data);
+   switch (e.event) {
+     case EVENT_YIELD: // Handle yield event
+       printf("Got event yield %d\n", e.event);
+@@ -25,10 +28,11 @@ static Context* ev_handler(Event e, Context *c) {
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+ 
+-  if (!ee->to_flag) {
+-    *(Context **)(ee->from) = c;
++  if (!ft->to_flag) {
++    *(Context **)(ft->from) = c;
+   }
+-  c = *(Context **)(ee->to);
++  c = *(Context **)(ft->to);
++  memset(ft, 0, sizeof(Ft)); // restore ft back to stack
+ 
+   return c;
+ }
+@@ -41,10 +45,10 @@ void rt_hw_context_switch_to(rt_ubase_t to) {
+   struct rt_thread *current = rt_thread_self();
+   rt_ubase_t user_data_tmp = current->user_data;
+   rt_ubase_t context_p = *(rt_ubase_t *)to;
+-  Ee *ee = (Ee *) (context_p + sizeof(Context));
+-  ee->to = to;
+-  ee->to_flag = 1;
+-  current->user_data = (rt_ubase_t) ee;
++  Ft *ft = (Ft *) (context_p - sizeof(Ft));
++  ft->to = to;
++  ft->to_flag = 1;
++  current->user_data = (rt_ubase_t) ft;
+   yield();
+   current->user_data = user_data_tmp;
+ }
+@@ -53,11 +57,11 @@ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+   struct rt_thread *current = rt_thread_self();
+   rt_ubase_t user_data_tmp = current->user_data;
+   rt_ubase_t context_p = *(rt_ubase_t *)to;
+-  Ee *ee = (Ee *) (context_p + sizeof(Context));
+-  ee->to = to;
+-  ee->from = from;
+-  ee->to_flag = 0;
+-  current->user_data = (rt_ubase_t) ee;
++  Ft *ft = (Ft *) (context_p - sizeof(Ft));
++  ft->to = to;
++  ft->from = from;
++  ft->to_flag = 0;
++  current->user_data = (rt_ubase_t) ft;
+   yield();
+   current->user_data = user_data_tmp;
+ }
+@@ -84,9 +88,6 @@ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_ad
+   ee->entry = tentry;
+   ee->exit = texit;
+   ee->parameter = parameter;
+-  ee->from = 0;
+-  ee->to = 0;
+-  ee->to_flag = 0;
+ 
+   stack_area = (Area) { 0, (void *)((uintptr_t)stack & ~(sizeof(uintptr_t)-1))};
+   return (rt_uint8_t *)kcontext(stack_area, wrapper, ee);
+-- 
+2.34.1
+

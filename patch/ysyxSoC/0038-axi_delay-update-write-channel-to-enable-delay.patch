@@ -1,0 +1,73 @@
+From e81042b9d2b065d912114f0936e2827389a27ea8 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Mon, 22 Jun 2026 06:46:00 +0000
+Subject: [PATCH 38/40] [axi_delay] update write channel to enable delay
+
+The write delay is added -
+1) start delay counter from idle state.
+2) remove access state since awvalid/wvalid are almost
+   in the same time.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/amba/axi4_delayer.v | 20 ++++----------------
+ 1 file changed, 4 insertions(+), 16 deletions(-)
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index a60ee6ab..b342eaae 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -73,7 +73,6 @@ module axi4_delayer(
+ 
+   localparam logic [2:0] ST_IDLE_WR = 3'd0;
+   localparam logic [2:0] ST_SETUP_WR = 3'd1;
+-  localparam logic [2:0] ST_ACCESS_WR = 3'd2;
+   localparam logic [2:0] ST_DELAY_WR = 3'd3;
+   localparam logic [2:0] ST_RESP_WR = 3'd4;
+ 
+@@ -86,7 +85,7 @@ module axi4_delayer(
+   reg [31:0] delay_cnt_wr;
+ 
+   wire rd_ar_can_pass = (state_rd == ST_IDLE_RD);
+-  wire wr_aw_can_pass = (state_wr == ST_IDLE_WR) | (state_wr == ST_ACCESS_WR);
++  wire wr_aw_can_pass = (state_wr == ST_IDLE_WR);
+   wire wr_w_can_pass  = (state_wr == ST_IDLE_WR) | (state_wr == ST_SETUP_WR);
+ 
+   assign in_arready  = rd_ar_can_pass & out_arready;
+@@ -189,30 +188,19 @@ module axi4_delayer(
+     end else begin
+       case (state_wr)
+         ST_IDLE_WR: begin
+-          if ((out_awvalid && out_awready) && (out_wvalid && out_wready)) begin
++          if (out_awvalid && !out_awready) begin
++            delay_cnt_wr <= delay_cnt_wr + 32'd40;
++          end else if (out_wvalid && out_wready) begin
+             state_wr <= ST_DELAY_WR;
+           end else if (out_awvalid && out_awready) begin
+             state_wr <= ST_SETUP_WR;
+-          end else if (out_wvalid && out_wready) begin
+-            state_wr <= ST_ACCESS_WR;
+           end
+-
+         end
+         ST_SETUP_WR: begin
+           if (out_wvalid && out_wready) begin
+             state_wr <= ST_DELAY_WR;
+           end
+         end
+-        ST_ACCESS_WR: begin
+-          if (out_awvalid && out_awready) begin
+-            state_wr <= ST_DELAY_WR;
+-          end else begin
+-            // delay it by 5 * 8 since the device clock is 100MHz and system clock is 506MHz
+-            // from yosys result
+-            // 8 is to limit the diff
+-            delay_cnt_wr <= delay_cnt_wr + 32'd40;
+-          end
+-        end
+         ST_DELAY_WR: begin
+           if (delay_cnt_wr > 32'd1) begin
+             // actually / by 8
+-- 
+2.34.1
+

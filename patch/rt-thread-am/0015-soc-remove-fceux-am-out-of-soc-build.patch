@@ -1,0 +1,29 @@
+From 3dcb1b490d77f49f4f4524bceb92fc2605e10b13 Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Thu, 19 Nov 2026 14:31:09 +0800
+Subject: [PATCH 15/15] [soc] remove fceux-am out of soc build
+
+This is to reduce load time.
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/integrate-am-apps.py | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 48231a005..2f1e16304 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -32,6 +32,9 @@ if ARCH.endswith("-npc"):
+       AM_KERNELS_HOME / "kernels" / "hello",
+       AM_KERNELS_HOME / "benchmarks" / "microbench",
+     ]
++# ysyxsoc copies .text from SPI flash via XIP (slow): drop fceux (~220KB text + ~2MB ROM)
++elif ARCH.endswith("-ysyxsoc"):
++    app_dir_list = [d for d in app_dir_list if d.name != "fceux-am"]
+ 
+ Path("build").mkdir(exist_ok=True)
+ am_app_mk_fp = open(f"build/{ARCH}/am-apps.mk", "w")
+-- 
+2.34.1
+

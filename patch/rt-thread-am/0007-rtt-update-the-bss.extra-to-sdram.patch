@@ -1,0 +1,25 @@
+From ef2dd230f6c041314e30ae767b626e8dd247418a Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Fri, 6 Feb 2026 07:15:32 +0000
+Subject: [PATCH 7/9] [rtt] update the bss.extra to sdram
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/extra.ld | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index d920c193e..24d69935f 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -43,6 +43,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  } > PSRAM
++  } > SDRAM
+ }
+ INSERT BEFORE .bss;
+-- 
+2.34.1
+

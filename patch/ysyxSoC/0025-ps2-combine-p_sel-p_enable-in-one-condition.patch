@@ -1,0 +1,70 @@
+From 9a3fcc75d8071179384ea097ad4555f25819805c Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Fri, 13 Mar 2026 09:31:23 +0800
+Subject: [PATCH 25/40] [ps2] combine p_sel/p_enable in one condition
+
+This is to make the code easy to understand.
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 42 ++++++++++++++++++++---------------------
+ 1 file changed, 20 insertions(+), 22 deletions(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index d1ffdc70..bec4d922 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -137,30 +137,28 @@ module ps2_top_apb(
+       pready_reg  <= 1'b0;
+       pslverr_reg <= 1'b0;
+ 
+-      if (in_psel) begin
+-        if (in_penable) begin
+-          pready_reg <= 1'b1;
++      if (in_psel && in_penable) begin
++        pready_reg <= 1'b1;
+ 
+-          if (in_pwrite) begin
+-            // Write operation - not supported
+-            pslverr_reg <= 1'b1;  // Write operation not allowed
+-          end else begin
+-            // Read operation
+-            case (addr_offset)
+-              ADDR_DATA: begin
+-                if (fifo_rd_en) begin
+-                  prdata_reg <= {24'h0, fifo_mem[rd_ptr]};
+-                  rd_ptr     <= rd_ptr + 1;
+-                end else begin
+-                  prdata_reg <= 32'h0;  // Return 0 when FIFO is empty
+-                end
+-              end
+-              default: begin
+-                prdata_reg  <= 32'h0;
+-                pslverr_reg <= 1'b1;  // Invalid address
++        if (in_pwrite) begin
++          // Write operation - not supported
++          pslverr_reg <= 1'b1;  // Write operation not allowed
++        end else begin
++          // Read operation
++          case (addr_offset)
++            ADDR_DATA: begin
++              if (fifo_rd_en) begin
++                prdata_reg <= {24'h0, fifo_mem[rd_ptr]};
++                rd_ptr     <= rd_ptr + 1;
++              end else begin
++                prdata_reg <= 32'h0;  // Return 0 when FIFO is empty
+               end
+-            endcase
+-          end
++            end
++            default: begin
++              prdata_reg  <= 32'h0;
++              pslverr_reg <= 1'b1;  // Invalid address
++            end
++          endcase
+         end
+       end
+     end
+-- 
+2.34.1
+

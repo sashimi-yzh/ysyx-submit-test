@@ -1,0 +1,145 @@
+From a31c4739d2f51a69e167049b7fb3c067b227801e Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Tue, 13 Jan 2026 07:57:27 +0000
+Subject: [PATCH 05/40] [psram] add the implementaton of psram
+
+The model behavior is from IS66WVS4M8ALL
+1) qual spi protocol
+2) big endian
+3) dpi-c function
+4) delay 6 clock for read
+5) ce high for termination
+6) access 8 bit every time for continuous access
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/psram/psram.v | 114 +++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 113 insertions(+), 1 deletion(-)
+
+diff --git a/perip/psram/psram.v b/perip/psram/psram.v
+index d9bdd882..4e2f260e 100644
+--- a/perip/psram/psram.v
++++ b/perip/psram/psram.v
+@@ -4,6 +4,118 @@ module psram(
+   inout [3:0] dio
+ );
+ 
+-  assign dio = 4'bz;
++  // DPI-C function imports for byte-level memory access
++  import "DPI-C" function void psram_write_byte(
++    input int  addr,
++    input byte data
++  );
++  import "DPI-C" function byte psram_read_byte(input int addr);
++
++  // FSM State Definitions
++  localparam S_IDLE = 3'd0;
++  localparam S_CMD = 3'd1;
++  localparam S_ADDR = 3'd2;
++  localparam S_DUMMY = 3'd3;  // New state for read latency
++  localparam S_READ_DATA = 3'd4;
++  localparam S_WRITE_DATA = 3'd5;
++
++  // QSPI Command Set
++  localparam CMD_QIOR = 8'hEB;  // Quad I/O Read (Requires Dummy)
++  localparam CMD_QIOW = 8'h38;  // Quad I/O Write (No Dummy)
++
++  reg  [ 2:0] state;
++  reg  [ 7:0] cmd_reg;
++  reg  [23:0] addr_reg;
++  reg  [ 7:0] byte_buf;
++  reg  [ 3:0] cnt;
++  reg         io_dir;
++
++  // Tri-state buffer control
++  wire [ 3:0] dio_in = dio;
++  reg  [ 3:0] dio_out;
++  assign dio = (io_dir) ? dio_out : 4'bz;
++
++  // State Machine Logic
++  always @(posedge sck or posedge ce_n) begin
++    if (ce_n) begin
++      state    <= S_IDLE;
++      cnt      <= 0;
++      io_dir   <= 0;
++      cmd_reg  <= 8'h0;
++      addr_reg <= 24'h0;
++    end else begin
++      case (state)
++
++        // Phase 1: Instruction (Standard SPI mode)
++        S_IDLE, S_CMD: begin
++          cmd_reg <= {cmd_reg[6:0], dio_in[0]};
++          if (cnt == 7) begin
++            cnt   <= 0;
++            state <= S_ADDR;
++          end else begin
++            cnt   <= cnt + 1;
++            state <= S_CMD;
++          end
++        end
++
++        // Phase 2: Address (Quad SPI mode, 6 cycles)
++        S_ADDR: begin
++          addr_reg <= {addr_reg[19:0], dio_in};
++          if (cnt == 5) begin
++            cnt <= 0;
++            if (cmd_reg == CMD_QIOR) begin
++              state  <= S_DUMMY;  // Transition to Dummy instead of Read
++              io_dir <= 0;  // DIO must be High-Z during dummy cycles
++            end else begin
++              state  <= S_WRITE_DATA;
++              io_dir <= 0;
++            end
++          end else begin
++            cnt <= cnt + 1;
++          end
++        end
++
++        // Phase 3: Dummy Cycles (Latency for Read)
++        S_DUMMY: begin
++          if (cnt == 5) begin  // Wait for 6 cycles (0 to 5)
++            cnt      <= 0;
++            state    <= S_READ_DATA;
++            io_dir   <= 1;  // Switch to Output after delay
++            // Fetch the first byte at the end of dummy phase
++            byte_buf <= psram_read_byte({8'b0, addr_reg});
++          end else begin
++            cnt <= cnt + 1;
++          end
++        end
++
++        // Phase 4: Continuous Read (2 cycles per byte)
++        S_READ_DATA: begin
++          if (cnt[0] == 0) begin
++            dio_out <= byte_buf[7:4];
++            cnt     <= 1;
++          end else begin
++            dio_out  <= byte_buf[3:0];
++            cnt      <= 0;
++            addr_reg <= addr_reg + 24'h1;
++            byte_buf <= psram_read_byte({8'b0, (addr_reg + 24'h1)});
++          end
++        end
++
++        // Phase 5: Continuous Write (2 cycles per byte)
++        S_WRITE_DATA: begin
++          if (cnt[0] == 0) begin
++            byte_buf[7:4] <= dio_in;
++            cnt           <= 1;
++          end else begin
++            psram_write_byte({8'b0, addr_reg}, {byte_buf[7:4], dio_in});
++            addr_reg <= addr_reg + 24'h1;
++            cnt      <= 0;
++          end
++        end
++
++        default: state <= S_IDLE;
++      endcase
++    end
++  end
+ 
+ endmodule
+-- 
+2.34.1
+

@@ -1,0 +1,177 @@
+From d39be08007c535bc492576d78d7c64df8d293dc6 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Thu, 18 Jun 2026 08:32:19 +0000
+Subject: [PATCH 34/40] [axi delay] add initial axi delay implementation
+
+Still have issues and need fix.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/amba/axi4_delayer.v | 148 +++++++++++++++++++++++++++++++-------
+ 1 file changed, 123 insertions(+), 25 deletions(-)
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index f692803b..fc81df92 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -63,34 +63,132 @@ module axi4_delayer(
+   input  [1:0]  out_bresp
+ );
+ 
+-  assign in_arready = out_arready;
++  reg  [ 2:0] state_rd, state_wr;
++
++  localparam [2:0] ST_IDLE_RD = 3'd0;
++  localparam [2:0] ST_SETUP_RD = 3'd1;
++  localparam [2:0] ST_ACCESS_RD = 3'd2;
++  localparam [2:0] ST_DELAY_RD = 3'd3;
++  localparam [2:0] ST_RESP_RD = 3'd4;
++
++  localparam [2:0] ST_IDLE_WR = 3'd0;
++  localparam [2:0] ST_SETUP_WR = 3'd1;
++  localparam [2:0] ST_ACCESS_WR = 3'd2;
++  localparam [2:0] ST_DELAY_WR = 3'd3;
++  localparam [2:0] ST_RESP_WR = 3'd4;
++
++  reg  [31:0] delay_cnt_rd, delay_cnt_wr;
++
++  assign in_arready  = out_arready;
+   assign out_arvalid = in_arvalid;
+-  assign out_arid = in_arid;
+-  assign out_araddr = in_araddr;
+-  assign out_arlen = in_arlen;
+-  assign out_arsize = in_arsize;
++  assign out_arid    = in_arid;
++  assign out_araddr  = in_araddr;
++  assign out_arlen   = in_arlen;
++  assign out_arsize  = in_arsize;
+   assign out_arburst = in_arburst;
+-  assign out_rready = in_rready;
+-  assign in_rvalid = out_rvalid;
+-  assign in_rid = out_rid;
+-  assign in_rdata = out_rdata;
+-  assign in_rresp = out_rresp;
+-  assign in_rlast = out_rlast;
+-  assign in_awready = out_awready;
++  // the out_rready is only asserted when delay is done
++  assign out_rready  = in_rready;
++  assign in_rvalid   = (state_rd == ST_RESP_RD);
++  assign in_rid      = out_rid;
++  assign in_rdata    = out_rdata;
++  assign in_rresp    = out_rresp;
++  assign in_rlast    = out_rlast;
++
++  assign in_awready  = out_awready;
+   assign out_awvalid = in_awvalid;
+-  assign out_awid = in_awid;
+-  assign out_awaddr = in_awaddr;
+-  assign out_awlen = in_awlen;
+-  assign out_awsize = in_awsize;
++  assign out_awid    = in_awid;
++  assign out_awaddr  = in_awaddr;
++  assign out_awlen   = in_awlen;
++  assign out_awsize  = in_awsize;
+   assign out_awburst = in_awburst;
+-  assign in_wready = out_wready;
+-  assign out_wvalid = in_wvalid;
+-  assign out_wdata = in_wdata;
+-  assign out_wstrb = in_wstrb;
+-  assign out_wlast = in_wlast;
+-  assign out_bready = in_bready;
+-  assign in_bvalid = out_bvalid;
+-  assign in_bid = out_bid;
+-  assign in_bresp = out_bresp;
++  assign in_wready   = out_wready;
++  assign out_wvalid  = in_wvalid;
++  assign out_wdata   = in_wdata;
++  assign out_wstrb   = in_wstrb;
++  assign out_wlast   = in_wlast;
++  assign out_bready  = in_bready;
++  assign in_bvalid   = out_bvalid;
++  assign in_bid      = out_bid;
++  assign in_bresp    = out_bresp;
++
++  always @(posedge clock) begin
++    if (reset) begin
++      state_rd <= ST_IDLE_RD;
++      delay_cnt_rd <= 32'b0;
++      delay_cnt_wr <= 32'b0;
++    end else begin
++      case (state_rd)
++        ST_IDLE_RD: begin
++          if (in_arvalid && in_arready) begin
++            state_rd <= ST_SETUP_RD;
++          end
++        end
++        ST_SETUP_RD: begin
++          state_rd <= ST_ACCESS_RD;
++        end
++        ST_ACCESS_RD: begin
++          if (out_rvalid) begin
++            state_rd <= ST_DELAY_RD;
++          end else begin
++            // delay it by 5 * 8 since the device clock is 100MHz and system clock is 506MHz
++            // from yosys result
++            // 8 is to limit the diff
++            delay_cnt_rd <= delay_cnt_rd + 32'd40;
++          end
++        end
++        ST_DELAY_RD: begin
++          if (delay_cnt_rd > 32'd1) begin
++            // actually / by 8
++            delay_cnt_rd <= delay_cnt_rd >> 32'd3;
++          end else begin
++            delay_cnt_rd <= 32'b0;
++            state_rd     <= ST_RESP_RD;
++          end
++        end
++        ST_RESP_RD: begin
++          if (in_rvalid && in_rready && in_rlast) begin
++            state_rd <= ST_IDLE_RD;
++          end
++        end
++        default: begin
++          state_rd <= ST_IDLE_RD;
++        end
++      endcase
++    end
++
++  end
++
++  always @(posedge clock) begin
++    if (reset) begin
++      state_wr <= ST_IDLE_WR;
++    end else begin
++      case (state_wr)
++        ST_IDLE_WR: begin
++          if (in_awvalid) begin
++            state_wr <= ST_SETUP_WR;
++          end
++        end
++        ST_SETUP_WR: begin
++          state_wr <= ST_ACCESS_WR;
++        end
++        ST_ACCESS_WR: begin
++          if (out_awvalid && out_awready) begin
++            state_wr <= ST_DELAY_WR;
++          end
++        end
++        ST_DELAY_WR: begin
++          state_wr <= ST_RESP_WR;
++        end
++        ST_RESP_WR: begin
++          if (in_bvalid && in_bready) begin
++            state_wr <= ST_IDLE_WR;
++          end
++        end
++        default: begin
++          state_wr <= ST_IDLE_WR;
++        end
++      endcase
++    end
+ 
++  end
+ endmodule
+-- 
+2.34.1
+

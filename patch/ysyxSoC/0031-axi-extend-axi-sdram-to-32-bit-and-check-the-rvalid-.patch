@@ -1,0 +1,152 @@
+From ac51ba74ce838fc2ce2d7be19486369072a854ec Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Wed, 10 Jun 2026 12:34:07 +0000
+Subject: [PATCH 31/40] [axi] extend axi sdram to 32 bit and check the
+ rvalid/bvalid
+
+1) extend axi sdram to 32 bit
+2) check the rvalid/bvalid before set FULL_WRITE/FULL_READ
+   again to avoid 2 steps ack which increase the fifo counters
+   of the sdram_axi_pmem fifo and cause 0x0 to the ifu
+   instructions.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/sdram/core_sdram_axi4/sdram_axi.v      | 12 +++++++++---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  8 ++++++--
+ perip/sdram/core_sdram_axi4/sdram_axi_pmem.v |  4 ++++
+ perip/sdram/sdram_top_apb.v                  |  2 ++
+ 4 files changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi.v b/perip/sdram/core_sdram_axi4/sdram_axi.v
+index cd42e94f..2187d6b1 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi.v
+@@ -53,7 +53,7 @@ module sdram_axi
+     ,input  [  7:0]  inport_arlen_i
+     ,input  [  1:0]  inport_arburst_i
+     ,input           inport_rready_i
+-    ,input  [ 15:0]  sdram_data_input_i
++    ,input  [ 31:0]  sdram_data_input_i
+ 
+     // Outputs
+     ,output          inport_awready_o
+@@ -74,10 +74,10 @@ module sdram_axi
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+-    ,output [  1:0]  sdram_dqm_o
++    ,output [  3:0]  sdram_dqm_o
+     ,output [ 12:0]  sdram_addr_o
+     ,output [  1:0]  sdram_ba_o
+-    ,output [ 15:0]  sdram_data_output_o
++    ,output [ 31:0]  sdram_data_output_o
+     ,output          sdram_data_out_en_o
+ );
+ 
+@@ -97,6 +97,8 @@ parameter SDRAM_READ_LATENCY    = 2;
+ wire [ 31:0]  ram_addr_w;
+ wire [  3:0]  ram_wr_w;
+ wire          ram_rd_w;
++wire          ram_rd_rv_w;
++wire          ram_wr_bv_w;
+ wire          ram_accept_w;
+ wire [ 31:0]  ram_write_data_w;
+ wire [ 31:0]  ram_read_data_w;
+@@ -144,6 +146,8 @@ u_axi
+     .ram_accept_i(ram_accept_w),
+     .ram_wr_o(ram_wr_w),
+     .ram_rd_o(ram_rd_w),
++    .ram_rd_rv_o(ram_rd_rv_w),
++    .ram_wr_bv_o(ram_wr_bv_w),
+     .ram_len_o(ram_len_w),
+     .ram_write_data_o(ram_write_data_w),
+     .ram_ack_i(ram_ack_w),
+@@ -168,6 +172,8 @@ u_core
+ 
+     ,.inport_wr_i(ram_wr_w)
+     ,.inport_rd_i(ram_rd_w)
++    ,.inport_wr_bv_i(ram_wr_bv_w)
++    ,.inport_rd_rv_i(ram_rd_rv_w)
+     ,.inport_len_i(ram_len_w)
+     ,.inport_addr_i(ram_addr_w)
+     ,.inport_write_data_i(ram_write_data_w)
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 3691eee8..5fc6a3eb 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -39,6 +39,8 @@ module sdram_axi_core
+     ,input           rst_i
+     ,input  [  3:0]  inport_wr_i
+     ,input           inport_rd_i
++    ,input           inport_rd_rv_i
++    ,input           inport_wr_bv_i
+     ,input  [  7:0]  inport_len_i
+     ,input  [ 31:0]  inport_addr_i
+     ,input  [ 31:0]  inport_write_data_i
+@@ -133,6 +135,8 @@ localparam SDRAM_TRFC_CYCLES = (60 + (CYCLE_TIME_NS-1)) / CYCLE_TIME_NS;
+ wire [ 31:0]  ram_addr_w       = inport_addr_i;
+ wire [  3:0]  ram_wr_w         = inport_wr_i;
+ wire          ram_rd_w         = inport_rd_i;
++wire          ram_rd_rv_w      = inport_rd_rv_i;
++wire          ram_wr_bv_w      = inport_wr_bv_i;
+ wire          ram_accept_w;
+ wire [ 31:0]  ram_write_data_w = inport_write_data_i;
+ wire [ 31:0]  ram_read_data_w;
+@@ -289,7 +293,7 @@ begin
+     begin
+         next_state_r = STATE_IDLE;
+         // Another pending read request (with no refresh pending)
+-        if (!refresh_q && ram_req_w && ram_rd_w)
++        if (!refresh_q && ram_req_w && ram_rd_w && ram_rd_rv_w)
+         begin
+             // Open row hit
+             if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+@@ -321,7 +325,7 @@ begin
+     STATE_FULL_WRITE :
+     begin
+         next_state_r = STATE_IDLE;
+-        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0))
++        if (!refresh_q && ram_req_w && (ram_wr_w != 4'b0) && ram_wr_bv_w)
+         begin
+             // Open row hit
+             if (row_open_q[addr_bank_w] && addr_row_w == active_row_q[addr_bank_w])
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v b/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+index 3d6a5bb4..1a68b54f 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_pmem.v
+@@ -72,6 +72,8 @@ module sdram_axi_pmem
+     ,output          axi_rlast_o
+     ,output [  3:0]  ram_wr_o
+     ,output          ram_rd_o
++    ,output          ram_rd_rv_o
++    ,output          ram_wr_bv_o
+     ,output [  7:0]  ram_len_o
+     ,output [ 31:0]  ram_addr_o
+     ,output [ 31:0]  ram_write_data_o
+@@ -317,7 +319,9 @@ wire rd_w    = read_active_w;
+ assign ram_addr_o       = addr_w;
+ assign ram_write_data_o = axi_wdata_i;
+ assign ram_rd_o         = rd_w;
++assign ram_rd_rv_o      = axi_rvalid_o;
+ assign ram_wr_o         = wr_w ? axi_wstrb_i : 4'b0;
++assign ram_wr_bv_o      = axi_bvalid_o;
+ assign ram_len_o        = axi_awvalid_i ? axi_awlen_i:
+                           axi_arvalid_i ? axi_arlen_i : 8'b0;
+ 
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index 2bce21fa..7bc9bf97 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -58,6 +58,8 @@ module sdram_top_apb (
+     .rst_i(reset),
+     .inport_wr_i(is_write ? in_pstrb : 4'b0),
+     .inport_rd_i(is_read),
++    .inport_rd_rv_i(0),
++    .inport_wr_bv_i(0),
+     .inport_len_i(0),
+     .inport_addr_i(in_paddr),
+     .inport_write_data_i(in_pwdata),
+-- 
+2.34.1
+

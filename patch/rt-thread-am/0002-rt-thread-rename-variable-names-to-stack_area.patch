@@ -1,0 +1,35 @@
+From f83a36da4be3b9378c7cae0a92b772c08a8d8bc6 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <yuan1.wang@intel.com>
+Date: Thu, 26 Jun 2025 05:52:13 +0800
+Subject: [PATCH 2/9] [rt-thread] rename variable names to stack_area
+
+Signed-off-by: Wang, Yuan1 <yuan1.wang@intel.com>
+---
+ bsp/abstract-machine/src/context.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 2d044cd5e..cbeb72901 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -74,7 +74,7 @@ static void wrapper(void *ee) {
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  Area stack_aligned;
++  Area stack_area;
+   Ee *ee;
+ 
+   rt_uint8_t *stack = (rt_uint8_t *)((uintptr_t)stack_addr & ~(sizeof(uintptr_t)-1));
+@@ -88,6 +88,6 @@ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_ad
+   ee->to = 0;
+   ee->to_flag = 0;
+ 
+-  stack_aligned = (Area) { 0, (void *)((uintptr_t)stack & ~(sizeof(uintptr_t)-1))};
+-  return (rt_uint8_t *)kcontext(stack_aligned, wrapper, ee);
++  stack_area = (Area) { 0, (void *)((uintptr_t)stack & ~(sizeof(uintptr_t)-1))};
++  return (rt_uint8_t *)kcontext(stack_area, wrapper, ee);
+ }
+-- 
+2.34.1
+

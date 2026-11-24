@@ -1,0 +1,133 @@
+From 342e8fd2af44686d52cafb7e5fb113c15738ff16 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Wed, 22 Apr 2026 15:14:54 +0000
+Subject: [PATCH 29/40] [apb_delay] add the implementation of the apb delay
+ module
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/amba/apb_delayer.v | 109 +++++++++++++++++++++++++++++++++++----
+ 1 file changed, 99 insertions(+), 10 deletions(-)
+
+diff --git a/perip/amba/apb_delayer.v b/perip/amba/apb_delayer.v
+index c0d20764..39f4435b 100644
+--- a/perip/amba/apb_delayer.v
++++ b/perip/amba/apb_delayer.v
+@@ -24,15 +24,104 @@ module apb_delayer(
+   input         out_pslverr
+ );
+ 
+-  assign out_paddr   = in_paddr;
+-  assign out_psel    = in_psel;
+-  assign out_penable = in_penable;
+-  assign out_pprot   = in_pprot;
+-  assign out_pwrite  = in_pwrite;
+-  assign out_pwdata  = in_pwdata;
+-  assign out_pstrb   = in_pstrb;
+-  assign in_pready   = out_pready;
+-  assign in_prdata   = out_prdata;
+-  assign in_pslverr  = out_pslverr;
++  localparam [2:0] ST_IDLE = 3'd0;
++  localparam [2:0] ST_SETUP = 3'd1;
++  localparam [2:0] ST_ACCESS = 3'd2;
++  localparam [2:0] ST_DELAY = 3'd3;
++  localparam [2:0] ST_RESP = 3'd4;
++
++  reg  [ 2:0] state;
++
++  reg  [31:0] req_paddr;
++  reg  [ 2:0] req_pprot;
++  reg         req_pwrite;
++  reg  [31:0] req_pwdata;
++  reg  [ 3:0] req_pstrb;
++
++  reg  [31:0] rsp_prdata;
++  reg         rsp_pslverr;
++
++  reg  [31:0] delay_cnt;
++
++  wire        start_req;
++  wire        out_handshake;
++
++  assign start_req     = (state == ST_IDLE) && in_psel && !in_penable;
++  assign out_handshake = (state == ST_ACCESS) && out_pready;
++
++  assign out_paddr     = req_paddr;
++  assign out_psel      = (state == ST_SETUP) || (state == ST_ACCESS);
++  assign out_penable   = (state == ST_ACCESS);
++  assign out_pprot     = req_pprot;
++  assign out_pwrite    = req_pwrite;
++  assign out_pwdata    = req_pwdata;
++  assign out_pstrb     = req_pstrb;
++
++  assign in_pready     = (state == ST_RESP);
++  assign in_prdata     = rsp_prdata;
++  assign in_pslverr    = rsp_pslverr;
++
++  always @(posedge clock) begin
++    if (reset) begin
++      state       <= ST_IDLE;
++      req_paddr   <= 32'b0;
++      req_pprot   <= 3'b0;
++      req_pwrite  <= 1'b0;
++      req_pwdata  <= 32'b0;
++      req_pstrb   <= 4'b0;
++      rsp_prdata  <= 32'b0;
++      rsp_pslverr <= 1'b0;
++      delay_cnt   <= 32'b0;
++    end else begin
++      case (state)
++        ST_IDLE: begin
++          delay_cnt <= 32'b0;
++          if (start_req) begin
++            req_paddr  <= in_paddr;
++            req_pprot  <= in_pprot;
++            req_pwrite <= in_pwrite;
++            req_pwdata <= in_pwdata;
++            req_pstrb  <= in_pstrb;
++            state      <= ST_SETUP;
++          end
++        end
++
++        ST_SETUP: begin
++          state <= ST_ACCESS;
++        end
++
++        ST_ACCESS: begin
++          if (out_handshake) begin
++            rsp_prdata  <= out_prdata;
++            rsp_pslverr <= out_pslverr;
++            state       <= ST_DELAY;
++          end else begin
++            // delay it by 5 * 8 since the device clock is 100MHz and system clock is 506MHz
++            // from yosys result
++            // 8 is to limit the diff
++            delay_cnt <= delay_cnt + 32'd40;
++          end
++        end
++
++        ST_DELAY: begin
++          if (delay_cnt > 32'd1) begin
++            // actually / by 8
++            delay_cnt <= delay_cnt >> 32'd3;
++          end else begin
++            delay_cnt <= 32'b0;
++            state     <= ST_RESP;
++          end
++        end
++
++        ST_RESP: begin
++          state <= ST_IDLE;
++        end
++
++        default: begin
++          state <= ST_IDLE;
++        end
++      endcase
++    end
++  end
+ 
+ endmodule
+-- 
+2.34.1
+

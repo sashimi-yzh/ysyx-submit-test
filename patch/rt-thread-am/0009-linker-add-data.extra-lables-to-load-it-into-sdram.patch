@@ -1,0 +1,39 @@
+From 608ca5da64590b40d4c4ca73b2a079d81a66d499 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Sat, 21 Mar 2026 03:23:18 +0000
+Subject: [PATCH 9/9] [linker] add data.extra lables to load it into sdram
+
+This is to fix mario not updating picture issue.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/extra.ld | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 24d69935f..c958a91c9 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -3,6 +3,7 @@ PHDRS { data_extra PT_LOAD;
+ 
+ SECTIONS {
+   .data.extra : {
++    _extra_data_start = .;
+     /* section information for finsh shell */
+     __fsymtab_start = .;
+     KEEP(*(FSymTab))
+@@ -29,8 +30,10 @@ SECTIONS {
+     *(__am_apps.data*)
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
++    _extra_data_end = .;
++    _extra_data_lma = LOADADDR(.data.extra);
+     . = ALIGN(8);
+-  } > FLASH : data_extra
++  } > SDRAM AT > FLASH : data_extra
+ }
+ INSERT BEFORE .data;
+ 
+-- 
+2.34.1
+

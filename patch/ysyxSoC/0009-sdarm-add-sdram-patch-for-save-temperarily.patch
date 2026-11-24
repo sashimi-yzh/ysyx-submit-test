@@ -1,0 +1,67 @@
+From 17284a777c462a211895b646d971df37d35b5538 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Sun, 8 Feb 2026 14:49:51 +0800
+Subject: [PATCH 09/40] [sdarm] add sdram patch for save temperarily
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ patch/sdram.patch | 47 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 47 insertions(+)
+ create mode 100644 patch/sdram.patch
+
+diff --git a/patch/sdram.patch b/patch/sdram.patch
+new file mode 100644
+index 00000000..b9de01c2
+--- /dev/null
++++ b/patch/sdram.patch
+@@ -0,0 +1,47 @@
++1465c1465
++<   ysyx_00000000 cpu (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/CPU.scala:38:21
++---
++>   ysyx_24110012 cpu (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/CPU.scala:38:21
++2051,2052c2051,2052
++<                 sdram_bundle_dqm,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++<   inout  [15:0] sdram_bundle_dq	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++---
++>   output [3:0]  sdram_bundle_dqm,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++>   inout  [31:0] sdram_bundle_dq	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++4246,4247c4246,4247
++<                 sdram_dqm,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++<   inout  [15:0] sdram_dq,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++---
++>   output [3:0]  sdram_dqm,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++>   inout  [31:0] sdram_dq,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++5288c5288
++<   wire [1:0]  _asic_sdram_dqm;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++---
++>   wire [3:0]  _asic_sdram_dqm;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++5290c5290
++<   wire [15:0] _dq_wire;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
++---
++>   wire [31:0] _dq_wire;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
++5349c5349
++<   sdram sdram (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
++---
++>   sdram #(.CHIPID(0)) sdram_0 (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
++5358,5359c5358,5359
++<     .dqm (_asic_sdram_dqm),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++<     .dq  (_dq_wire)
++---
++>     .dqm (_asic_sdram_dqm[1:0]),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .dq  (_dq_wire[15:0])
++5360a5361,5372
++>   sdram #(.CHIPID(1)) sdram_1 (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
++>     .clk (_asic_sdram_clk),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .cke (_asic_sdram_cke),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .cs  (_asic_sdram_cs),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .ras (_asic_sdram_ras),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .cas (_asic_sdram_cas),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .we  (_asic_sdram_we),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .a   (_asic_sdram_a),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .ba  (_asic_sdram_ba),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .dqm (_asic_sdram_dqm[3:2]),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++>     .dq  (_dq_wire[31:16])
++>   );
+-- 
+2.34.1
+

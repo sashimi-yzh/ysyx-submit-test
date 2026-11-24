@@ -1,0 +1,91 @@
+From cbc62694b5deb4543a39d26113ca6e3e346d55d8 Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Wed, 18 Nov 2026 21:49:44 +0800
+Subject: [PATCH 12/13] [npc] add extra linker file for npc build
+
+The npc only use psram which is different with soc.
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/Makefile     |  5 +++
+ bsp/abstract-machine/extra-npc.ld | 51 +++++++++++++++++++++++++++++++
+ 2 files changed, 56 insertions(+)
+ create mode 100644 bsp/abstract-machine/extra-npc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..e3b1ce15c 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,12 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
++# npc runs everything in place from PSRAM (linker-npc.ld); others load from FLASH to SDRAM
++ifneq ($(filter %-npc,$(ARCH)),)
++LDFLAGS += -T extra-npc.ld
++else
+ LDFLAGS += -T extra.ld
++endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra-npc.ld b/bsp/abstract-machine/extra-npc.ld
+new file mode 100644
+index 000000000..69f17f6fe
+--- /dev/null
++++ b/bsp/abstract-machine/extra-npc.ld
+@@ -0,0 +1,51 @@
++PHDRS { data_extra PT_LOAD;
++}
++
++SECTIONS {
++  .data.extra : {
++    _extra_data_start = .;
++    /* section information for finsh shell */
++    __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    _extra_data_end = .;
++    _extra_data_lma = LOADADDR(.data.extra);
++    . = ALIGN(8);
++  } > PSRAM : data_extra
++}
++INSERT BEFORE .data;
++
++SECTIONS {
++  .bss.extra : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  } > PSRAM
++}
++INSERT BEFORE .bss;
+-- 
+2.34.1
+

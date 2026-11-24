@@ -1,0 +1,101 @@
+From 69e250108db750667d46767d2d3a276d8b857317 Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Wed, 31 Dec 2025 11:28:39 +0800
+Subject: [PATCH 04/40] [XIP] Fix the issue for not return correct contents
+
+1) the deselect is an indispensable action here to avoid
+the out of order read content which only first byte is
+correct and others are 0x0 or duplicated with 1st byte.
+
+2) copy the content in complete stage
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ perip/spi/rtl/spi_top_apb.v | 41 +++++++++++++++++++++++--------------
+ 1 file changed, 26 insertions(+), 15 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 2b0ebb65..a6812d77 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -172,7 +172,9 @@ module xip_controller #(
+       end
+ 
+       XIP_COMPLETE: begin
+-        next_state = IDLE;
++        if (apb_pready_reg) begin
++          next_state = IDLE;
++        end
+       end
+ 
+       ERROR_STATE: begin
+@@ -273,9 +275,9 @@ module xip_controller #(
+         end
+ 
+         XIP_START: begin
+-          // Start SPI transmission
++          // Start SPI transmission by setting GoBusy
+           wb_adr_reg <= SPI_CTRL;
+-          wb_dat_reg <= DEFAULT_SPI_CTRL | 32'h00000100;  // Start transmission, 4-byte length
++          wb_dat_reg <= DEFAULT_SPI_CTRL | 32'h00000100;
+           wb_sel_reg <= 4'hF;
+           wb_we_reg  <= 1'b1;
+           wb_stb_reg <= 1'b1;
+@@ -298,16 +300,23 @@ module xip_controller #(
+           wb_we_reg  <= 1'b0;
+           wb_stb_reg <= 1'b1;
+           wb_cyc_reg <= 1'b1;
++        end
+ 
++        XIP_COMPLETE: begin
+           if (wb_ack_i) begin
+             apb_prdata_reg <= wb_dat_i;
++            apb_pready_reg <= 1'b1;
++
++            // Deselect slave must be done here
++            wb_adr_reg     <= SPI_SS;
++            wb_dat_reg     <= 32'h0;
++            wb_sel_reg     <= 4'hF;
++            wb_we_reg      <= 1'b1;
++            wb_stb_reg     <= 1'b1;
++            wb_cyc_reg     <= 1'b1;
+           end
+         end
+ 
+-        XIP_COMPLETE: begin
+-          apb_pready_reg <= 1'b1;
+-        end
+-
+         ERROR_STATE: begin
+           apb_pslverr_reg <= 1'b1;
+           apb_pready_reg  <= 1'b1;
+@@ -323,16 +332,18 @@ module xip_controller #(
+   end
+ 
+   // Output assignments
+-  assign apb_prdata  = apb_prdata_reg;
+-  assign apb_pready  = apb_pready_reg;
++  assign apb_prdata = {
++    apb_prdata_reg[7:0], apb_prdata_reg[15:8], apb_prdata_reg[23:16], apb_prdata_reg[31:24]
++  };
++  assign apb_pready = apb_pready_reg;
+   assign apb_pslverr = apb_pslverr_reg;
+ 
+-  assign wb_adr_o    = wb_adr_reg;
+-  assign wb_dat_o    = wb_dat_reg;
+-  assign wb_sel_o    = wb_sel_reg;
+-  assign wb_we_o     = wb_we_reg;
+-  assign wb_stb_o    = wb_stb_reg;
+-  assign wb_cyc_o    = wb_cyc_reg;
++  assign wb_adr_o = wb_adr_reg;
++  assign wb_dat_o = wb_dat_reg;
++  assign wb_sel_o = wb_sel_reg;
++  assign wb_we_o = wb_we_reg;
++  assign wb_stb_o = wb_stb_reg;
++  assign wb_cyc_o = wb_cyc_reg;
+ 
+ endmodule
+ 
+-- 
+2.34.1
+

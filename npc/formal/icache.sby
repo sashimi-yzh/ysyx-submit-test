@@ -1,0 +1,14 @@
+[options]
+mode bmc
+depth 4
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -sv -D FORMAL /home/yuanwan1/project/ysyx-workbench/npc/vsrc/icache.v icache_formal.sv
+prep -top icache_formal
+
+[files]
+/home/yuanwan1/project/ysyx-workbench/npc/vsrc/icache.v
+icache_formal.sv

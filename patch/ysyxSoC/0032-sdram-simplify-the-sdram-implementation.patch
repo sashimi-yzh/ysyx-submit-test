@@ -1,0 +1,134 @@
+From 469778146972dea8e966ba61eb1ec9ed8ccf48b0 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Tue, 16 Jun 2026 08:15:06 +0000
+Subject: [PATCH 32/40] [sdram] simplify the sdram implementation
+
+The burst has been done from sdram_axi_pmem and
+sdram_axi_core module. This logic can be removed
+from the sdram module and also remove other unused
+signals.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/sdram/sdram.v | 74 ++++++++-------------------------------------
+ 1 file changed, 13 insertions(+), 61 deletions(-)
+
+diff --git a/perip/sdram/sdram.v b/perip/sdram/sdram.v
+index 356b4995..4b5046ad 100644
+--- a/perip/sdram/sdram.v
++++ b/perip/sdram/sdram.v
+@@ -32,20 +32,14 @@ module sdram #(
+ 
+   // --- States Definition ---
+   localparam ST_IDLE = 3'b000;
+-  localparam ST_ACT = 3'b001;
+-  localparam ST_READ_START = 3'b010;
+-  localparam ST_READ_CONT = 3'b011;
+-  localparam ST_WRITE = 3'b100;
+-  localparam ST_LMR = 3'b101;
++  localparam ST_READ = 3'b010;
++  localparam ST_WRITE = 3'b011;
++  localparam ST_LMR = 3'b100;
+ 
+   reg [2:0] curr_state;
+ 
+   // --- Internal Registers ---
+-  reg [3:0] reg_bl;
+-  reg [2:0] reg_cl;
+   reg [12:0] active_row[3:0];
+-  reg [7:0] read_pipe;
+-  reg [3:0] burst_cnt;
+   reg [1:0] target_ba;
+   reg [8:0] target_col;
+   reg [15:0] dq_out;
+@@ -57,77 +51,35 @@ module sdram #(
+   localparam CMD_ACT = 4'b0011;
+   localparam CMD_READ = 4'b0101;
+   localparam CMD_WRITE = 4'b0100;
+-  localparam CMD_NOP = 4'b0111;
+ 
+   // --- State Machine and Logic ---
+   always @(posedge clk) begin
+     if (cke) begin
+       case (curr_state)
+         ST_IDLE: begin
++          dq_out    <= 0;
++          dq_out_en <= 1'b0;
++
+           if (cmd == CMD_LMR) begin
+             curr_state <= ST_LMR;
+-            // Decode LMR immediately or in next state
+-            // BL = 1, 2, 4, 8
+-            reg_bl     <= (a[2:0] == 3'b000) ? 0 : (a[2:0] == 3'b011) ? 8 : (1 << a[2:0]);
+-            reg_cl     <= a[6:4];
+           end else if (cmd == CMD_ACT) begin
+             active_row[ba] <= a;
+             curr_state     <= ST_IDLE;  // Simplified: Return to IDLE to wait for READ/WRITE
+           end else if (cmd == CMD_READ) begin
+-            read_pipe[reg_cl-1] <= 1'b1;
+-            target_ba           <= ba;
+-            target_col          <= a[8:0];
+-            burst_cnt           <= 0;
+-            curr_state          <= ST_READ_START;
+-            dq_out_en           <= 1'b1;
++            target_ba  <= ba;
++            target_col <= a[8:0];
++            curr_state <= ST_READ;
++            dq_out_en  <= 1'b1;
+           end else if (cmd == CMD_WRITE && (!dqm[0] || !dqm[1])) begin
+             sdram_write(32'(ba), 32'(active_row[ba]), 32'(a[8:0]), dq, 32'(dqm[0]), 32'(dqm[1]),
+                         CHIPID);
+-            target_ba  <= ba;
+-            target_col <= a[8:0] + 1'b1;
+-            burst_cnt  <= 1;
+-            curr_state <= (reg_bl > 1) ? ST_WRITE : ST_IDLE;
+-          end
+-        end
+-
+-        ST_READ_START: begin
+-          if (read_pipe[1]) begin
+-            dq_out <= sdram_read(
+-            32'(target_ba), 32'(active_row[target_ba]), 32'(target_col), CHIPID
+-            );
+-            target_col <= target_col + 1;
+-            burst_cnt <= burst_cnt + 1;
+-            curr_state <= ST_READ_CONT;
+-          end else begin
+-            read_pipe <= read_pipe >> 1;
+-          end
+-        end
+-
+-        ST_READ_CONT: begin
+-          curr_state <= ST_READ_CONT;
+-          if (burst_cnt < reg_bl && !dqm[0]) begin
+-            dq_out <= sdram_read(
+-            32'(target_ba), 32'(active_row[target_ba]), 32'(target_col), CHIPID
+-            );
+-            target_col <= target_col + 1;
+-            burst_cnt <= burst_cnt + 1;
+-          end else begin
+             curr_state <= ST_IDLE;
+-            read_pipe  <= 0;
+-            dq_out     <= 0;
+-            dq_out_en  <= 1'b0;
+           end
+         end
+ 
+-        ST_WRITE: begin
+-          if (burst_cnt < reg_bl && (!dqm[0] || !dqm[1])) begin
+-            sdram_write(32'(target_ba), 32'(active_row[target_ba]), 32'(target_col), dq,
+-                        32'(dqm[0]), 32'(dqm[1]), CHIPID);
+-            target_col <= target_col + 1'b1;
+-            burst_cnt  <= burst_cnt + 1'b1;
+-          end else begin
+-            curr_state <= ST_IDLE;
+-          end
++        ST_READ: begin
++          dq_out <= sdram_read(32'(target_ba), 32'(active_row[target_ba]), 32'(target_col), CHIPID);
++          curr_state <= ST_IDLE;
+         end
+ 
+         ST_LMR:  curr_state <= ST_IDLE;
+-- 
+2.34.1
+

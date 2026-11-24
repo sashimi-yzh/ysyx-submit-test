@@ -1,0 +1,37 @@
+From 1c3d85479ac05c9a35ee886ab60f59e06453e251 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Fri, 13 Feb 2026 07:25:51 +0000
+Subject: [PATCH 16/40] [gpio] fix the  ready signal logic
+
+When the sel and enable set, in this case the ready can
+be raise. And also accept the read to 0x0 offset of gpio.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/gpio/gpio_top_apb.v | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index 0afb2f0c..e9e39d9b 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -75,6 +75,7 @@ module gpio_top_apb(
+     end else if (apb_read) begin
+       pslverr_reg <= 1'b0;  // Default no error
+       case (1'b1)
++        addr_0x0: prdata_reg <= 32'h0;
+         addr_0x4: prdata_reg <= {16'h0, gpio_in};  // Read DIP switch status
+         addr_0xc: prdata_reg <= 32'h0;  // Reserved address, return 0
+         default: begin
+@@ -93,7 +94,7 @@ module gpio_top_apb(
+     if (reset) begin
+       pready_reg <= 1'b0;
+     end else begin
+-      pready_reg <= in_psel & ~in_penable;  // Ready during SETUP phase
++      pready_reg <= in_psel & in_penable;  // Ready during SETUP phase
+     end
+   end
+ 
+-- 
+2.34.1
+

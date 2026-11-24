@@ -1,0 +1,309 @@
+mainmenu "NPC Configuration Menu"
+
+choice
+  prompt "Base ISA"
+  default ISA_riscv
+config ISA_x86
+  bool "x86"
+config ISA_mips32
+  bool "mips32"
+config ISA_riscv
+  bool "riscv"
+config ISA_loongarch32r
+  bool "loongarch32r"
+endchoice
+
+config ISA
+  string
+  default "x86" if ISA_x86
+  default "mips32" if ISA_mips32
+  default "riscv32" if ISA_riscv && !RV64
+  default "riscv64" if ISA_riscv &&  RV64
+  default "loongarch32r" if ISA_loongarch32r
+  default "none"
+
+config ISA64
+  depends on ISA_riscv && RV64
+  bool
+  default y
+
+
+if ISA_riscv
+source "csrc/isa/riscv32/Kconfig"
+endif
+
+choice
+  prompt "NEMU execution engine"
+  default ENGINE_INTERPRETER
+
+config ENGINE_INTERPRETER
+  bool "Interpreter"
+  help
+    Interpreter guest instructions one by one.
+endchoice
+
+config ENGINE
+  string
+  default "interpreter" if ENGINE_INTERPRETER
+  default "none"
+
+choice
+  prompt "Running mode"
+  default MODE_SYSTEM
+
+config MODE_SYSTEM
+  bool "System mode"
+  help
+    Support full-system functionality, including privileged instructions, MMU and devices.
+endchoice
+
+choice
+  prompt "Build target"
+  default TARGET_NATIVE_ELF
+config TARGET_NATIVE_ELF
+  bool "Executable on Linux Native"
+config TARGET_SHARE
+  bool "Shared object (used as REF for differential testing)"
+config TARGET_AM
+  bool "Application on Abstract-Machine (DON'T CHOOSE)"
+endchoice
+
+choice
+  prompt "Platform type"
+  default SOC
+config NPC
+  bool "NPC + Core"
+config SOC
+  bool "SOC devices"
+endchoice
+
+choice
+  prompt "Verilog Simuatlion"
+  default verilator
+config NPC_IVERILOG
+  bool "NPC iverilog build"
+config NPC_IVERILOG_NET
+  bool "NPC iverilog + net build"
+config NPC_VERILATOR
+  bool "NPC verilator build"
+endchoice
+
+menu "Build Options"
+choice
+  prompt "Compiler"
+  default CC_GCC
+config CC_GCC
+  bool "gcc"
+config CC_GPP
+  bool "g++"
+config CC_CLANG
+  depends on !TARGET_AM
+  bool "clang"
+endchoice
+
+config CC
+  string
+  default "gcc" if CC_GCC
+  default "g++" if CC_GPP
+  default "clang" if CC_CLANG
+  default "none"
+
+choice
+  prompt "Optimization Level"
+  default CC_O2
+config CC_O0
+  bool "O0"
+config CC_O1
+  bool "O1"
+config CC_O2
+  bool "O2"
+config CC_O3
+  bool "O3"
+endchoice
+
+config CC_OPT
+  string
+  default "-O0" if CC_O0
+  default "-O1" if CC_O1
+  default "-O2" if CC_O2
+  default "-O3" if CC_O3
+  default "none"
+
+config CC_LTO
+  depends on !TARGET_AM
+  bool "Enable link-time optimization"
+  default n
+
+config CC_DEBUG
+  bool "Enable debug information"
+  default n
+
+config CC_ASAN
+  depends on MODE_SYSTEM
+  bool "Enable address sanitizer"
+  default n
+endmenu
+
+config FAST_FLASH
+  bool "Fast flash: skip SPI timing for flash"
+  depends on SOC
+  default n
+  help
+    Define FAST_FLASH for ysyxSoC's spi_top_apb.v, so flash reads go to the
+    flash model via DPI directly instead of through XIP + SPI transfers.
+    SPI register writes are acked and dropped, so the SPI controller and
+    the SPI-register based flash_read() test can't be used.
+
+config ICACHE_SIM_LARGE
+  bool "Larger icache for simulation speedup"
+  default n
+  help
+    Define ICACHE_SIM_LARGE for the RTL, so the icache uses 32-byte lines
+    x 64 lines (2KB) instead of the default 8-byte x 4 lines. Only used
+    to speed up long-running programs in simulation.
+
+menu "Testing and Debugging"
+
+
+config TRACE
+  bool "Enable tracer"
+  default y
+
+config TRACE_START
+  depends on TRACE
+  int "When tracing is enabled (unit: number of instructions)"
+  default 0
+
+config TRACE_END
+  depends on TRACE
+  int "When tracing is disabled (unit: number of instructions)"
+  default 10000
+
+config ITRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable instruction tracer"
+  default y
+
+config ITRACE_COND
+  depends on ITRACE
+  string "Only trace instructions when the condition is true"
+  default "true"
+
+config MTRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable memory access tracer"
+  default n
+
+config FTRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable function call tracer"
+  default n
+
+config DTRACE
+depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+bool "Enable device memory access tracer"
+default n
+
+config STORAGE_LOG
+  depends on TRACE
+  bool "Enable debug print for SRAM/FLASH"
+  default n
+
+config WTRACE
+  depends on TRACE
+  bool "Enable wave tracer"
+  default n
+
+config DIFFTEST
+  depends on TARGET_NATIVE_ELF
+  bool "Enable differential testing"
+  default n
+  help
+    Enable differential testing with a reference design.
+    Note that this will significantly reduce the performance of NEMU.
+
+config WATCHPOINT
+  bool "Enable watchpointers for NPC"
+  default n
+  help
+    Enable watchpointers for NPC which is disabled by default
+
+config EXEC_TIMEOUT
+  bool "Enable simulation timeout check"
+  default n
+  help
+    Check the host time in every cycle of isa_exec_once() and exit when a
+    single instruction runs longer than 3 seconds. Useful for catching a
+    hung bus, but slows down the simulation.
+
+config PERF
+  bool "Enable PERF monitor for npc"
+  default y
+  help
+    Enable perf monitor for NPC which is disabled by default
+
+config EXPR_TEST
+  bool "Enable expr unit test for NEMU"
+  default n
+  help
+    Enable expr unit test for NEMU which is disabled by default
+
+choice
+  prompt "Reference design"
+  default DIFFTEST_REF_NEMU if ISA_riscv
+  default DIFFTEST_REF_KVM if ISA_x86
+  default DIFFTEST_REF_QEMU
+  depends on DIFFTEST
+config DIFFTEST_REF_QEMU
+  bool "QEMU, communicate with socket"
+if ISA_riscv
+config DIFFTEST_REF_NEMU
+  bool "nemu"
+endif
+if ISA_x86
+config DIFFTEST_REF_KVM
+  bool "KVM"
+endif
+endchoice
+
+config DIFFTEST_REF_PATH
+  string
+  default "tools/qemu-diff" if DIFFTEST_REF_QEMU
+  default "tools/kvm-diff" if DIFFTEST_REF_KVM
+  default "tools/spike-diff" if DIFFTEST_REF_SPIKE
+  default "none"
+
+config DIFFTEST_REF_NAME
+  string
+  default "qemu" if DIFFTEST_REF_QEMU
+  default "kvm" if DIFFTEST_REF_KVM
+  default "spike" if DIFFTEST_REF_SPIKE
+  default "nemu-interpreter" if DIFFTEST_REF_NEMU
+  default "none"
+endmenu
+
+if MODE_SYSTEM
+source "csrc/memory/Kconfig"
+source "csrc/device/Kconfig"
+endif
+
+config NVBOARD
+  bool "Enable NVBOARD adaption"
+  default y
+
+menu "Miscellaneous"
+choice
+  depends on !TARGET_AM
+  prompt "Host timer"
+  default TIMER_GETTIMEOFDAY
+config TIMER_GETTIMEOFDAY
+  bool "gettimeofday"
+config TIMER_CLOCK_GETTIME
+  bool "clock_gettime"
+endchoice
+
+config RT_CHECK
+  bool "Enable runtime checking"
+  default y
+
+endmenu

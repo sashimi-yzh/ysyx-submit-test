@@ -1,0 +1,48 @@
+From f3b08e73396685c247a076bd9ab8dfa36fdd18a9 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Mon, 22 Jun 2026 20:29:23 +0800
+Subject: [PATCH 39/40] [axi_delay] add axi delay for rd burst mode
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ perip/amba/axi4_delayer.v | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index b342eaae..c8d30676 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -76,7 +76,7 @@ module axi4_delayer(
+   localparam logic [2:0] ST_DELAY_WR = 3'd3;
+   localparam logic [2:0] ST_RESP_WR = 3'd4;
+ 
+-  reg [31:0] delay_cnt_rd;
++  reg [31:0] delay_cnt_rd, delay_cnt_rd_pre;
+   reg [ 3:0] inter_rid;
+   reg [31:0] inter_rdata;
+   reg [ 1:0] inter_rresp;
+@@ -147,11 +147,12 @@ module axi4_delayer(
+             inter_rvalid <= 1'b1;
+             inter_rlast  <= out_rlast;
+             state_rd     <= ST_DELAY_RD;
++            delay_cnt_rd <= delay_cnt_rd + delay_cnt_rd_pre;
+           end else begin
+             // delay it by 5 * 8 since the device clock is 100MHz and system clock is 506MHz
+             // from yosys result
+             // 8 is to limit the diff
+-            delay_cnt_rd <= delay_cnt_rd + 32'd40;
++            delay_cnt_rd_pre <= delay_cnt_rd_pre + 32'd40;
+           end
+         end
+         ST_DELAY_RD: begin
+@@ -168,6 +169,7 @@ module axi4_delayer(
+             inter_rvalid <= 1'b0;
+             if (inter_rlast) begin
+               state_rd <= ST_IDLE_RD;
++              delay_cnt_rd_pre <= 32'b0;
+             end else begin
+               state_rd <= ST_ACCESS_RD;
+             end
+-- 
+2.34.1
+

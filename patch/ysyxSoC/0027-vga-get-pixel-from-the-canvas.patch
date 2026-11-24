@@ -1,0 +1,141 @@
+From ad1aaf688990ad9e21a1490e71fc2e150b0cf8eb Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Mon, 16 Mar 2026 05:41:54 +0000
+Subject: [PATCH 27/40] [vga] get pixel from the canvas
+
+Get the pixel from the canvas indirectly and update
+canvas when address is in range instead of FB address
+which is not correct.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/vga/vga_top_apb.v | 69 ++++++++++++++++++++++++++---------------
+ 1 file changed, 44 insertions(+), 25 deletions(-)
+
+diff --git a/perip/vga/vga_top_apb.v b/perip/vga/vga_top_apb.v
+index 29cec4fb..c97c6a83 100644
+--- a/perip/vga/vga_top_apb.v
++++ b/perip/vga/vga_top_apb.v
+@@ -28,7 +28,7 @@ module vga_top_apb(
+   localparam FB = VGA_BASE_ADDR + 32'h10;
+ 
+   wire addr_match = (in_paddr >= VGA_BASE_ADDR) && (in_paddr < (VGA_BASE_ADDR + VGA_SIZE));
+-  wire transfer = in_psel && in_penable;
++  wire transfer = in_psel && in_penable && addr_match;
+   wire [31:0] masked_wdata;
+ 
+   assign masked_wdata[7:0]   = in_pstrb[0] ? in_pwdata[7:0] : 8'h00;
+@@ -42,7 +42,9 @@ module vga_top_apb(
+ 
+   localparam WIDTH = 640;
+   localparam HEIGHT = 480;
+-  wire [31:0] canvas_wr_addr = in_paddr - FB;
++  localparam FB_SIZE = WIDTH * HEIGHT * 4;
++  wire fb_addr_match = (in_paddr >= FB) && (in_paddr < (FB + FB_SIZE));
++  wire [31:0] canvas_wr_addr = (in_paddr - FB) >> 2;
+   reg [31:0] canvas[WIDTH * HEIGHT - 1:0];
+   reg rendering;
+ 
+@@ -56,27 +58,35 @@ module vga_top_apb(
+       prdata_reg  <= 32'h0;
+       pready_reg  <= 1'b1;
+       pslverr_reg <= 1'b0;
++      rendering   <= 1'b0;
+     end else begin
+       pready_reg  <= 1'b1;
+       pslverr_reg <= 1'b0;
+ 
++      if (frame_done) begin
++        rendering <= 1'b0;
++      end
++
+       if (transfer) begin
+         if (in_pwrite) begin
+-          case (in_paddr)
+-            FB: begin
+-              if ((canvas_wr_addr < WIDTH * HEIGHT) && (canvas_wr_addr > 32'h0)) begin
+-                canvas[canvas_wr_addr] <= masked_wdata;
+-              end
+-            end
+-            SYNC: begin
+-              if (in_pwdata[7:0] == 8'b00000001) begin
+-                rendering <= 1'b1;
+-              end
+-            end
+-            default: begin
++          if (fb_addr_match) begin
++            if ((in_paddr[1:0] == 2'b00) && (canvas_wr_addr < WIDTH * HEIGHT)) begin
++              canvas[canvas_wr_addr] <= masked_wdata;
++            end else begin
+               pslverr_reg <= 1'b1;
+             end
+-          endcase
++          end else begin
++            case (in_paddr)
++              SYNC: begin
++                if (in_pwdata[7:0] == 8'b00000001) begin
++                  rendering <= 1'b1;
++                end
++              end
++              default: begin
++                pslverr_reg <= 1'b1;
++              end
++            endcase
++          end
+         end else begin
+           case (in_paddr)
+             VGA_HEIGHT: prdata_reg <= HEIGHT;
+@@ -106,6 +116,12 @@ module vga_top_apb(
+   reg  [9:0] y_cnt;
+   wire       h_valid;
+   wire       v_valid;
++  wire [9:0] h_addr;
++  wire [9:0] v_addr;
++  wire [18:0] row_base;
++  wire [18:0] pixel_idx;
++  wire [31:0] pixel_data;
++  wire frame_done = rendering && (y_cnt == v_total) && (x_cnt == h_total);
+ 
+ 
+   always @(posedge reset or posedge clock)
+@@ -118,24 +134,27 @@ module vga_top_apb(
+   always @(posedge clock)
+     if (reset == 1'b1) y_cnt <= 1;
+     else if (rendering) begin
+-      if (y_cnt == v_total & x_cnt == h_total) begin
++      if ((y_cnt == v_total) && (x_cnt == h_total)) begin
+         y_cnt     <= 1;
+-        rendering <= 0;
+       end else if (x_cnt == h_total) y_cnt <= y_cnt + 10'd1;
+     end
+ 
+   assign vga_hsync = (x_cnt > h_frontporch);
+   assign vga_vsync = (y_cnt > v_frontporch);
+ 
+-  assign h_valid   = (x_cnt > h_active) & (x_cnt <= h_backporch);
+-  assign v_valid   = (y_cnt > v_active) & (y_cnt <= v_backporch);
+-  assign vga_valid = h_valid & v_valid;
++  assign h_valid   = (x_cnt > h_active) && (x_cnt <= h_backporch);
++  assign v_valid   = (y_cnt > v_active) && (y_cnt <= v_backporch);
++  assign vga_valid = h_valid && v_valid;
+ 
+-  // assign h_addr    = h_valid ? (x_cnt - 10'd145) : {10{1'b0}};
+-  // assign v_addr    = v_valid ? (y_cnt - 10'd36) : {10{1'b0}};
++  assign h_addr = h_valid ? (x_cnt - 10'd145) : 10'd0;
++  assign v_addr = v_valid ? (y_cnt - 10'd36) : 10'd0;
++  // row_base = vaddr * 640;
++  assign row_base = ({9'd0, v_addr} << 9) + ({9'd0, v_addr} << 7);
++  assign pixel_idx = row_base + {9'd0, h_addr};
++  assign pixel_data = vga_valid ? canvas[pixel_idx] : 32'h0;
+ 
+-  assign vga_r     = masked_wdata[23:16];
+-  assign vga_g     = masked_wdata[15:8];
+-  assign vga_b     = masked_wdata[7:0];
++  assign vga_r     = pixel_data[23:16];
++  assign vga_g     = pixel_data[15:8];
++  assign vga_b     = pixel_data[7:0];
+ 
+ endmodule
+-- 
+2.34.1
+

@@ -1,0 +1,40 @@
+From 6b2174462b1139ed2b06659193984733ac53230d Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Wed, 11 Mar 2026 08:25:28 +0000
+Subject: [PATCH 20/40] [ps2] use apb_read_pulse to enable rd_en
+
+The old way will make rd_en keep 2 cycles which
+will add rd_ptr twice.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/ps2/ps2_top_apb.v | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/perip/ps2/ps2_top_apb.v b/perip/ps2/ps2_top_apb.v
+index 45a7b5f8..4ef3b129 100644
+--- a/perip/ps2/ps2_top_apb.v
++++ b/perip/ps2/ps2_top_apb.v
+@@ -64,9 +64,18 @@ module ps2_top_apb(
+   assign fifo_full  = (fifo_count == FIFO_DEPTH);
+   assign fifo_empty = (fifo_count == 0);
+   assign fifo_wr_en = data_ready & ~parity_error & ~frame_error & ~fifo_full;
+-  assign fifo_rd_en = apb_read & (addr_offset == ADDR_DATA) & ~fifo_empty;
++  assign fifo_rd_en = apb_read_pulse & (addr_offset == ADDR_DATA) & ~fifo_empty;
+   assign debug_data = buffer_data[9:2];
+ 
++  // apb read will keep 2 cycles which make rd_ptr +2 every time
++  // use apb_read_pulse to make sure rd_ptr +1 every time
++  reg apb_read_pre;
++  always @(posedge clock or posedge reset) begin
++    if (reset) apb_read_pre <= 1'b0;
++    else apb_read_pre <= apb_read;
++  end
++  wire apb_read_pulse = apb_read & ~apb_read_pre;
++
+   // PS/2 clock and data synchronization
+   always @(posedge clock or posedge reset) begin
+     if (reset) begin
+-- 
+2.34.1
+

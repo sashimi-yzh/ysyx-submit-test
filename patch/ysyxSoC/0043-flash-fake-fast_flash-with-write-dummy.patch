@@ -1,0 +1,39 @@
+From 7afc4490c24c639e3a55ace544a4ae2653f3430d Mon Sep 17 00:00:00 2001
+From: "24110012-Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Thu, 19 Nov 2026 21:53:50 +0800
+Subject: [PATCH 43/43] [flash] fake fast_flash with write dummy
+
+The fast write does not support write in XIP mode.
+Fake it to make it dummy.
+
+Signed-off-by: 24110012-Wang, Yuan <hallo_sun@hotmail.com>
+---
+ perip/spi/rtl/spi_top_apb.v | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index a6812d77..9badeccf 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -378,7 +378,7 @@ wire [31:0] data;
+ parameter invalid_cmd = 8'h0;
+ flash_cmd flash_cmd_i(
+   .clock(clock),
+-  .valid(in_psel && !in_penable),
++  .valid(in_psel && !in_penable && !in_pwrite),  // writes (SPI regs) never reach flash
+   .cmd(in_pwrite ? invalid_cmd : 8'h03),
+   .addr({8'b0, in_paddr[23:2], 2'b0}),
+   .data(data)
+@@ -388,7 +388,8 @@ assign spi_ss     = 8'b0;
+ assign spi_mosi   = 1'b1;
+ assign spi_irq_out= 1'b0;
+ assign in_pslverr = 1'b0;
+-assign in_pready  = in_penable && in_psel && !in_pwrite;
++// ack writes immediately and drop them, so SPI reg setup (e.g. __am_spi_init) won't hang
++assign in_pready  = in_penable && in_psel;
+ assign in_prdata  = data[31:0];
+ 
+ `else
+-- 
+2.34.1
+

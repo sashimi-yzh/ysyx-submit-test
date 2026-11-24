@@ -1,0 +1,161 @@
+From 78c558b9093f72be5177f0ba41b10c2bb2fec897 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Tue, 10 Feb 2026 23:46:09 +0800
+Subject: [PATCH 13/40] [sdram] update sdram patch for full.v
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ patch/sdram.patch | 98 ++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 89 insertions(+), 9 deletions(-)
+
+diff --git a/patch/sdram.patch b/patch/sdram.patch
+index adbc1e4a..1a931767 100644
+--- a/patch/sdram.patch
++++ b/patch/sdram.patch
+@@ -1,5 +1,5 @@
+---- ysyxSoCFull.v	2026-02-08 14:47:24.257094549 +0800
+-+++ ../../ysyxSoCFull.v.new	2026-02-08 14:45:47.599294498 +0800
++--- build/ysyxSoCFull.v	2026-02-10 22:50:42.403020686 +0800
+++++ ../ysyxSoCFull.v.new	2026-02-09 22:07:12.725094027 +0800
+ @@ -1462,7 +1462,7 @@
+    input         auto_master_out_rlast	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/rocket-chip/dependencies/diplomacy/diplomacy/src/diplomacy/lazymodule/LazyModuleImp.scala:100:25
+  );
+@@ -9,7 +9,15 @@
+      .clock                   (clock),
+      .reset                   (reset),
+      .io_interrupt            (1'h0),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/CPU.scala:35:23, :36:19, :38:21
+-@@ -2048,8 +2048,8 @@
++@@ -2042,14 +2042,15 @@
++   output [31:0] auto_in_prdata,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/rocket-chip/dependencies/diplomacy/diplomacy/src/diplomacy/lazymodule/LazyModuleImp.scala:100:25
++   output        sdram_bundle_clk,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++                 sdram_bundle_cke,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++-                sdram_bundle_cs,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
+++                sdram_bundle_cs0,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
+++                sdram_bundle_cs1,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++                 sdram_bundle_ras,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
++                 sdram_bundle_cas,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
+                  sdram_bundle_we,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
+    output [12:0] sdram_bundle_a,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
+    output [1:0]  sdram_bundle_ba,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:89:26
+@@ -20,7 +28,25 @@
+  );
+  
+    sdram_top_apb msdram (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/device/SDRAM.scala:91:24
+-@@ -4243,8 +4243,8 @@
++@@ -2067,7 +2068,8 @@
++     .in_prdata  (auto_in_prdata),
++     .sdram_clk  (sdram_bundle_clk),
++     .sdram_cke  (sdram_bundle_cke),
++-    .sdram_cs   (sdram_bundle_cs),
+++    .sdram_cs0  (sdram_bundle_cs0),
+++    .sdram_cs1  (sdram_bundle_cs1),
++     .sdram_ras  (sdram_bundle_ras),
++     .sdram_cas  (sdram_bundle_cas),
++     .sdram_we   (sdram_bundle_we),
++@@ -4237,14 +4239,15 @@
++   inout  [3:0]  psram_dio,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:88:19
++   output        sdram_clk,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++                 sdram_cke,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++-                sdram_cs,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
+++                sdram_cs0,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
+++                sdram_cs1,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++                 sdram_ras,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
++                 sdram_cas,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
+                  sdram_we,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
+    output [12:0] sdram_a,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
+    output [1:0]  sdram_ba,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:89:19
+@@ -31,7 +57,25 @@
+    output [15:0] gpio_out,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:90:18
+    input  [15:0] gpio_in,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:90:18
+    output [7:0]  gpio_seg_0,	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:90:18
+-@@ -5285,9 +5285,9 @@
++@@ -4985,7 +4988,8 @@
++     .auto_in_prdata   (_lsdram_apb_auto_in_prdata),
++     .sdram_bundle_clk (sdram_clk),
++     .sdram_bundle_cke (sdram_cke),
++-    .sdram_bundle_cs  (sdram_cs),
+++    .sdram_bundle_cs0 (sdram_cs0),
+++    .sdram_bundle_cs1 (sdram_cs1),
++     .sdram_bundle_ras (sdram_ras),
++     .sdram_bundle_cas (sdram_cas),
++     .sdram_bundle_we  (sdram_we),
++@@ -5279,15 +5283,16 @@
++   wire        _asic_psram_ce_n;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++   wire        _asic_sdram_clk;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++   wire        _asic_sdram_cke;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++-  wire        _asic_sdram_cs;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++  wire        _asic_sdram_cs0;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++  wire        _asic_sdram_cs1;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++   wire        _asic_sdram_ras;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++   wire        _asic_sdram_cas;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+    wire        _asic_sdram_we;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+    wire [12:0] _asic_sdram_a;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+    wire [1:0]  _asic_sdram_ba;	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+@@ -43,7 +87,17 @@
+    ysyxSoCASIC asic (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+      .clock      (clock),
+      .reset      (reset),
+-@@ -5346,7 +5346,7 @@
++@@ -5302,7 +5307,8 @@
++     .psram_dio  (_dio_wire),
++     .sdram_clk  (_asic_sdram_clk),
++     .sdram_cke  (_asic_sdram_cke),
++-    .sdram_cs   (_asic_sdram_cs),
+++    .sdram_cs0  (_asic_sdram_cs0),
+++    .sdram_cs1  (_asic_sdram_cs1),
++     .sdram_ras  (_asic_sdram_ras),
++     .sdram_cas  (_asic_sdram_cas),
++     .sdram_we   (_asic_sdram_we),
++@@ -5346,18 +5352,54 @@
+      .ce_n (_asic_psram_ce_n),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+      .dio  (_dio_wire)
+    );	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:143:23
+@@ -51,8 +105,10 @@
+ +  sdram #(.CHIPID(0)) sdram_0 (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
+      .clk (_asic_sdram_clk),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+      .cke (_asic_sdram_cke),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+-     .cs  (_asic_sdram_cs),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+-@@ -5355,9 +5355,21 @@
++-    .cs  (_asic_sdram_cs),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cs  (_asic_sdram_cs0),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++     .ras (_asic_sdram_ras),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
++     .cas (_asic_sdram_cas),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+      .we  (_asic_sdram_we),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+      .a   (_asic_sdram_a),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+      .ba  (_asic_sdram_ba),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+@@ -64,7 +120,31 @@
+ +  sdram #(.CHIPID(1)) sdram_1 (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
+ +    .clk (_asic_sdram_clk),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+ +    .cke (_asic_sdram_cke),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+-+    .cs  (_asic_sdram_cs),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cs  (_asic_sdram_cs0),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .ras (_asic_sdram_ras),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cas (_asic_sdram_cas),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .we  (_asic_sdram_we),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .a   (_asic_sdram_a),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .ba  (_asic_sdram_ba),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .dqm (_asic_sdram_dqm[3:2]),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .dq  (_dq_wire[31:16])
+++  );
+++  sdram #(.CHIPID(2)) sdram_2 (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
+++    .clk (_asic_sdram_clk),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cke (_asic_sdram_cke),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cs  (_asic_sdram_cs1),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .ras (_asic_sdram_ras),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cas (_asic_sdram_cas),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .we  (_asic_sdram_we),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .a   (_asic_sdram_a),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .ba  (_asic_sdram_ba),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .dqm (_asic_sdram_dqm[1:0]),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .dq  (_dq_wire[15:0])
+++  );
+++  sdram #(.CHIPID(3)) sdram_3 (	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:145:23
+++    .clk (_asic_sdram_clk),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cke (_asic_sdram_cke),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+++    .cs  (_asic_sdram_cs1),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+ +    .ras (_asic_sdram_ras),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+ +    .cas (_asic_sdram_cas),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+ +    .we  (_asic_sdram_we),	// home/yuanwan1/projects/ysyx-workbench/ysyxSoC/src/SoC.scala:107:24
+-- 
+2.34.1
+

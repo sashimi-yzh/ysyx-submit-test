@@ -1,0 +1,27 @@
+From 4d6ae94eb3370532185cb0eaec22cae050c5c203 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Tue, 10 Feb 2026 22:48:06 +0800
+Subject: [PATCH 12/40] [soc] extend SDRAM from 32MB to 64MB due to word
+ extention
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ src/SoC.scala | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/SoC.scala b/src/SoC.scala
+index 1c65cd87..917a6e7d 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -43,7 +43,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+   val lmrom = LazyModule(new AXI4MROM(AddressSet.misaligned(0x20000000, 0x1000)))
+   val sramNode = AXI4RAM(AddressSet.misaligned(0x0f000000, 0x2000).head, false, true, 4, None, Nil, false)
+ 
+-  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, 0x2000000)
++  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, 0x4000000)
+   val lsdram_apb = if (!Config.sdramUseAXI) Some(LazyModule(new APBSDRAM (sdramAddressSet))) else None
+   val lsdram_axi = if ( Config.sdramUseAXI) Some(LazyModule(new AXI4SDRAM(sdramAddressSet))) else None
+ 
+-- 
+2.34.1
+

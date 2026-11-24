@@ -1,0 +1,75 @@
+From b2a06e31c46c4cf6e28af9fdf950cddf930a0a0f Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Wed, 5 Nov 2025 07:19:53 +0000
+Subject: [PATCH 01/40] [bitrev] add the implementation for bitrev
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/bitrev/bitrev.v | 53 ++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 52 insertions(+), 1 deletion(-)
+
+diff --git a/perip/bitrev/bitrev.v b/perip/bitrev/bitrev.v
+index f1c3b363..c959db31 100644
+--- a/perip/bitrev/bitrev.v
++++ b/perip/bitrev/bitrev.v
+@@ -4,5 +4,56 @@ module bitrev (
+   input  mosi,
+   output miso
+ );
+-  assign miso = 1'b1;
++
++  wire reset = ss;
++
++  typedef enum logic [1:0] { recv_t, send_t } state_t;
++  state_t state;
++  reg [2:0] counter;
++  reg [7:0] data_in;
++  reg [7:0] data_rev;
++
++  // state
++  always @(posedge sck or posedge reset) begin
++    if (reset) state <= recv_t;
++    else begin
++      case (state)
++        recv_t: state <= (counter == 3'd7) ? send_t : recv_t;
++        send_t: state <= (counter == 3'd7) ? recv_t : send_t;
++        default: state <= recv_t;
++      endcase
++    end
++  end
++
++  // counter
++  always @(posedge sck or posedge reset) begin
++    if (reset) counter <= 3'd0;
++    else begin
++      case (state)
++        recv_t: counter <= (counter < 3'd7) ? counter + 3'd1 : 3'd0;
++        send_t: counter <= (counter < 3'd7) ? counter + 3'd1 : 3'd0;
++        default: counter <= 3'd0;
++      endcase
++    end
++  end
++
++  // recv data
++  always @(posedge sck or posedge reset) begin
++    if (reset) data_in <= 8'd0;
++    else if (state == recv_t) data_in <= {data_in[6:0], mosi};
++  end
++
++  // reverse
++  integer i;
++  always @(posedge sck or posedge reset) begin
++    if (reset) data_rev <= 8'd0;
++    else if (state == send_t && counter == 3'd0) begin
++      for (i = 0; i < 8; i = i + 1)
++        data_rev[i] <= data_in[7-i];
++    end
++  end
++
++  // send
++  assign miso = ss ? 1'b1 : (state == send_t ? data_in[counter] : 1'b1);
++
+ endmodule
+-- 
+2.34.1
+

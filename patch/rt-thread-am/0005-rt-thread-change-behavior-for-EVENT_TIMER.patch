@@ -1,0 +1,30 @@
+From 1ab59dcaa16c7ac5ec26bf2e0df535eba9bf43f6 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <yuan1.wang@intel.com>
+Date: Tue, 1 Jul 2025 00:51:21 +0800
+Subject: [PATCH 5/9] [rt-thread] change behavior for EVENT_TIMER
+
+Just directly return c for EVENT TIMER since it is
+not the yield instruction.
+
+Signed-off-by: Wang, Yuan1 <yuan1.wang@intel.com>
+---
+ bsp/abstract-machine/src/context.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 747ca68cb..e0e04fea2 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -23,8 +23,7 @@ static Context* ev_handler(Event e, Context *c) {
+       printf("Got event yield %d\n", e.event);
+       break;
+     case EVENT_IRQ_TIMER: // Handle timer event
+-      printf("Got event timer %d\n", e.event);
+-      break;
++      return c;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+ 
+-- 
+2.34.1
+

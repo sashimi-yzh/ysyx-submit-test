@@ -1,0 +1,44 @@
+From 5cad31ab494676b6f10295b95f6fd25173d4fdf7 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Mon, 2 Feb 2026 12:07:07 +0000
+Subject: [PATCH 6/9] [rt/linker] update memory flag for sections
+
+1) Add phdr for data.extra.
+2) Add memory range for sections.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ bsp/abstract-machine/extra.ld | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..d920c193e 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,3 +1,6 @@
++PHDRS { data_extra PT_LOAD;
++}
++
+ SECTIONS {
+   .data.extra : {
+     /* section information for finsh shell */
+@@ -27,7 +30,7 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++  } > FLASH : data_extra
+ }
+ INSERT BEFORE .data;
+ 
+@@ -40,6 +43,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > PSRAM
+ }
+ INSERT BEFORE .bss;
+-- 
+2.34.1
+

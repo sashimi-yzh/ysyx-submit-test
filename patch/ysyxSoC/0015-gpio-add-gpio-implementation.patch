@@ -1,0 +1,138 @@
+From 391f485c3998432fc1041346874cfb8e55531a3d Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Thu, 12 Feb 2026 08:11:17 +0000
+Subject: [PATCH 15/40] [gpio] add gpio implementation
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/gpio/gpio_top_apb.v | 116 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 116 insertions(+)
+
+diff --git a/perip/gpio/gpio_top_apb.v b/perip/gpio/gpio_top_apb.v
+index ec51ffe5..0afb2f0c 100644
+--- a/perip/gpio/gpio_top_apb.v
++++ b/perip/gpio/gpio_top_apb.v
+@@ -24,4 +24,120 @@ module gpio_top_apb(
+   output [7:0]  gpio_seg_7
+ );
+ 
++  // Register definitions
++  reg  [15:0] led_reg;  // 0x0: LED control register
++  reg  [31:0] seg_reg;  // 0x8: 7-segment display control register
++
++  // APB interface signals
++  reg         pready_reg;
++  reg  [31:0] prdata_reg;
++  reg         pslverr_reg;
++
++  // APB write and read operations
++  wire        apb_write = in_psel & in_penable & in_pwrite;
++  wire        apb_read = in_psel & in_penable & ~in_pwrite;
++
++  // Address decoding
++  wire        addr_0x0 = (in_paddr[3:0] == 4'h0);  // LED register
++  wire        addr_0x4 = (in_paddr[3:0] == 4'h4);  // DIP switch register
++  wire        addr_0x8 = (in_paddr[3:0] == 4'h8);  // 7-segment display register
++  wire        addr_0xc = (in_paddr[3:0] == 4'hc);  // Reserved address
++
++  // Write operation logic
++  always @(posedge clock) begin
++    if (reset) begin
++      led_reg <= 16'h0;
++      seg_reg <= 32'h0;
++    end else if (apb_write) begin
++      case (1'b1)
++        addr_0x0: begin
++          // Write LED register with byte write enable support
++          if (in_pstrb[0]) led_reg[7:0] <= in_pwdata[7:0];
++          if (in_pstrb[1]) led_reg[15:8] <= in_pwdata[15:8];
++        end
++        addr_0x8: begin
++          // Write 7-segment display register with byte write enable support
++          if (in_pstrb[0]) seg_reg[7:0] <= in_pwdata[7:0];
++          if (in_pstrb[1]) seg_reg[15:8] <= in_pwdata[15:8];
++          if (in_pstrb[2]) seg_reg[23:16] <= in_pwdata[23:16];
++          if (in_pstrb[3]) seg_reg[31:24] <= in_pwdata[31:24];
++        end
++        // Address 0x4 and 0xc are read-only or reserved, no write operation
++      endcase
++    end
++  end
++
++  // Read operation logic
++  always @(posedge clock) begin
++    if (reset) begin
++      prdata_reg  <= 32'h0;
++      pslverr_reg <= 1'b0;
++    end else if (apb_read) begin
++      pslverr_reg <= 1'b0;  // Default no error
++      case (1'b1)
++        addr_0x4: prdata_reg <= {16'h0, gpio_in};  // Read DIP switch status
++        addr_0xc: prdata_reg <= 32'h0;  // Reserved address, return 0
++        default: begin
++          prdata_reg  <= 32'h0;
++          pslverr_reg <= 1'b1;  // Address error
++        end
++      endcase
++    end else begin
++      prdata_reg  <= 32'h0;
++      pslverr_reg <= 1'b0;
++    end
++  end
++
++  // APB ready signal generation
++  always @(posedge clock) begin
++    if (reset) begin
++      pready_reg <= 1'b0;
++    end else begin
++      pready_reg <= in_psel & ~in_penable;  // Ready during SETUP phase
++    end
++  end
++
++  // 7-segment display decoder function
++  function [7:0] seg7_decode;
++    input [3:0] digit;
++    begin
++      case (digit)
++        4'h0: seg7_decode = 8'b11000000;  // 0
++        4'h1: seg7_decode = 8'b11111001;  // 1
++        4'h2: seg7_decode = 8'b10100100;  // 2
++        4'h3: seg7_decode = 8'b10110000;  // 3
++        4'h4: seg7_decode = 8'b10011001;  // 4
++        4'h5: seg7_decode = 8'b10010010;  // 5
++        4'h6: seg7_decode = 8'b10000010;  // 6
++        4'h7: seg7_decode = 8'b11111000;  // 7
++        4'h8: seg7_decode = 8'b10000000;  // 8
++        4'h9: seg7_decode = 8'b10010000;  // 9
++        4'ha: seg7_decode = 8'b10001000;  // A
++        4'hb: seg7_decode = 8'b10000011;  // b
++        4'hc: seg7_decode = 8'b11000110;  // C
++        4'hd: seg7_decode = 8'b10100001;  // d
++        4'he: seg7_decode = 8'b10000110;  // E
++        4'hf: seg7_decode = 8'b10001110;  // F
++      endcase
++    end
++  endfunction
++
++  // Output assignments
++  assign gpio_out   = led_reg;
++
++  // 7-segment display outputs (each 4 bits control one display)
++  assign gpio_seg_0 = seg7_decode(seg_reg[3:0]);
++  assign gpio_seg_1 = seg7_decode(seg_reg[7:4]);
++  assign gpio_seg_2 = seg7_decode(seg_reg[11:8]);
++  assign gpio_seg_3 = seg7_decode(seg_reg[15:12]);
++  assign gpio_seg_4 = seg7_decode(seg_reg[19:16]);
++  assign gpio_seg_5 = seg7_decode(seg_reg[23:20]);
++  assign gpio_seg_6 = seg7_decode(seg_reg[27:24]);
++  assign gpio_seg_7 = seg7_decode(seg_reg[31:28]);
++
++  // APB interface outputs
++  assign in_pready  = pready_reg;
++  assign in_prdata  = prdata_reg;
++  assign in_pslverr = pslverr_reg;
++
+ endmodule
+-- 
+2.34.1
+

@@ -1,0 +1,95 @@
+From b3cf5873f48145e119994ba35515f5057702561e Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan" <hallo_sun@hotmail.com>
+Date: Sun, 21 Jun 2026 20:52:31 +0800
+Subject: [PATCH 37/40] [axi_delay] update write logic
+
+The delay for write is not correct yet.
+
+Signed-off-by: Wang, Yuan <hallo_sun@hotmail.com>
+---
+ perip/amba/axi4_delayer.v | 39 ++++++++++++++++++++++++++-------------
+ 1 file changed, 26 insertions(+), 13 deletions(-)
+
+diff --git a/perip/amba/axi4_delayer.v b/perip/amba/axi4_delayer.v
+index 7690138f..a60ee6ab 100644
+--- a/perip/amba/axi4_delayer.v
++++ b/perip/amba/axi4_delayer.v
+@@ -84,9 +84,10 @@ module axi4_delayer(
+   reg inter_rvalid, inter_rlast;
+ 
+   reg [31:0] delay_cnt_wr;
+-  reg inter_wready;
+ 
+   wire rd_ar_can_pass = (state_rd == ST_IDLE_RD);
++  wire wr_aw_can_pass = (state_wr == ST_IDLE_WR) | (state_wr == ST_ACCESS_WR);
++  wire wr_w_can_pass  = (state_wr == ST_IDLE_WR) | (state_wr == ST_SETUP_WR);
+ 
+   assign in_arready  = rd_ar_can_pass & out_arready;
+   assign out_arvalid = rd_ar_can_pass & in_arvalid;
+@@ -103,22 +104,22 @@ module axi4_delayer(
+   assign in_rresp    = inter_rresp;
+   assign in_rlast    = inter_rlast;
+ 
+-  assign in_awready  = out_awready;
+-  assign out_awvalid = in_awvalid;
++  assign in_awready  = wr_aw_can_pass & out_awready;
++  assign out_awvalid = wr_aw_can_pass & in_awvalid;
+   assign out_awid    = in_awid;
+   assign out_awaddr  = in_awaddr;
+   assign out_awlen   = in_awlen;
+   assign out_awsize  = in_awsize;
+   assign out_awburst = in_awburst;
+-  assign in_wready   = out_wready;
+-  assign out_wvalid  = in_wvalid;
++  assign in_wready   = wr_w_can_pass & out_wready;
++  assign out_wvalid  = wr_w_can_pass & in_wvalid;
+   assign out_wdata   = in_wdata;
+   assign out_wstrb   = in_wstrb;
+-  assign out_wlast   = in_wlast;
+-  assign out_bready  = in_bready;
+-  assign in_bvalid   = out_bvalid;
+-  assign in_bid      = out_bid;
+-  assign in_bresp    = out_bresp;
++  assign out_wlast   = wr_w_can_pass & in_wlast;
++  assign out_bready  = (state_wr == ST_RESP_WR) & in_bready;
++  assign in_bvalid   = (state_wr == ST_RESP_WR) & out_bvalid;
++  assign in_bid      = (state_wr == ST_RESP_WR) ? out_bid : 4'b0;
++  assign in_bresp    = (state_wr == ST_RESP_WR) ? out_bresp : 2'b0;
+ 
+   always @(posedge clock) begin
+     if (reset) begin
+@@ -188,16 +189,28 @@ module axi4_delayer(
+     end else begin
+       case (state_wr)
+         ST_IDLE_WR: begin
+-          if (in_awvalid && in_awready) begin
++          if ((out_awvalid && out_awready) && (out_wvalid && out_wready)) begin
++            state_wr <= ST_DELAY_WR;
++          end else if (out_awvalid && out_awready) begin
+             state_wr <= ST_SETUP_WR;
++          end else if (out_wvalid && out_wready) begin
++            state_wr <= ST_ACCESS_WR;
+           end
++
+         end
+         ST_SETUP_WR: begin
+-          state_wr <= ST_ACCESS_WR;
++          if (out_wvalid && out_wready) begin
++            state_wr <= ST_DELAY_WR;
++          end
+         end
+         ST_ACCESS_WR: begin
+-          if (in_wvalid && in_wready) begin
++          if (out_awvalid && out_awready) begin
+             state_wr <= ST_DELAY_WR;
++          end else begin
++            // delay it by 5 * 8 since the device clock is 100MHz and system clock is 506MHz
++            // from yosys result
++            // 8 is to limit the diff
++            delay_cnt_wr <= delay_cnt_wr + 32'd40;
+           end
+         end
+         ST_DELAY_WR: begin
+-- 
+2.34.1
+

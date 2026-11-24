@@ -1,0 +1,140 @@
+From 523336685184c8ddde25934e47defa23d413f9f5 Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Tue, 30 Dec 2025 07:58:03 +0000
+Subject: [PATCH 03/40] [flash][soc] fix XIP issues for spi command
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/spi/rtl/spi_top_apb.v | 66 ++++++++++++++++++++++++++++---------
+ 1 file changed, 50 insertions(+), 16 deletions(-)
+
+diff --git a/perip/spi/rtl/spi_top_apb.v b/perip/spi/rtl/spi_top_apb.v
+index 98b1b310..2b0ebb65 100644
+--- a/perip/spi/rtl/spi_top_apb.v
++++ b/perip/spi/rtl/spi_top_apb.v
+@@ -39,20 +39,28 @@ module xip_controller #(
+   parameter [3:0] IDLE = 4'h0;
+   parameter [3:0] CHECK_ADDR = 4'h1;
+   parameter [3:0] NORMAL_ACCESS = 4'h2;
+-  parameter [3:0] XIP_INIT = 4'h3;
+-  parameter [3:0] XIP_WRITE_CMD = 4'h4;
+-  parameter [3:0] XIP_WRITE_ADDR = 4'h5;
+-  parameter [3:0] XIP_START = 4'h6;
+-  parameter [3:0] XIP_WAIT = 4'h7;
+-  parameter [3:0] XIP_READ = 4'h8;
+-  parameter [3:0] XIP_COMPLETE = 4'h9;
+-  parameter [3:0] ERROR_STATE = 4'hA;
++  parameter [3:0] XIP_INIT_DIV = 4'h3;
++  parameter [3:0] XIP_INIT_SS = 4'h4;
++  parameter [3:0] XIP_WRITE_CMD = 4'h5;
++  parameter [3:0] XIP_WRITE_ADDR = 4'h6;
++  parameter [3:0] XIP_START = 4'h7;
++  parameter [3:0] XIP_WAIT = 4'h8;
++  parameter [3:0] XIP_READ = 4'h9;
++  parameter [3:0] XIP_COMPLETE = 4'hA;
++  parameter [3:0] ERROR_STATE = 4'hB;
+ 
+   // SPI register offset addresses
+   parameter [4:0] SPI_RX0 = 5'h00;
++  parameter [4:0] SPI_RX1 = 5'h04;
+   parameter [4:0] SPI_TX0 = 5'h00;
+   parameter [4:0] SPI_TX1 = 5'h04;
+   parameter [4:0] SPI_CTRL = 5'h10;
++  parameter [4:0] SPI_DIV = 5'h14;
++  parameter [4:0] SPI_SS = 5'h18;
++
++  parameter [31:0] DEFAULT_SPI_DIV = 32'h1;
++  parameter [31:0] DEFAULT_SPI_SS = 32'h1;  // Stands for slave 0
++  parameter [31:0] DEFAULT_SPI_CTRL = 32'h40;
+ 
+   // Flash commands
+   parameter [7:0] FLASH_READ_CMD = 8'h03;
+@@ -109,7 +117,7 @@ module xip_controller #(
+         if (addr_in_spi_space) begin
+           next_state = NORMAL_ACCESS;
+         end else if (addr_in_flash_space) begin
+-          next_state = XIP_INIT;
++          next_state = XIP_INIT_DIV;
+         end else begin
+           next_state = ERROR_STATE;
+         end
+@@ -121,8 +129,16 @@ module xip_controller #(
+         end
+       end
+ 
+-      XIP_INIT: begin
+-        next_state = XIP_WRITE_CMD;
++      XIP_INIT_DIV: begin
++        if (wb_ack_i) begin
++          next_state = XIP_INIT_SS;
++        end
++      end
++
++      XIP_INIT_SS: begin
++        if (wb_ack_i) begin
++          next_state = XIP_WRITE_CMD;
++        end
+       end
+ 
+       XIP_WRITE_CMD: begin
+@@ -144,7 +160,7 @@ module xip_controller #(
+       end
+ 
+       XIP_WAIT: begin
+-        if (wb_ack_i && (wb_dat_i[0] == 1'b0)) begin  // Check busy flag
++        if (wb_ack_i && (wb_dat_i[8] == 1'b0)) begin  // Check Go busy
+           next_state = XIP_READ;
+         end
+       end
+@@ -218,10 +234,28 @@ module xip_controller #(
+           end
+         end
+ 
++        XIP_INIT_DIV: begin
++          wb_adr_reg <= SPI_DIV;
++          wb_dat_reg <= DEFAULT_SPI_DIV;
++          wb_sel_reg <= 4'hF;
++          wb_we_reg  <= 1'b1;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++        end
++
++        XIP_INIT_SS: begin
++          wb_adr_reg <= SPI_SS;
++          wb_dat_reg <= DEFAULT_SPI_SS;
++          wb_sel_reg <= 4'hF;
++          wb_we_reg  <= 1'b1;
++          wb_stb_reg <= 1'b1;
++          wb_cyc_reg <= 1'b1;
++        end
++
+         XIP_WRITE_CMD: begin
+           // Write read command to TX0 register
+-          wb_adr_reg <= SPI_TX0;
+-          wb_dat_reg <= {24'h0, FLASH_READ_CMD};
++          wb_adr_reg <= SPI_CTRL;
++          wb_dat_reg <= DEFAULT_SPI_CTRL;
+           wb_sel_reg <= 4'hF;
+           wb_we_reg  <= 1'b1;
+           wb_stb_reg <= 1'b1;
+@@ -231,7 +265,7 @@ module xip_controller #(
+         XIP_WRITE_ADDR: begin
+           // Write flash address to TX1 register
+           wb_adr_reg <= SPI_TX1;
+-          wb_dat_reg <= flash_addr;
++          wb_dat_reg <= {FLASH_READ_CMD, flash_addr[23:0]};
+           wb_sel_reg <= 4'hF;
+           wb_we_reg  <= 1'b1;
+           wb_stb_reg <= 1'b1;
+@@ -241,7 +275,7 @@ module xip_controller #(
+         XIP_START: begin
+           // Start SPI transmission
+           wb_adr_reg <= SPI_CTRL;
+-          wb_dat_reg <= 32'h00000100;  // Start transmission, 4-byte length
++          wb_dat_reg <= DEFAULT_SPI_CTRL | 32'h00000100;  // Start transmission, 4-byte length
+           wb_sel_reg <= 4'hF;
+           wb_we_reg  <= 1'b1;
+           wb_stb_reg <= 1'b1;
+-- 
+2.34.1
+

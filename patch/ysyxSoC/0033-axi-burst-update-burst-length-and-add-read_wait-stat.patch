@@ -1,0 +1,62 @@
+From 61eddfb460e90d3a9e7212fe0ef8de76fa4f8d8c Mon Sep 17 00:00:00 2001
+From: "Wang, Yuan1" <hallo_sun@hotmail.com>
+Date: Tue, 16 Jun 2026 15:45:46 +0000
+Subject: [PATCH 33/40] [axi burst] update burst length and add read_wait state
+
+update the burst length from 1 to 4 in the hardcoded
+mode_reg and add the read_wait state for read cas delay
+simulation.
+
+Signed-off-by: Wang, Yuan1 <hallo_sun@hotmail.com>
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 17 ++++++++++++++---
+ 1 file changed, 14 insertions(+), 3 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 5fc6a3eb..e7743c0c 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -97,10 +97,10 @@ localparam CMD_REFRESH       = 4'b0001;
+ localparam CMD_LOAD_MODE     = 4'b0000;
+ 
+ // Mode: Burst Length = 4 bytes, CAS=2
+-//localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b001};
++localparam MODE_REG          = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b010};
+ 
+ // Mode: Burst Length = 0 bytes, CAS=2
+-localparam MODE_REG            = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
++//localparam MODE_REG            = {3'b000,1'b0,2'b00,3'b010,1'b0,3'b000};
+ 
+ // SM states
+ localparam STATE_W           = 4;
+@@ -115,7 +115,8 @@ localparam STATE_WRITE1      = 4'd7;
+ localparam STATE_PRECHARGE   = 4'd8;
+ localparam STATE_REFRESH     = 4'd9;
+ localparam STATE_FULL_READ   = 4'd10;
+-localparam STATE_FULL_WRITE  = 4'd11;
++localparam STATE_FULL_READ_WAIT = 4'd11;
++localparam STATE_FULL_WRITE  = 4'd12;
+ 
+ localparam AUTO_PRECHARGE    = 10;
+ localparam ALL_BANKS         = 10;
+@@ -289,7 +290,17 @@ begin
+                 next_state_r = STATE_READ;
+         end
+     end
++    //-----------------------------------------
++    // STATE_FULL_READ
++    //-----------------------------------------
+     STATE_FULL_READ :
++    begin
++        next_state_r = STATE_FULL_READ_WAIT;
++    end
++    //-----------------------------------------
++    // STATE_FULL_READ_WAIT
++    //-----------------------------------------
++    STATE_FULL_READ_WAIT :
+     begin
+         next_state_r = STATE_IDLE;
+         // Another pending read request (with no refresh pending)
+-- 
+2.34.1
+
