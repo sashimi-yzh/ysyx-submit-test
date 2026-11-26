@@ -1,0 +1,28 @@
+From 5b37f721ebde206c70c5cd7f6516593530fe6a68 Mon Sep 17 00:00:00 2001
+From: zhangshenlu <2444967582@qq.com>
+Date: Mon, 2 Nov 2026 14:52:10 +0800
+Subject: [PATCH 3/3] B: infer SOC=1 for riscv32e-ysyxsoc
+
+---
+ bsp/abstract-machine/Makefile | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index b3c112a4a..1216ae4e1 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -9,7 +9,11 @@ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+ 
++ifeq ($(ARCH),riscv32e-ysyxsoc)
++SOC ?= 1
++else
+ SOC ?= 0
++endif
+ ifeq ($(SOC),1)
+ 	EXTRA_LD := extra-ysyxsoc.ld
+ else
+-- 
+2.34.1
+

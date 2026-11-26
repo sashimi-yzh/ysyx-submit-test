@@ -1,0 +1,51 @@
+From 88c6562ea7ed221a8eb75fec0843fd3e147e63a4 Mon Sep 17 00:00:00 2001
+From: zhangshenlu <2444967582@qq.com>
+Date: Fri, 30 Oct 2026 09:11:01 +0800
+Subject: [PATCH 2/3] =?UTF-8?q?=E4=BF=AE=E6=94=B9uart-=E9=80=82=E9=85=8Dnp?=
+ =?UTF-8?q?c=E5=92=8Cnemu?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/src/uart.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index b6c6b2fb3..711cd2579 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -32,8 +32,20 @@ static rt_err_t _uart_control(struct rt_serial_device *serial, int cmd, void *ar
+   return (RT_EOK);
+ }
+ 
++static bool _uart_am_io_available(void) {
++  static int8_t flag = -1;
++  if (flag < 0) {
++    flag = io_read(AM_UART_CONFIG).present ? 1 : 0;
++  }
++  return flag == 1;
++}
++
+ static int _uart_putc(struct rt_serial_device *serial, char c) {
+-  io_write(AM_UART_TX, .data = c);
++  if (_uart_am_io_available()) {
++    io_write(AM_UART_TX, .data = c);
++  } else {
++    putch(c);
++  }
+   return 1;
+ }
+ 
+@@ -41,6 +53,8 @@ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+   if (*p != '\0') { return *(p ++); }
+ 
++  if (!_uart_am_io_available()) { return -1; }
++
+   char ch = io_read(AM_UART_RX).data;
+   return (ch != 0xFF) ? (int)(unsigned char)ch : -1;
+ }
+-- 
+2.34.1
+
