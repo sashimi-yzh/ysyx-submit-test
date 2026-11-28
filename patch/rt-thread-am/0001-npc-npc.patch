@@ -1,0 +1,252 @@
+From 48d490613c761f5d5ecdca8fc8b826f819492bbd Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Thu, 29 Oct 2026 22:38:10 +0800
+Subject: [PATCH 1/2] =?UTF-8?q?=E9=80=82=E9=85=8D=E4=B8=80=E7=94=9F?=
+ =?UTF-8?q?=E4=B8=80=E8=8A=AFnpc=E5=B9=B3=E5=8F=B0:=E4=B8=8A=E4=B8=8B?=
+ =?UTF-8?q?=E6=96=87=E5=88=87=E6=8D=A2=E3=80=81=E4=B8=B2=E5=8F=A3=E8=AF=BB?=
+ =?UTF-8?q?=E3=80=81npc=E4=B8=93=E7=94=A8=E9=93=BE=E6=8E=A5=E8=84=9A?=
+ =?UTF-8?q?=E6=9C=AC?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/Makefile      | 11 +++++-
+ bsp/abstract-machine/extra-npc.ld  | 46 ++++++++++++++++++++++++
+ bsp/abstract-machine/extra.ld      |  9 ++---
+ bsp/abstract-machine/src/context.c | 56 +++++++++++++++++++++++++++---
+ bsp/abstract-machine/src/init.c    |  1 +
+ bsp/abstract-machine/src/uart.c    |  7 +++-
+ 6 files changed, 120 insertions(+), 10 deletions(-)
+ create mode 100644 bsp/abstract-machine/extra-npc.ld
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index 8d70f310b..a38768f3e 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,7 +8,16 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-LDFLAGS += -T extra.ld
++# extra.ld 用的是 ysyxSoC 的 sdram/flash 两个 MEMORY 段（.data.extra 的 LMA 在 flash、
++# VMA 在 sdram，靠 boot 拷过去）。npc 的 linker.ld 没有这些段，直接挂 extra.ld 会让
++# .data.extra 落到地址 0，运行到 rt_components_board_init 时从 0x168 读初始化表就读到空。
++# 所以 npc 用 extra-npc.ld：段收集完全一样，只是不带段属性。
++# 统一使用小写的 ARCH=riscv32e-ysyxsoc（SoC 平台）
++ifneq ($(findstring ysyxsoc,$(ARCH)),)
++  LDFLAGS += -T extra.ld
++else
++  LDFLAGS += -T extra-npc.ld
++endif
+ -include $(FILE_MK)
+ -include $(AM_APPS_MK)
+ include $(AM_HOME)/Makefile
+diff --git a/bsp/abstract-machine/extra-npc.ld b/bsp/abstract-machine/extra-npc.ld
+new file mode 100644
+index 000000000..761f53fcb
+--- /dev/null
++++ b/bsp/abstract-machine/extra-npc.ld
+@@ -0,0 +1,46 @@
++SECTIONS {
++  .data.extra : {
++    /* section information for finsh shell */
++	  __fsymtab_start = .;
++    KEEP(*(FSymTab))
++    __fsymtab_end = .;
++    . = ALIGN(8);
++    __vsymtab_start = .;
++    KEEP(*(VSymTab))
++    __vsymtab_end = .;
++    . = ALIGN(8);
++
++    /* section information for initial. */
++    . = ALIGN(8);
++    __rt_init_start = .;
++    KEEP(*(SORT(.rti_fn*)))
++    __rt_init_end = .;
++    . = ALIGN(8);
++
++    __rt_utest_tc_tab_start = .;
++    KEEP(*(UtestTcTab))
++    __rt_utest_tc_tab_end = .;
++
++    . = ALIGN(8);
++    __am_apps_data_start = .;
++    *(__am_apps.data*)
++    *(__am_apps.sdata*)
++    __am_apps_data_end = .;
++    . = ALIGN(8);
++    _data_vma_end = .;
++  }   /* <--- 加上这一行！ */
++}
++INSERT AFTER .data;
++
++SECTIONS {
++  .bss.extra : {
++    . = ALIGN(8);
++    __am_apps_bss_start = .;
++    *(__am_apps.bss*)
++    *(__am_apps.sbss*)
++    *(__am_apps.scommon*)
++    __am_apps_bss_end = .;
++    . = ALIGN(8);
++  }
++}
++INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/extra.ld b/bsp/abstract-machine/extra.ld
+index 5cdc65670..d20403ed4 100644
+--- a/bsp/abstract-machine/extra.ld
++++ b/bsp/abstract-machine/extra.ld
+@@ -1,7 +1,7 @@
+ SECTIONS {
+   .data.extra : {
+     /* section information for finsh shell */
+-    __fsymtab_start = .;
++	  __fsymtab_start = .;
+     KEEP(*(FSymTab))
+     __fsymtab_end = .;
+     . = ALIGN(8);
+@@ -27,9 +27,10 @@ SECTIONS {
+     *(__am_apps.sdata*)
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+-  }
++    _data_vma_end = .;
++  } > sdram AT> flash   /* <--- 加上这一行！ */
+ }
+-INSERT BEFORE .data;
++INSERT AFTER .data;
+ 
+ SECTIONS {
+   .bss.extra : {
+@@ -40,6 +41,6 @@ SECTIONS {
+     *(__am_apps.scommon*)
+     __am_apps_bss_end = .;
+     . = ALIGN(8);
+-  }
++  } > sdram
+ }
+ INSERT BEFORE .bss;
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index ee38829ae..18500947c 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -4,6 +4,15 @@
+ 
+ static Context* ev_handler(Event e, Context *c) {
+   switch (e.event) {
++    case EVENT_YIELD:
++      
++      rt_thread_t PCB = rt_thread_self();
++      rt_ubase_t *to_and_from = (rt_ubase_t*)PCB->user_data;
++      Context * to = *(Context **)to_and_from[0];
++      Context ** from = (Context **)to_and_from[1];
++      *from = c;
++      return to;
++    break;
+     default: printf("Unhandled event ID = %d\n", e.event); assert(0);
+   }
+   return c;
+@@ -14,18 +23,57 @@ void __am_cte_init() {
+ }
+ 
+ void rt_hw_context_switch_to(rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t PCB = rt_thread_self();
++  rt_ubase_t user_data_bak = PCB->user_data;
++  rt_ubase_t to_and_from[2] = {to,(rt_ubase_t)&(PCB->sp)};
++  PCB->user_data = (rt_ubase_t)to_and_from;
++  yield();
++  PCB->user_data = user_data_bak;
+ }
+ 
+ void rt_hw_context_switch(rt_ubase_t from, rt_ubase_t to) {
+-  assert(0);
++  rt_thread_t PCB = rt_thread_self();
++  rt_ubase_t user_data_bak = PCB->user_data;
++  rt_ubase_t to_and_from[2] = {to,from};
++  PCB->user_data = (rt_ubase_t)to_and_from;
++  yield();
++  PCB->user_data = user_data_bak; 
+ }
+ 
+ void rt_hw_context_switch_interrupt(void *context, rt_ubase_t from, rt_ubase_t to, struct rt_thread *to_thread) {
+   assert(0);
+ }
+ 
++#define STACK_SIZE 32*1024
++
++struct args_wrap{
++  void (*tentry)(void *args);
++  void *parameter;
++  void (*texit)(void);
++}; 
++typedef struct args_wrap args_wrap;
++
++void thread_entry_wrapper(void* args){
++  args_wrap wrap = *(args_wrap*)args;
++  wrap.tentry(wrap.parameter);
++  wrap.texit();
++}
++
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  assert(0);
+-  return NULL;
++  if((uintptr_t)stack_addr % sizeof(uintptr_t) != 0) 
++    stack_addr = (rt_uint8_t *)((uintptr_t)stack_addr & (~(sizeof(uintptr_t) - 1)));
++
++  Area kstack;
++  kstack.end = (void*)stack_addr;
++  kstack.start = (void*)((uintptr_t)stack_addr - STACK_SIZE);
++
++  kstack.end = (void*)((uintptr_t)kstack.end - sizeof(args_wrap));
++  args_wrap *wrapp = (args_wrap *)(kstack.end);
++  
++  wrapp->tentry = (void (*)(void *))tentry;
++  wrapp->texit = (void (*)(void))texit;
++  wrapp->parameter = parameter;
++  Context* cp = kcontext(kstack,thread_entry_wrapper,wrapp);
++
++  return (rt_uint8_t *)cp;
+ }
+diff --git a/bsp/abstract-machine/src/init.c b/bsp/abstract-machine/src/init.c
+index 93e271154..03aa9f9be 100644
+--- a/bsp/abstract-machine/src/init.c
++++ b/bsp/abstract-machine/src/init.c
+@@ -36,6 +36,7 @@ void rt_hw_board_init() {
+     am_apps_data_content = rt_malloc(data_size);
+     assert(am_apps_data_content != NULL);
+   }
++  printf("addr: %x\n",am_apps_data.start);
+   memcpy(am_apps_data_content, am_apps_data.start, data_size);
+ 
+ #ifdef RT_USING_CONSOLE
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index e4eb86689..52619e1a5 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -11,6 +11,7 @@
+ #include <rtthread.h>
+ #include <am.h>
+ #include <klib.h>
++#include <klib-macros.h>
+ 
+ #define UART_DEFAULT_BAUDRATE 115200
+ 
+@@ -38,7 +39,11 @@ static int _uart_putc(struct rt_serial_device *serial, char c) {
+ 
+ static int _uart_getc(struct rt_serial_device *serial) {
+   static const char *p = "help\ndate\nversion\nfree\nps\npwd\nls\nmemtrace\nmemcheck\nutest_list\n";
+-  return (*p != '\0' ? *(p ++) : -1);
++  if(*p != '\0'){
++    return *(p ++);
++  }else{
++    return io_read(AM_UART_RX).data;
++  }
+ }
+ 
+ const struct rt_uart_ops _uart_ops = {
+-- 
+2.34.1
+

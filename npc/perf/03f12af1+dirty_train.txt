@@ -1,0 +1,69 @@
+# 2026-10-25 19:45:52  bench=microbench  mainargs=train  commit=03f12af1+dirty  make_rc=0
+# 修改仲裁器为轮询调度,删除一些无效的性能计数器
+MicroBench PASS
+Scored time: 1538136.118 ms
+Total  time: 1832259.811 ms
+cycle: 1850054091, InstCounter: 195171303, IPC: 0.105495
+[PERF] icache_refill_rehit: 10698017
+[PERF] icache_refill_busy: 1026878464
+[PERF] icache_refill_count: 12102228
+[PERF] icache_miss: 13304283
+[PERF] icache_hit: 212998961
+[PERF] icache_refill_flushed: 0
+[PERF] icache_refill_suppressed: 0
+[PERF] icache_miss_killed_by_flush: 0
+[PERF] icache_stall_by_refill: 1038980692
+[PERF] icache_refill_req_stall: 0
+[PERF] IFU_get_inst_cycles: 1834488112
+[PERF] IFU_wait_miss: 1038980692
+[PERF] IFU_wait_backend: 553638206
+[PERF] IFU_wait_resp: 31131940
+[PERF] IFU_fetch: 210737274
+[PERF] LSU_busy: 26101155
+[PERF] LSU_store_gate: 20633906
+[PERF] LSU_load_gate: 5467249
+[PERF] LSU_load_latency: 676737503
+[PERF] LSU_store_latency: 13821498
+[PERF] LSU_load_wait_free: 193127836
+[PERF] LSU_store_wait_free: 13821498
+[PERF] LSU_load_wait_resp: 483609667
+[PERF] LSU_store_b_pending: 100934533
+[PERF] LSU_report_lost: 0
+[PERF] LSU_two_fire: 0
+[PERF] LSU_get_data: 22728029
+[PERF] LSU_load_get_data: 15817280
+[PERF] LSU_store_get_data: 6910749
+[PERF] IDU_pipe_idle: 1097780830
+[PERF] IDU_calc: 113169007
+[PERF] IDU_jump: 4161516
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 15817280
+[PERF] IDU_store: 6910749
+[PERF] IDU_branch: 52937376
+[PERF] IDU_RAW_stall_cycles: 359749325
+[PERF] IDU_idle_cycle: 1040549416
+[PERF] IDU_stall_by_EXU_cycle: 303964550
+[PERF] IDU_internal_stall_cycles: 492584871
+[PERF] IDU_flush_discard: 15565970
+[PERF] EXU_flush_count: 15565970
+[PERF] EXU_ex_stall_cycles: 445285024
+[PERF] EXU_ex_stall_by_lsu_reject: 26101155
+[PERF] EXU_ex_stall_by_mem_pending: 419183859
+[PERF] EXU_idle_cycles: 845516940
+[PERF] WBU_commit: 195171303
+[PERF] WBU_stall_cycle: 1654882769
+[PERF] AXI_read_busy: 1440957529
+[PERF] AXI_write_busy: 100934533
+[PERF] AXI_read_contend: 3407429
+[PERF] AXI_read_grant_0: 957347908
+[PERF] AXI_write_grant_0: 0
+[PERF] AXI_read_grant_1: 483609621
+[PERF] AXI_write_grant_1: 100934533
+[PERF] total_cycles: 1850054082
+[32mHIT GOOD TRAP[0m
+#
+# --- 综合/时序（yosys-sta: make sta，nangate45）---
+[AREA] dir=ysyx_26030092-800MHz cells=12691 DFF_X1=3195 area_um2=25894.834 seq_um2=14447.790 seq_pct=55.79
+[TIME] wns_setup_all=0.132 wns_setup_core=0.132 wns_hold_core=0.072 fmax_MHz=894.467 tns_setup=0.000 tns_hold=0.000
+[TIME] path_setup_core=BPU_u.btb_1_counter_0__reg_p:D
+[TIME] path_setup_all=BPU_u.btb_1_counter_0__reg_p:D

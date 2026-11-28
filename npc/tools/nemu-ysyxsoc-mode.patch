@@ -1,0 +1,176 @@
+diff -ruN a/nemu/configs/riscv32-ref_defconfig b/nemu/configs/riscv32-ref_defconfig
+--- a/nemu/configs/riscv32-ref_defconfig	2026-11-15 14:18:56.667834143 +0800
++++ b/nemu/configs/riscv32-ref_defconfig	2026-11-15 14:18:56.972817609 +0800
+@@ -1,3 +1,4 @@
+ CONFIG_TARGET_SHARE=y
++CONFIG_YSYXSOC_MODE=y
+ # CONFIG_TRACE is not set
+ # CONFIG_WATCHPOINT is not set
+diff -ruN a/nemu/include/memory/paddr.h b/nemu/include/memory/paddr.h
+--- a/nemu/include/memory/paddr.h	2026-11-15 14:18:56.667834143 +0800
++++ b/nemu/include/memory/paddr.h	2026-11-15 14:18:56.972817609 +0800
+@@ -20,10 +20,14 @@
+ 
+ #define PMEM_LEFT  ((paddr_t)CONFIG_MBASE)
+ #define PMEM_RIGHT ((paddr_t)CONFIG_MBASE + CONFIG_MSIZE - 1)
+-// ysyxSoC 模式（-i/--icachesim 自动开启）时从 flash(0x30000000) 启动
+-// （bootloader 复制 SSBL 到 sdram）；否则维持原复位向量
++/* ysyxSoC address space emulation is only needed by the difftest REF build. */
++#ifdef CONFIG_YSYXSOC_MODE
+ extern bool ysyxsoc_mode;
+ #define RESET_VECTOR (ysyxsoc_mode ? (paddr_t)CONFIG_FLASH_BASE : (PMEM_LEFT + CONFIG_PC_RESET_OFFSET))
++#else
++#define ysyxsoc_mode false
++#define RESET_VECTOR (PMEM_LEFT + CONFIG_PC_RESET_OFFSET)
++#endif
+ 
+ /* convert the guest physical address in the guest program to host virtual address in NEMU */
+ uint8_t* guest_to_host(paddr_t paddr);
+@@ -34,6 +38,7 @@
+   return addr - CONFIG_MBASE < CONFIG_MSIZE;
+ }
+ 
++#ifdef CONFIG_YSYXSOC_MODE
+ static inline bool in_mrom(paddr_t addr){
+   return addr - CONFIG_MROM_BASE < CONFIG_MROM_SIZE;
+ }
+@@ -49,6 +54,7 @@
+ static inline bool in_sdram(paddr_t addr){
+   return addr - CONFIG_SDRAM_BASE < CONFIG_SDRAM_SIZE;
+ }
++#endif
+ 
+ word_t paddr_read(paddr_t addr, int len);
+ void paddr_write(paddr_t addr, int len, word_t data);
+diff -ruN a/nemu/Kconfig b/nemu/Kconfig
+--- a/nemu/Kconfig	2026-11-15 14:18:56.665834251 +0800
++++ b/nemu/Kconfig	2026-11-15 14:18:56.972817609 +0800
+@@ -68,6 +68,14 @@
+   bool "Application on Abstract-Machine (DON'T CHOOSE)"
+ endchoice
+ 
++config YSYXSOC_MODE
++  bool "Emulate ysyxSoC address space (difftest REF only)"
++  default n
++  help
++    Emulate ysyxSoC memory map (mrom/sram/flash/sdram) and peripherals
++    (UART/RTC/GPIO), and boot from flash. Enable it only for the REF build;
++    in other builds these regions overlap NEMU serial/VGA MMIO.
++
+ menu "Build Options"
+ choice
+   prompt "Compiler"
+diff -ruN a/nemu/src/memory/paddr.c b/nemu/src/memory/paddr.c
+--- a/nemu/src/memory/paddr.c	2026-11-15 14:18:56.669834034 +0800
++++ b/nemu/src/memory/paddr.c	2026-11-15 14:18:56.972817609 +0800
+@@ -25,14 +25,18 @@
+ static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
+ #endif
+ 
++#ifdef CONFIG_YSYXSOC_MODE
++bool ysyxsoc_mode = true;
+ static uint8_t mrom[CONFIG_MROM_SIZE] = {};
+ static uint8_t sram[CONFIG_SRAM_SIZE] = {};
+ static uint8_t flash[CONFIG_FLASH_SIZE] = {};
+ static uint8_t sdram[CONFIG_SDRAM_SIZE] = {};
++#endif
+ 
+ uint8_t* guest_to_host(paddr_t paddr) {
+   if(in_pmem(paddr))
+     return pmem + paddr - CONFIG_MBASE; 
++#ifdef CONFIG_YSYXSOC_MODE
+   else if(in_mrom(paddr)){
+     return mrom + paddr - CONFIG_MROM_BASE;
+   }
+@@ -45,12 +49,15 @@
+   else if(in_sdram(paddr)){
+     return sdram + paddr - CONFIG_SDRAM_BASE;
+   }
++#endif
+   return 0;
+ }
+ paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
+ 
++#ifdef CONFIG_YSYXSOC_MODE
+ uint8_t* mrom_guest_to_host(paddr_t paddr) { return mrom + paddr - CONFIG_MROM_BASE; }
+ uint8_t* sram_guest_to_host(paddr_t paddr) { return sram + paddr - CONFIG_SRAM_BASE; }
++#endif
+ 
+ static word_t pmem_read(paddr_t addr, int len) {
+   word_t ret = host_read(guest_to_host(addr), len);
+@@ -78,6 +85,7 @@
+ }
+ 
+ 
++#ifdef CONFIG_YSYXSOC_MODE
+ // ysyxSoC 串口（16550 @ 0x10000000）：写数据寄存器输出字符，
+ // 读线路状态寄存器（0x5）恒返回 THRE 置位（发送保持寄存器空）
+ static inline bool in_uart(paddr_t addr) {
+@@ -94,8 +102,10 @@
+ static inline bool in_rtc(paddr_t addr) {
+   return addr >= 0x0200BFF8 && addr < 0x0200C000;
+ }
++#endif
+ 
+ word_t paddr_read(paddr_t addr, int len) {
++#ifdef CONFIG_YSYXSOC_MODE
+   if (ysyxsoc_mode) {
+     if (in_uart(addr)) {
+       return 0x20; // UART_LS_THRE
+@@ -108,8 +118,12 @@
+       return 0;
+     }
+   }
+-  if (likely(in_pmem(addr) || in_mrom(addr) || in_sram(addr)
+-    || in_flash(addr) || in_sdram(addr))){
++#endif
++  if (likely(in_pmem(addr)
++#ifdef CONFIG_YSYXSOC_MODE
++    || in_mrom(addr) || in_sram(addr) || in_flash(addr) || in_sdram(addr)
++#endif
++    )){
+     record_mtrace(WRITE_TRACE,addr,len, pmem_read(addr, len));
+     return pmem_read(addr, len);
+   }
+@@ -119,6 +133,7 @@
+ }
+ 
+ void paddr_write(paddr_t addr, int len, word_t data) {
++#ifdef CONFIG_YSYXSOC_MODE
+   if (ysyxsoc_mode) {
+     if (in_uart(addr)) {
+       if (addr == 0x10000000) {
+@@ -131,7 +146,12 @@
+       return;
+     }
+   }
+-  if (likely(in_pmem(addr) || in_sram(addr)|| in_flash(addr) || in_sdram(addr))) {
++#endif
++  if (likely(in_pmem(addr)
++#ifdef CONFIG_YSYXSOC_MODE
++    || in_sram(addr) || in_flash(addr) || in_sdram(addr)
++#endif
++    )) {
+     record_mtrace(READ_TRACE,addr,len, data);
+     pmem_write(addr, len, data);
+     return;
+diff -ruN a/nemu/src/monitor/monitor.c b/nemu/src/monitor/monitor.c
+--- a/nemu/src/monitor/monitor.c	2026-11-15 14:18:56.668834089 +0800
++++ b/nemu/src/monitor/monitor.c	2026-11-15 14:18:56.972817609 +0800
+@@ -50,8 +50,6 @@
+ static char *icachesim_file = NULL;
+ static int difftest_port = 1234;
+ 
+-// ysyxSoC 模式：-i/--icachesim 时自动开启（复位到 flash、串口/外设模拟）
+-bool ysyxsoc_mode = false;
+ 
+ static long load_img() {
+   if (img_file == NULL) {
+@@ -99,7 +97,6 @@
+       case 'e': elf_file = optarg; break;
+       case 'i':
+         icachesim_file = optarg;
+-        ysyxsoc_mode = true; // 自动开启 ysyxSoC 行为（复位到 flash、串口/外设）
+         break;
+       case 1: img_file = optarg; return 0;
+       default:

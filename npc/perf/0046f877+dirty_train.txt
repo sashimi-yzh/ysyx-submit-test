@@ -1,0 +1,52 @@
+# 2026-11-07 17:53:42  bench=microbench  mainargs=train  commit=0046f877+dirty  make_rc=0
+# 修复refill状态机无法正确回填的bug
+MicroBench PASS
+Scored time: 1440873.475 ms
+Total  time: 1739922.090 ms
+cycle: 1757706881, InstCounter: 195172395, IPC: 0.111038
+[PERF] icache_refill_busy: 990646717
+[PERF] icache_refill_count: 12435764
+[PERF] IFU_get_inst_cycles: 1742822157
+[PERF] IFU_wait_resp: 26678075
+[PERF] IFU_fetch: 210057111
+[PERF] LSU_busy: 29573566
+[PERF] LSU_store_gate: 23116235
+[PERF] LSU_load_gate: 6457331
+[PERF] LSU_load_latency: 823382972
+[PERF] LSU_store_latency: 6910721
+[PERF] LSU_load_wait_free: 344994441
+[PERF] LSU_store_wait_free: 6910721
+[PERF] LSU_load_wait_resp: 478388531
+[PERF] LSU_store_b_pending: 106709281
+[PERF] LSU_report_lost: 0
+[PERF] LSU_two_fire: 0
+[PERF] LSU_get_data: 22728721
+[PERF] LSU_load_get_data: 15818000
+[PERF] LSU_store_get_data: 6910721
+[PERF] IDU_pipe_idle: 866101989
+[PERF] IDU_calc: 113169109
+[PERF] IDU_jump: 4161486
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 15818000
+[PERF] IDU_store: 6910721
+[PERF] IDU_branch: 52937704
+[PERF] IDU_RAW_stall_cycles: 468002099
+[PERF] IDU_idle_cycle: 799084745
+[PERF] IDU_stall_by_EXU_cycle: 369189764
+[PERF] IDU_internal_stall_cycles: 631537142
+[PERF] IDU_flush_discard: 14884715
+[PERF] EXU_flush_count: 14884715
+[PERF] EXU_ex_stall_cycles: 533333966
+[PERF] EXU_ex_stall_by_lsu_reject: 29573566
+[PERF] EXU_ex_stall_by_mem_pending: 503760391
+[PERF] EXU_idle_cycles: 615113765
+[PERF] WBU_commit: 195172395
+[PERF] WBU_stall_cycle: 1562534468
+[PERF] total_cycles: 1757706872
+[32mHIT GOOD TRAP[0m
+#
+# --- 综合/时序（yosys-sta: make sta，nangate45）---
+[AREA] dir=ysyx_26030092-800MHz cells=11073 DFF_X1=3248 area_um2=24230.738 seq_um2=14687.456 seq_pct=60.61
+[TIME] wns_setup_all=0.302 wns_setup_core=0.302 wns_hold_core=0.078 fmax_MHz=1055.311 tns_setup=0.000 tns_hold=0.000
+[TIME] path_setup_core=RFS_u.mcycle_63__reg_p:D
+[TIME] path_setup_all=RFS_u.mcycle_63__reg_p:D

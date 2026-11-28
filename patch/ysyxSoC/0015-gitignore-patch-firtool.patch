@@ -1,0 +1,28 @@
+From 84f38fde0a72a7acb1bea42617ae9c68d2ea1d92 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sat, 21 Nov 2026 17:05:31 +0800
+Subject: [PATCH 15/15] =?UTF-8?q?gitignore:=20=E5=BF=BD=E7=95=A5=20patch/f?=
+ =?UTF-8?q?irtool=20=E7=AD=89=E6=9E=84=E5=BB=BA=E4=BA=A7=E7=89=A9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .gitignore | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/.gitignore b/.gitignore
+index 0321b0c0..a1dca55f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,4 +1,5 @@
+ build/
+ out/
+ .vscode
+-.metals
+\ No newline at end of file
++.metals
++patch/firtool/
+-- 
+2.34.1
+

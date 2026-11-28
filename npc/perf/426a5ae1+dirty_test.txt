@@ -1,0 +1,64 @@
+# 2026-11-06 16:54:09  bench=microbench  mainargs=test  commit=426a5ae1+dirty  make_rc=0
+# 重写仲裁器和BPU;仲裁器AR和R通道分离,写通道直连;BPU采用use bit驱逐策略
+   73 |     printf("cycle: %llu, InstCounter: %llu, IPC: %f\n",cycle, inst_counter , 1.0 * inst_counter / cycle);
+   73 |     printf("cycle: %llu, InstCounter: %llu, IPC: %f\n",cycle, inst_counter , 1.0 * inst_counter / cycle);
+MicroBench PASS
+Scored time: 5541.651 ms
+Total  time: 7101.899 ms
+cycle: 24859337, InstCounter: 590130, IPC: 0.023739
+[PERF] icache_refill_rehit: 41876
+[PERF] icache_refill_busy: 4135294
+[PERF] icache_refill_count: 48748
+[PERF] icache_miss: 54088
+[PERF] icache_hit: 613371
+[PERF] icache_refill_flushed: 0
+[PERF] icache_refill_suppressed: 0
+[PERF] icache_miss_killed_by_flush: 0
+[PERF] icache_stall_by_refill: 4184042
+[PERF] icache_refill_req_stall: 0
+[PERF] IFU_get_inst_cycles: 24820664
+[PERF] IFU_wait_miss: 4184042
+[PERF] IFU_wait_backend: 19930499
+[PERF] IFU_wait_resp: 77328
+[PERF] IFU_fetch: 628795
+[PERF] LSU_busy: 330525
+[PERF] LSU_store_gate: 325723
+[PERF] LSU_load_gate: 4802
+[PERF] LSU_load_latency: 20310829
+[PERF] LSU_store_latency: 57520
+[PERF] LSU_load_wait_free: 887330
+[PERF] LSU_store_wait_free: 57520
+[PERF] LSU_load_wait_resp: 19423499
+[PERF] LSU_store_b_pending: 757057
+[PERF] LSU_report_lost: 0
+[PERF] LSU_two_fire: 0
+[PERF] LSU_get_data: 139396
+[PERF] LSU_load_get_data: 81876
+[PERF] LSU_store_get_data: 57520
+[PERF] IDU_pipe_idle: 4348782
+[PERF] IDU_calc: 295323
+[PERF] IDU_jump: 24643
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 81876
+[PERF] IDU_store: 57520
+[PERF] IDU_branch: 120539
+[PERF] IDU_RAW_stall_cycles: 19012840
+[PERF] IDU_idle_cycle: 4145111
+[PERF] IDU_stall_by_EXU_cycle: 18667234
+[PERF] IDU_internal_stall_cycles: 19708512
+[PERF] IDU_flush_discard: 38664
+[PERF] EXU_flush_count: 38664
+[PERF] EXU_ex_stall_cycles: 19381567
+[PERF] EXU_ex_stall_by_lsu_reject: 330525
+[PERF] EXU_ex_stall_by_mem_pending: 19051033
+[PERF] EXU_idle_cycles: 3267772
+[PERF] WBU_commit: 590130
+[PERF] WBU_stall_cycle: 24269189
+[PERF] total_cycles: 24859328
+[32mHIT GOOD TRAP[0m
+#
+# --- 综合/时序（yosys-sta: make sta，nangate45）---
+[AREA] dir=ysyx_26030092-800MHz cells=11749 DFF_X1=3231 area_um2=24881.374 seq_um2=14610.582 seq_pct=58.72
+[TIME] wns_setup_all=0.273 wns_setup_core=0.277 wns_hold_core=0.078 fmax_MHz=1027.266 tns_setup=0.000 tns_hold=0.000
+[TIME] path_setup_core=BPU_u.pc_8__reg_p:D
+[TIME] path_setup_all=BPU_u.btb_0_counter_0__reg_p_E_CLKGATE_X1_E:E

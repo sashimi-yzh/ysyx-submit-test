@@ -1,0 +1,50 @@
+# 2026-11-08 16:24:36  bench=microbench  mainargs=train  commit=64015275+dirty  make_rc=0
+# 完成删除mem 的流水槽,与ex的流水槽共用一个槽,同时保持流水
+   73 |     printf("cycle: %llu, InstCounter: %llu, IPC: %f\n",cycle, inst_counter , 1.0 * inst_counter / cycle);
+   73 |     printf("cycle: %llu, InstCounter: %llu, IPC: %f\n",cycle, inst_counter , 1.0 * inst_counter / cycle);
+MicroBench PASS
+Scored time: 1445198.839 ms
+Total  time: 1758556.103 ms
+cycle: 1776477574, InstCounter: 195173045, IPC: 0.109865
+[PERF] icache_refill_busy: 991319455
+[PERF] icache_refill_count: 12246302
+[PERF] IFU_get_inst_cycles: 1761536765
+[PERF] IFU_wait_resp: 26481584
+[PERF] IFU_fetch: 210113847
+[PERF] LSU_busy: 0
+[PERF] LSU_load_gate: 0
+[PERF] LSU_store_gate: 0
+[PERF] LSU_load_latency: 762501427
+[PERF] LSU_store_latency: 6910742
+[PERF] LSU_load_wait_free: 287125446
+[PERF] LSU_load_wait_resp: 475375981
+[PERF] LSU_store_b_pending: 106546781
+[PERF] LSU_load_get_data: 15818081
+[PERF] LSU_store_get_data: 6910742
+[PERF] IDU_pipe_idle: 868664544
+[PERF] IDU_calc: 113169375
+[PERF] IDU_jump: 4161510
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 15818081
+[PERF] IDU_store: 6910742
+[PERF] IDU_branch: 52937960
+[PERF] IDU_RAW_stall_cycles: 262436629
+[PERF] IDU_idle_cycle: 743441763
+[PERF] IDU_stall_by_EXU_cycle: 581202711
+[PERF] IDU_internal_stall_cycles: 649531419
+[PERF] IDU_flush_discard: 14940800
+[PERF] EXU_flush_count: 14940800
+[PERF] EXU_stall_cycles: 581121454
+[PERF] EXU_lsu_wait: 882869692
+[PERF] EXU_stall_by_lsu_reject: 279729715
+[PERF] EXU_idle_cycles: 631217502
+[PERF] WBU_commit: 195173045
+[PERF] WBU_stall_cycle: 1581304520
+[PERF] total_cycles: 1776477565
+[32mHIT GOOD TRAP[0m
+#
+# --- 综合/时序（yosys-sta: make sta，nangate45）---
+[AREA] dir=ysyx_26030092-800MHz cells=10588 DFF_X1=3022 area_um2=22957.928 seq_um2=13665.484 seq_pct=59.52
+[TIME] wns_setup_all=0.263 wns_setup_core=0.263 wns_hold_core=0.078 fmax_MHz=1012.862 tns_setup=0.000 tns_hold=0.000
+[TIME] path_setup_core=BPU_u.train_port_s1_target_19__reg_p:D
+[TIME] path_setup_all=BPU_u.train_port_s1_target_19__reg_p:D

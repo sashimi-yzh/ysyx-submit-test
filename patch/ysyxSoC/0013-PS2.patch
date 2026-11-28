@@ -1,0 +1,147 @@
+From 52028586a96abad564f4e5b2a840859d5b33cc99 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sun, 15 Nov 2026 15:14:42 +0800
+Subject: [PATCH 13/15] =?UTF-8?q?=E7=AE=80=E5=8C=96PS2=E9=94=AE=E7=9B=98?=
+ =?UTF-8?q?=E6=8E=A5=E6=94=B6=E6=8E=A7=E5=88=B6=E5=99=A8?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/Keyboard.scala | 98 +++++++++++++++------------------------
+ src/device/VGA.scala      |  2 +-
+ 2 files changed, 38 insertions(+), 62 deletions(-)
+
+diff --git a/src/device/Keyboard.scala b/src/device/Keyboard.scala
+index da85119b..e0460b08 100644
+--- a/src/device/Keyboard.scala
++++ b/src/device/Keyboard.scala
+@@ -26,74 +26,50 @@ class ps2_top_apb extends BlackBox {
+ 
+ class ps2Chisel extends Module {
+   val io = IO(new PS2CtrlIO)
+-  io.in.pready := false.B
++
++  val q = Module(new Queue(UInt(8.W), 8))
++
++  val clk_r  = RegInit(0.U(3.W))
++  val sample = clk_r(2) & ~clk_r(1)          // 下降沿
++  clk_r := Cat(clk_r(1, 0), io.ps2.clk)
++
++  val s_idle :: s_data :: s_parity :: s_stop :: Nil = Enum(4)
++  val state = RegInit(s_idle)
++  val cnt   = RegInit(0.U(3.W))
++  val buf   = RegInit(0.U(8.W))
++
++  q.io.enq.valid := false.B
++  q.io.enq.bits  := buf
++  q.io.deq.ready := io.in.psel && io.in.penable && !io.in.pwrite
++
++  io.in.pready  := io.in.psel && io.in.penable
++  io.in.prdata  := Mux(q.io.deq.valid, Cat(0.U(24.W), q.io.deq.bits), 0.U)
+   io.in.pslverr := false.B
+-  withClockAndReset(io.clock, io.reset){
+-    val ps2_clk = io.ps2.clk
+-    val ps2_data = io.ps2.data
+-    val ps2_clk_reg = RegInit(0.U(3.W))
+-    ps2_clk_reg := Cat(ps2_clk_reg(1,0), ps2_clk)
+-    val simpling = ps2_clk_reg(2) & ~ps2_clk_reg(1)
+-
+-    val FIFO = Reg(Vec(8, UInt(8.W)))
+-    val head = RegInit(0.U(3.W))
+-    val tail = RegInit(0.U(3.W))
+-    val full = RegInit(false.B)
+-    io.in.prdata := 0.U
+-
+-    when(io.in.psel && io.in.penable){
+-      io.in.pready := true.B
+-      when(!io.in.pwrite){
+-        when(io.in.paddr === 0x10011000.U){
+-          when(head =/= tail || full){
+-            io.in.prdata := Cat(0.U(24.W), FIFO(tail))
+-            tail := tail + 1.U
+-            full := false.B
+-          }
+-        }
+-      }
+-    }
+ 
+-    val s_idle :: s_simple :: s_check :: s_stop :: Nil = Enum(4)
+-    val state = RegInit(s_idle)
+-    val counter = RegInit(0.U(3.W))
+-    val buffer = Reg(UInt(8.W))
+-    val buffer_xor = buffer.asBools.reduce(_ ^ _)
+-    when(simpling){
+-      switch(state){
+-        is(s_idle){
+-          state := Mux(~ps2_data, s_simple, s_idle)
+-        }
+-        is(s_simple){
+-          counter := counter + 1.U
+-          state := Mux(counter === 7.U, s_check, s_simple)
+-          buffer := Cat(ps2_data, buffer(7,1))
+-        }
+-        is(s_check){
+-          when(buffer_xor ^ ps2_data){
+-            state := s_stop
+-          }.otherwise{
+-            state := s_idle
+-          }
+-        }
+-        is(s_stop){
+-          when(ps2_data){
+-            head := head + 1.U
+-            tail := Mux(full, tail + 1.U, tail)
+-
+-            when(head + 1.U === tail){
+-              full := true.B
+-            }
+-            FIFO(head) := buffer
+-            state := s_idle
+-          }.otherwise{
+-            state := s_idle
+-          }
++  when(sample) {
++    switch(state) {
++      is(s_idle) { 
++        when(!io.ps2.data) { 
++          state := s_data 
++          cnt := 0.U 
+         }
+       }
++      is(s_data) {
++        buf := Cat(io.ps2.data, buf(7, 1))
++        cnt := cnt + 1.U
++        when(cnt === 7.U) { state := s_parity }
++      }
++      is(s_parity) { 
++        state := Mux(buf.asBools.reduce(_ ^ _) ^ io.ps2.data, s_stop, s_idle) 
++      }
++      is(s_stop) {
++        when(io.ps2.data) { q.io.enq.valid := true.B }
++        state := s_idle
++      }
+     }
+   }
+ 
++
+ }
+ 
+ class APBKeyboard(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+diff --git a/src/device/VGA.scala b/src/device/VGA.scala
+index e0adc8d9..6789ba59 100644
+--- a/src/device/VGA.scala
++++ b/src/device/VGA.scala
+@@ -30,8 +30,8 @@ class vga_top_apb extends BlackBox {
+ 
+ class vgaChisel extends Module {
+   val io = IO(new VGACtrlIO)
+-  val memArray = Mem(0x4B000, UInt(32.W))
+   val FB_DEPTH = 640*480
++  val memArray = Mem(FB_DEPTH, UInt(32.W))
+   val maskVec = Wire(Vec(4, UInt(8.W)))
+   for (i <- 0 until 4) {
+     maskVec(i) := Mux(io.in.pstrb(i), "hff".U(8.W), 0.U)
+-- 
+2.34.1
+

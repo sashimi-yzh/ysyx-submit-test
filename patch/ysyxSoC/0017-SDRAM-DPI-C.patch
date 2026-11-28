@@ -1,0 +1,81 @@
+From 03f251f0735e58769de2fff63ec545722ed8202e Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Wed, 25 Nov 2026 23:15:00 +0800
+Subject: [PATCH] =?UTF-8?q?SDRAM:=20=E7=AE=80=E5=8C=96=20DPI-C=20=E8=AF=BB?=
+ =?UTF-8?q?=E5=86=99=E6=8E=A5=E5=8F=A3=EF=BC=8C=E5=8E=BB=E6=8E=89=E7=89=87?=
+ =?UTF-8?q?=E9=80=89=E5=8F=82=E6=95=B0?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/SDRAM.scala | 14 ++++----------
+ 1 file changed, 4 insertions(+), 10 deletions(-)
+
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index 3bb0d6bd..1a0c2ba4 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -65,21 +65,19 @@ class sdram extends BlackBox {
+ 
+ class SDRAMReader extends BlackBox with HasBlackBoxInline {
+   val io = IO(new Bundle{
+-    val high_sdram = Input(Bool())
+     val addr = Input(UInt(24.W))
+     val valid = Input(Bool())
+     val rdata = Output(UInt(32.W))
+   })
+   setInline("SDRAMReader.v",
+     """module SDRAMReader(
+-      |  input high_sdram,
+       |  input [23:0] addr,
+       |  input valid,
+       |  output reg [31:0] rdata
+       |);
+-      |import "DPI-C" function void sdram_read(input byte high_sdram, input int addr, output int rdata);
++      |import "DPI-C" function void sdram_read(input int addr, output int rdata);
+       |always @(*) begin
+-      |  if (valid) sdram_read({7'd0, high_sdram}, {8'd0, addr}, rdata);
++      |  if (valid) sdram_read({8'd0, addr}, rdata);
+       |  else rdata = 0;
+       |end
+       |endmodule
+@@ -88,7 +86,6 @@ class SDRAMReader extends BlackBox with HasBlackBoxInline {
+ 
+ class SDRAMWriter extends BlackBox with HasBlackBoxInline {
+   val io = IO(new Bundle{
+-    val high_sdram = Input(Bool())
+     val clk = Input(Bool())
+     val addr = Input(UInt(24.W))
+     val data = Input(UInt(32.W))
+@@ -97,16 +94,15 @@ class SDRAMWriter extends BlackBox with HasBlackBoxInline {
+   })
+   setInline("SDRAMWriter.v",
+     """module SDRAMWriter(
+-      |  input high_sdram,
+       |  input clk,
+       |  input [23:0] addr,
+       |  input [31:0] data,
+       |  input [3:0] mask,
+       |  input valid
+       |);
+-      |import "DPI-C" function void sdram_write(input byte high_sdram, input int addr, input int wdata, input byte mask);
++      |import "DPI-C" function void sdram_write(input int addr, input int wdata, input byte mask);
+       |always @(posedge clk) begin
+-      |  if (valid) sdram_write({7'd0, high_sdram}, {8'd0, addr}, data, {4'd0, mask});
++      |  if (valid) sdram_write({8'd0, addr}, data, {4'd0, mask});
+       |end
+       |endmodule
+     """.stripMargin)
+@@ -130,8 +126,6 @@ class sdramChisel extends RawModule {
+ 
+     val reader = Module(new SDRAMReader)
+     val writer = Module(new SDRAMWriter)
+-    reader.io.high_sdram := !io.cs(1)
+-    writer.io.high_sdram := !io.cs(1)
+     cs := (~io.cs(0)) || (~io.cs(1))
+     val cmd = Cat(~cs, io.ras, io.cas, io.we)
+ 
+-- 
+2.34.1
+

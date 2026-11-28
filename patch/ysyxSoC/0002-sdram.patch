@@ -1,0 +1,183 @@
+From bbae3c795683c557ea29410b4eba9eeebc7ed0fe Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Mon, 27 Jul 2026 17:40:16 +0800
+Subject: [PATCH 02/15] =?UTF-8?q?=E5=88=9D=E6=AD=A5=E5=AE=8C=E6=88=90sdram?=
+ =?UTF-8?q?=E5=AD=97=E6=89=A9=E5=B1=95?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v |  5 ++--
+ perip/sdram/sdram_top_apb.v                  |  2 +-
+ src/SoC.scala                                |  2 +-
+ src/device/SDRAM.scala                       | 27 ++++++++++++++------
+ 4 files changed, 24 insertions(+), 12 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 395966e9..2597e0f0 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -51,7 +51,7 @@ module sdram_axi_core
+     ,output [ 31:0]  inport_read_data_o
+     ,output          sdram_clk_o
+     ,output          sdram_cke_o
+-    ,output          sdram_cs_o
++    ,output [ 1:0]   sdram_cs_o
+     ,output          sdram_ras_o
+     ,output          sdram_cas_o
+     ,output          sdram_we_o
+@@ -177,6 +177,7 @@ reg  [STATE_W-1:0]     target_state_q;
+ reg  [STATE_W-1:0]     delay_state_q;
+ 
+ // Address bits
++assign sdram_cs_o = {~ram_addr_w[SDRAM_ADDR_W + 1], ram_addr_w[SDRAM_ADDR_W + 1]};
+ wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W+1:2]};
+ wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+ wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
+@@ -672,7 +673,7 @@ assign sdram_data_output_o   =  data_q;
+ assign sdram_data_in_w       = sdram_data_input_i;
+ 
+ assign sdram_cke_o  = cke_q;
+-assign sdram_cs_o   = command_q[3];
++// assign sdram_cs_o   = command_q[3];
+ assign sdram_ras_o  = command_q[2];
+ assign sdram_cas_o  = command_q[1];
+ assign sdram_we_o   = command_q[0];
+diff --git a/perip/sdram/sdram_top_apb.v b/perip/sdram/sdram_top_apb.v
+index f127d714..2ed6e529 100644
+--- a/perip/sdram/sdram_top_apb.v
++++ b/perip/sdram/sdram_top_apb.v
+@@ -14,7 +14,7 @@ module sdram_top_apb (
+ 
+   output        sdram_clk,
+   output        sdram_cke,
+-  output        sdram_cs,
++  output [ 1:0] sdram_cs,
+   output        sdram_ras,
+   output        sdram_cas,
+   output        sdram_we,
+diff --git a/src/SoC.scala b/src/SoC.scala
+index f4bfd11e..1b75cf23 100644
+--- a/src/SoC.scala
++++ b/src/SoC.scala
+@@ -43,7 +43,7 @@ class ysyxSoCASIC(implicit p: Parameters) extends LazyModule {
+   val lmrom = LazyModule(new AXI4MROM(AddressSet.misaligned(0x20000000, 0x1000)))
+   val sramNode = AXI4RAM(AddressSet.misaligned(0x0f000000, 0x2000).head, false, true, 4, None, Nil, false)
+ 
+-  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, 0x2000000)
++  val sdramAddressSet = AddressSet.misaligned(0xa0000000L, 0x4000000)
+   val lsdram_apb = if (!Config.sdramUseAXI) Some(LazyModule(new APBSDRAM (sdramAddressSet))) else None
+   val lsdram_axi = if ( Config.sdramUseAXI) Some(LazyModule(new AXI4SDRAM(sdramAddressSet))) else None
+ 
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index e665068c..8383f253 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -13,7 +13,7 @@ import freechips.rocketchip.util._
+ class SDRAMIO extends Bundle {
+   val clk = Output(Bool())
+   val cke = Output(Bool())
+-  val cs  = Output(Bool())
++  val cs  = Output(UInt(2.W))
+   val ras = Output(Bool())
+   val cas = Output(Bool())
+   val we  = Output(Bool())
+@@ -47,6 +47,7 @@ class sdram extends BlackBox {
+ 
+ class SDRAMReader extends BlackBox with HasBlackBoxInline {
+   val io = IO(new Bundle{
++    val high_sdram = Input(Bool())
+     val high = Input(Bool())
+     val addr = Input(UInt(24.W))
+     val valid = Input(Bool())
+@@ -54,14 +55,15 @@ class SDRAMReader extends BlackBox with HasBlackBoxInline {
+   })
+   setInline("SDRAMReader.v",
+     """module SDRAMReader(
++      |  input high_sdram,
+       |  input high,
+       |  input [23:0] addr,
+       |  input valid,
+       |  output reg [15:0] rdata
+       |);
+-      |import "DPI-C" function void sdram_read(input byte high, input int addr, output shortint rdata);
++      |import "DPI-C" function void sdram_read(input byte high_sdram, input byte high, input int addr, output shortint rdata);
+       |always @(*) begin
+-      |  if (valid) sdram_read({7'd0, high}, {8'd0, addr}, rdata);
++      |  if (valid) sdram_read({7'd0, high_sdram}, {7'd0, high}, {8'd0, addr}, rdata);
+       |  else rdata = 0;
+       |end
+       |endmodule
+@@ -70,6 +72,7 @@ class SDRAMReader extends BlackBox with HasBlackBoxInline {
+ 
+ class SDRAMWriter extends BlackBox with HasBlackBoxInline {
+   val io = IO(new Bundle{
++    val high_sdram = Input(Bool())
+     val clk = Input(Bool())
+     val high = Input(Bool())
+     val addr = Input(UInt(24.W))
+@@ -79,6 +82,7 @@ class SDRAMWriter extends BlackBox with HasBlackBoxInline {
+   })
+   setInline("SDRAMWriter.v",
+     """module SDRAMWriter(
++      |  input high_sdram,
+       |  input clk,
+       |  input high,
+       |  input [23:0] addr,
+@@ -86,9 +90,9 @@ class SDRAMWriter extends BlackBox with HasBlackBoxInline {
+       |  input [1:0] mask,
+       |  input valid
+       |);
+-      |import "DPI-C" function void sdram_write(input byte high, input int addr, input shortint wdata, input byte mask);
++      |import "DPI-C" function void sdram_write(input byte high_sdram, input byte high, input int addr, input shortint wdata, input byte mask);
+       |always @(posedge clk) begin
+-      |  if (valid) sdram_write({7'd0, high}, {8'd0, addr}, data, {6'd0, mask});
++      |  if (valid) sdram_write({7'd0, high_sdram}, {7'd0, high}, {8'd0, addr}, data, {6'd0, mask});
+       |end
+       |endmodule
+     """.stripMargin)
+@@ -103,7 +107,8 @@ class sdramChisel extends RawModule {
+   
+   withClock(io.clk.asClock){
+     when(io.cke){
+-    val cmd = Cat(io.cs, io.ras, io.cas, io.we)
++    val cs = WireDefault(true.B)
++    
+     val mode_reg = Reg(UInt(13.W))
+ 
+     val rows = Reg(Vec(4,UInt(13.W)))
+@@ -128,6 +133,12 @@ class sdramChisel extends RawModule {
+     val writerl = Module(new SDRAMWriter)
+     val readerh = Module(new SDRAMReader)
+     val writerh = Module(new SDRAMWriter)
++    readerl.io.high_sdram := !io.cs(1)
++    readerh.io.high_sdram := !io.cs(1)
++    writerl.io.high_sdram := !io.cs(1)
++    writerh.io.high_sdram := !io.cs(1)
++    cs := (~io.cs(0)) || (~io.cs(1))
++    val cmd = Cat(~cs, io.ras, io.cas, io.we)
+ 
+     readerl.io.valid := false.B
+     readerl.io.addr := 0.U
+@@ -165,7 +176,7 @@ class sdramChisel extends RawModule {
+         wburst_cnt := 1.U
+         
+         // 地址解析：组合bank、row、column
+-        val waddr = Cat(io.ba, rows(io.ba), io.a(8,0))
++        val waddr = Cat(rows(io.ba), io.ba, io.a(8,0))
+         
+         writerl.io.mask := io.dqm(1,0)
+         writerl.io.valid := true.B
+@@ -210,7 +221,7 @@ class sdramChisel extends RawModule {
+ 
+       val latency_cnt = Reg(UInt(3.W))
+       latency_cnt := Mux(READ_CMD, 1.U, latency_cnt)
+-      addr_reg := Mux(READ_CMD, Cat(io.ba, rows(io.ba), io.a(8,0)), addr_reg)
++      addr_reg := Mux(READ_CMD, Cat(rows(io.ba), io.ba, io.a(8,0)), addr_reg)
+ 
+       when(read_cmd_reg && latency_cnt < cas_latency){
+         latency_cnt := latency_cnt + 1.U
+-- 
+2.34.1
+

@@ -1,0 +1,68 @@
+# 2026-10-12 22:01:02  bench=microbench  mainargs=train  commit=72ab9eb2+dirty  make_rc=0
+# 修改LSU,允许AW和W通道握手后释放通道
+MicroBench PASS
+Scored time: 2473749.303 ms
+Total  time: 2927692.760 ms
+cycle: 2945976950, InstCounter: 195166170, IPC: 0.066248
+[PERF] icache_refill_rehit: 12588764
+[PERF] icache_refill_busy: 1517785763
+[PERF] icache_refill_count: 12975554
+[PERF] icache_miss: 13959970
+[PERF] icache_hit: 250924885
+[PERF] icache_refill_flushed: 0
+[PERF] icache_refill_grace_killed: 984416
+[PERF] icache_refill_suppressed: 0
+[PERF] icache_miss_killed_by_flush: 0
+[PERF] icache_stall_by_refill: 1530761317
+[PERF] icache_refill_window: 39911078
+[PERF] icache_stall_by_backend: 1027725454
+[PERF] icache_refill_req_stall: 0
+[PERF] IFU_get_inst_cycles: 2911117600
+[PERF] IFU_wait_icache: 2611373403
+[PERF] IFU_wait_miss: 1569687979
+[PERF] IFU_wait_backend: 1041685424
+[PERF] IFU_wait_resp: 69718684
+[PERF] IFU_wait_idu: 1027725454
+[PERF] IFU_fetch: 230025513
+[PERF] LSU_access_latency: 1088180908
+[PERF] LSU_wait_free: 293322384
+[PERF] LSU_wait_resp: 794858524
+[PERF] LSU_busy: 1110907033
+[PERF] LSU_load_latency: 1028793280
+[PERF] LSU_store_latency: 59387628
+[PERF] LSU_load_wait_free: 233934756
+[PERF] LSU_store_wait_free: 59387628
+[PERF] LSU_load_wait_resp: 794858524
+[PERF] LSU_store_wait_resp: 0
+[PERF] LSU_get_data: 22726125
+[PERF] LSU_load_get_data: 15815383
+[PERF] LSU_store_get_data: 6910742
+[PERF] LSU_store_b_pending: 325874593
+[PERF] LSU_store_gate: 182663908
+[PERF] IDU_pipe_idle: 1688225974
+[PERF] IDU_calc: 113167365
+[PERF] IDU_jump: 4161513
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 15815383
+[PERF] IDU_store: 6910742
+[PERF] IDU_branch: 52935786
+[PERF] IDU_RAW_stall_cycles: 633009251
+[PERF] IDU_idle_cycle: 1569039855
+[PERF] IDU_stall_by_EXU_cycle: 632617503
+[PERF] IDU_internal_stall_cycles: 978135404
+[PERF] IDU_flush_discard: 34859341
+[PERF] EXU_flush_count: 34859341
+[PERF] EXU_ex_stall_cycles: 872548812
+[PERF] EXU_ex_stall_by_lsu_reject: 182663908
+[PERF] EXU_ex_stall_by_mem_pending: 689884857
+[PERF] EXU_idle_cycles: 1328650616
+[PERF] WBU_commit: 195166170
+[PERF] WBU_stall_cycle: 2750810724
+[PERF] AXI_read_busy: 2241079897
+[PERF] AXI_write_busy: 378351479
+[PERF] AXI_read_grant_0: 1375779342
+[PERF] AXI_write_grant_0: 0
+[PERF] AXI_read_grant_1: 865300555
+[PERF] AXI_write_grant_1: 378351479
+[PERF] total_cycles: 2945976941
+[32mHIT GOOD TRAP[0m

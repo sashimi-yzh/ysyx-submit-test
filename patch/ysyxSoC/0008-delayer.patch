@@ -1,0 +1,247 @@
+From d44bcf8ca3ac19139b54b1cef3c5dccb58b6bc5f Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sun, 25 Oct 2026 23:18:09 +0800
+Subject: [PATCH 08/15] =?UTF-8?q?=E6=8F=90=E4=BA=A4delayer?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/AXI4Delayer.scala | 212 ++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 210 insertions(+), 2 deletions(-)
+
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index b60bb57d..48a3448a 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -20,9 +20,217 @@ class axi4_delayer extends BlackBox {
+   val io = IO(new AXI4DelayerIO)
+ }
+ 
++// 访存延迟校准模块（按讲义实现）：
++//   等式：(t1 - t0) * r = t1' - t0
++//     t0  = 事务开始（本模块从上游收到 AR 的那一拍）
++//     t1  = 设备返回该拍回复的时刻（本模块从 slave 收到 rvalid/bvalid）
++//     t1' = 本模块把该拍回复交给上游的时刻
++//   实现：从 t0 起每周期 rdCnt += (r*s - s)，回复到达时快照；
++//         交付前 delay = (snap >> log2s) - (rdTime - snap_time)，倒数到 0 再交给上游。
++//   注意：设备返回的 beat 必须**立刻**收进队列，不能反压设备，
++//         否则 k 会被自己的反压污染，等式不再成立。
++//   另外请求会被锁存，所以上游可以"握手即松手"（配合按 ID 路由的仲裁器）。
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+-  io.out <> io.in
++
++  val r      = 8            // 设备慢 r 倍
++  val log2s  = 5            // 放大系数 s = 2^log2s，把小数误差压到 1/s
++  val s      = 1 << log2s
++  val RminusS = (r * s - s).U(32.W)
++
++  val sPIdle :: sPDelay :: sPHold :: Nil = Enum(3)
++
++  // ================= 读通道 =================
++  class RdEntry extends Bundle {
++    val rlast = Bool()
++    val rid   = UInt(4.W)
++    val rdata = UInt(32.W)
++    val rresp = UInt(2.W)
++    val snap  = UInt(32.W)   // 该拍到达时的 rdCnt 快照
++    val time  = UInt(16.W)   // 该拍到达时的 rdTime 快照
++  }
++  val rdQ = Module(new Queue(new RdEntry, 8))
++
++  val ar_pend = RegInit(false.B)
++  val ar_bits = Reg(chiselTypeOf(io.in.ar.bits))
++  val rd_act  = RegInit(false.B)   // 通道占用（一次一笔）
++  val rd_t0   = RegInit(false.B)   // 计时中（设备已接受请求）
++  val rd_done = RegInit(false.B)
++  val rdTime  = RegInit(0.U(16.W))
++  val rdCnt   = RegInit(0.U(32.W))
++
++  // 通道占用：一次只服务一笔（上游可以握手即松手，请求在这里被锁存）
++  io.in.ar.ready  := !rd_act && !ar_pend
++  io.out.ar.valid := ar_pend
++  io.out.ar.bits  := ar_bits
++
++  when(io.in.ar.valid && io.in.ar.ready) {
++    ar_bits := io.in.ar.bits
++    ar_pend := true.B
++    rd_act  := true.B
++    rd_done := false.B
++  }
++  // t0：**设备接受请求**的那一拍才开始计时
++  //     （讲义：k 是设备服务请求所花的周期数，不含请求送到设备之前的等待）
++  when(ar_pend && io.out.ar.ready) {
++    ar_pend := false.B
++    rd_t0   := true.B
++    rdTime  := 0.U
++    rdCnt   := 0.U
++  }
++  when(rd_t0) {
++    rdCnt  := rdCnt + RminusS
++    rdTime := rdTime + 1.U
++  }
++
++  // 设备的 beat 立刻入队（关键：不能反压设备）
++  rdQ.io.enq.valid      := io.out.r.valid
++  rdQ.io.enq.bits.rlast := io.out.r.bits.last
++  rdQ.io.enq.bits.rid   := io.out.r.bits.id
++  rdQ.io.enq.bits.rdata := io.out.r.bits.data
++  rdQ.io.enq.bits.rresp := io.out.r.bits.resp
++  rdQ.io.enq.bits.snap  := rdCnt
++  rdQ.io.enq.bits.time  := rdTime
++  io.out.r.ready := rdQ.io.enq.ready
++
++  when(io.out.r.valid && io.out.r.bits.last) { rd_done := true.B }
++
++  // 按等式延后交付
++  val rdProc = RegInit(sPIdle)
++  val rdN    = RegInit(0.U(32.W))
++  val rdBeat = Reg(new RdEntry)
++
++  rdQ.io.deq.ready := false.B
++  io.in.r.valid    := false.B
++  io.in.r.bits     := 0.U.asTypeOf(chiselTypeOf(io.in.r.bits))
++  switch(rdProc) {
++    is(sPIdle) {
++      when(rdQ.io.deq.valid) {
++        rdQ.io.deq.ready := true.B
++        rdBeat := rdQ.io.deq.bits
++        val delay = (rdQ.io.deq.bits.snap >> log2s).asSInt -
++                    (rdTime - rdQ.io.deq.bits.time).asSInt
++        rdN    := Mux(delay < 0.S, 0.U, delay.asUInt)
++        rdProc := sPDelay
++      }
++    }
++    is(sPDelay) {
++      when(rdN <= 1.U) {
++        when(io.in.r.ready) { rdProc := sPIdle }
++        .otherwise { rdProc := sPHold }
++      }.otherwise { rdN := rdN - 1.U }
++    }
++    is(sPHold) {
++      when(io.in.r.ready) { rdProc := sPIdle }
++    }
++  }
++  io.in.r.valid     := (rdProc === sPDelay && rdN <= 1.U) || (rdProc === sPHold)
++  io.in.r.bits.data := rdBeat.rdata
++  io.in.r.bits.id   := rdBeat.rid
++  io.in.r.bits.resp := rdBeat.rresp
++  io.in.r.bits.last := rdBeat.rlast
++
++  when(rd_act && rd_done && (rdProc === sPIdle) && !rdQ.io.deq.valid) {
++    rd_act := false.B
++    rd_t0  := false.B
++    rdTime := 0.U
++    rdCnt  := 0.U
++  }
++
++  // ================= 写通道 =================
++  class BEntry extends Bundle {
++    val bresp = UInt(2.W)
++    val bid   = UInt(4.W)
++    val snap  = UInt(32.W)
++    val time  = UInt(16.W)
++  }
++  val bQ = Module(new Queue(new BEntry, 8))
++
++  val aw_pend = RegInit(false.B)
++  val aw_bits = Reg(chiselTypeOf(io.in.aw.bits))
++  val w_pend  = RegInit(false.B)
++  val w_bits  = Reg(chiselTypeOf(io.in.w.bits))
++  val wr_act  = RegInit(false.B)   // 通道占用（一次一笔）
++  val wr_t0   = RegInit(false.B)   // 计时中（设备已接受 AW）
++  val wr_done = RegInit(false.B)
++  val wrTime  = RegInit(0.U(16.W))
++  val wrCnt   = RegInit(0.U(32.W))
++
++  io.in.aw.ready  := !wr_act && !aw_pend
++  io.out.aw.valid := aw_pend
++  io.out.aw.bits  := aw_bits
++  io.in.w.ready   := !w_pend
++  io.out.w.valid  := w_pend
++  io.out.w.bits   := w_bits
++
++  when(io.in.aw.valid && io.in.aw.ready) {
++    aw_bits := io.in.aw.bits
++    aw_pend := true.B
++    wr_act  := true.B
++    wr_done := false.B
++  }
++  // t0：设备接受 AW 的那一拍开始计时
++  when(aw_pend && io.out.aw.ready) {
++    aw_pend := false.B
++    wr_t0   := true.B
++    wrTime  := 0.U
++    wrCnt   := 0.U
++  }
++  when(io.in.w.valid && io.in.w.ready) { w_bits := io.in.w.bits; w_pend := true.B }
++  when(w_pend && io.out.w.ready)      { w_pend := false.B }
++
++  when(wr_t0) {
++    wrCnt  := wrCnt + RminusS
++    wrTime := wrTime + 1.U
++  }
++
++  bQ.io.enq.valid      := io.out.b.valid
++  bQ.io.enq.bits.bresp := io.out.b.bits.resp
++  bQ.io.enq.bits.bid   := io.out.b.bits.id
++  bQ.io.enq.bits.snap  := wrCnt
++  bQ.io.enq.bits.time  := wrTime
++  io.out.b.ready := bQ.io.enq.ready
++
++  when(io.out.b.valid) { wr_done := true.B }
++
++  val bProc = RegInit(sPIdle)
++  val bN    = RegInit(0.U(32.W))
++  val bBeat = Reg(new BEntry)
++
++  bQ.io.deq.ready := false.B
++  io.in.b.valid   := false.B
++  io.in.b.bits    := 0.U.asTypeOf(chiselTypeOf(io.in.b.bits))
++  switch(bProc) {
++    is(sPIdle) {
++      when(bQ.io.deq.valid) {
++        bQ.io.deq.ready := true.B
++        bBeat := bQ.io.deq.bits
++        val delay = (bQ.io.deq.bits.snap >> log2s).asSInt -
++                    (wrTime - bQ.io.deq.bits.time).asSInt
++        bN    := Mux(delay < 0.S, 0.U, delay.asUInt)
++        bProc := sPDelay
++      }
++    }
++    is(sPDelay) {
++      when(bN <= 1.U) {
++        when(io.in.b.ready) { bProc := sPIdle }
++        .otherwise { bProc := sPHold }
++      }.otherwise { bN := bN - 1.U }
++    }
++    is(sPHold) {
++      when(io.in.b.ready) { bProc := sPIdle }
++    }
++  }
++  io.in.b.valid     := (bProc === sPDelay && bN <= 1.U) || (bProc === sPHold)
++  io.in.b.bits.id   := bBeat.bid
++  io.in.b.bits.resp := bBeat.bresp
++
++  when(wr_act && wr_done && (bProc === sPIdle) && !bQ.io.deq.valid) {
++    wr_act := false.B
++    wr_t0  := false.B
++    wrTime := 0.U
++    wrCnt  := 0.U
++  }
+ }
+ 
+ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +239,7 @@ class AXI4DelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new axi4_delayer)
++      val delayer = Module(new AXI4DelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+-- 
+2.34.1
+

@@ -1,0 +1,30 @@
+From 0ecc97b6a6868ed71f63450b63506c664fe1695d Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sat, 28 Nov 2026 16:37:54 +0800
+Subject: [PATCH] =?UTF-8?q?bsp:=20=E9=9B=86=E6=88=90=20AM=20=E5=BA=94?=
+ =?UTF-8?q?=E7=94=A8=E6=97=B6=E5=8E=BB=E6=8E=89=20fceux-am?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+fceux-am 一个就占嵌入应用代码的约 93%（3.3MB .o / 367KB .text），
+去掉后 rtt 编译时间和镜像体积都大幅下降。
+---
+ bsp/abstract-machine/integrate-am-apps.py | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/bsp/abstract-machine/integrate-am-apps.py b/bsp/abstract-machine/integrate-am-apps.py
+index 8968df387..bb86a95b1 100644
+--- a/bsp/abstract-machine/integrate-am-apps.py
++++ b/bsp/abstract-machine/integrate-am-apps.py
+@@ -11,7 +11,6 @@ app_dir_list = [
+   AM_KERNELS_HOME / "benchmarks" / "microbench",
+   AM_KERNELS_HOME / "kernels" / "typing-game",
+   AM_KERNELS_HOME / "kernels" / "snake",
+-  AM_KERNELS_HOME / ".." / "fceux-am",
+ ]
+ 
+ if len(sys.argv) != 3:
+-- 
+2.34.1
+

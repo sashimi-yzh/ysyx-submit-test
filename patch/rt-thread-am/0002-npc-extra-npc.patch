@@ -1,0 +1,80 @@
+From bca1aa15ec10f4becc956ddb6fcdc4408babd3cc Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Fri, 20 Nov 2026 21:18:58 +0800
+Subject: [PATCH 2/2] =?UTF-8?q?npc=20=E5=B9=B3=E5=8F=B0=E9=80=82=E9=85=8D?=
+ =?UTF-8?q?=EF=BC=9Aextra-npc=20=E9=93=BE=E6=8E=A5=E8=84=9A=E6=9C=AC?=
+ =?UTF-8?q?=E3=80=81=E4=B8=B2=E5=8F=A3=E9=A2=84=E7=BD=AE=E5=91=BD=E4=BB=A4?=
+ =?UTF-8?q?=E3=80=81=E4=B8=8A=E4=B8=8B=E6=96=87=E5=88=87=E6=8D=A2=E5=BE=AE?=
+ =?UTF-8?q?=E8=B0=83?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ bsp/abstract-machine/Makefile      | 6 +-----
+ bsp/abstract-machine/extra-npc.ld  | 2 +-
+ bsp/abstract-machine/src/context.c | 2 +-
+ bsp/abstract-machine/src/uart.c    | 4 +++-
+ 4 files changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/bsp/abstract-machine/Makefile b/bsp/abstract-machine/Makefile
+index a38768f3e..87c19c5e1 100644
+--- a/bsp/abstract-machine/Makefile
++++ b/bsp/abstract-machine/Makefile
+@@ -8,11 +8,7 @@ NAME = rtthread
+ SRCS = $(shell find src -name "*.c")
+ CFLAGS += -DHAVE_CCONFIG_H -D__RTTHREAD__
+ CFLAGS += -Wno-nonnull-compare
+-# extra.ld 用的是 ysyxSoC 的 sdram/flash 两个 MEMORY 段（.data.extra 的 LMA 在 flash、
+-# VMA 在 sdram，靠 boot 拷过去）。npc 的 linker.ld 没有这些段，直接挂 extra.ld 会让
+-# .data.extra 落到地址 0，运行到 rt_components_board_init 时从 0x168 读初始化表就读到空。
+-# 所以 npc 用 extra-npc.ld：段收集完全一样，只是不带段属性。
+-# 统一使用小写的 ARCH=riscv32e-ysyxsoc（SoC 平台）
++
+ ifneq ($(findstring ysyxsoc,$(ARCH)),)
+   LDFLAGS += -T extra.ld
+ else
+diff --git a/bsp/abstract-machine/extra-npc.ld b/bsp/abstract-machine/extra-npc.ld
+index 761f53fcb..37bfb205b 100644
+--- a/bsp/abstract-machine/extra-npc.ld
++++ b/bsp/abstract-machine/extra-npc.ld
+@@ -28,7 +28,7 @@ SECTIONS {
+     __am_apps_data_end = .;
+     . = ALIGN(8);
+     _data_vma_end = .;
+-  }   /* <--- 加上这一行！ */
++  }
+ }
+ INSERT AFTER .data;
+ 
+diff --git a/bsp/abstract-machine/src/context.c b/bsp/abstract-machine/src/context.c
+index 18500947c..da673aba7 100644
+--- a/bsp/abstract-machine/src/context.c
++++ b/bsp/abstract-machine/src/context.c
+@@ -60,7 +60,7 @@ void thread_entry_wrapper(void* args){
+ }
+ 
+ rt_uint8_t *rt_hw_stack_init(void *tentry, void *parameter, rt_uint8_t *stack_addr, void *texit) {
+-  if((uintptr_t)stack_addr % sizeof(uintptr_t) != 0) 
++  if((uintptr_t)stack_addr % sizeof(uintptr_t) != 0)
+     stack_addr = (rt_uint8_t *)((uintptr_t)stack_addr & (~(sizeof(uintptr_t) - 1)));
+ 
+   Area kstack;
+diff --git a/bsp/abstract-machine/src/uart.c b/bsp/abstract-machine/src/uart.c
+index 52619e1a5..3de96d3da 100644
+--- a/bsp/abstract-machine/src/uart.c
++++ b/bsp/abstract-machine/src/uart.c
+@@ -42,7 +42,9 @@ static int _uart_getc(struct rt_serial_device *serial) {
+   if(*p != '\0'){
+     return *(p ++);
+   }else{
+-    return io_read(AM_UART_RX).data;
++    if(io_read(AM_UART_CONFIG).present) 
++      return io_read(AM_UART_RX).data;
++    else return -1;
+   }
+ }
+ 
+-- 
+2.34.1
+

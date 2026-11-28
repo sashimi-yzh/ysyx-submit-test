@@ -1,0 +1,40 @@
+From 91314526c348c431e8dc622f3ffc90e92428b129 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sun, 22 Nov 2026 11:02:57 +0800
+Subject: [PATCH] =?UTF-8?q?uart16550:=20=E7=A7=BB=E9=99=A4=20tfifo=20?=
+ =?UTF-8?q?=E9=87=8C=E7=9A=84=20$write=20=E6=89=93=E5=8D=B0?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+这个打印和 nvboard 的串口输出重复：CI 用 no-gui 版 nvboard（term.cpp 里
+putchar），SoC 里的 $write 再来一遍，导致每个字符打印两次，
+monitor.py 匹配不到 "Hello, AbstractMachine!" 和随机 key。删掉 RTL 这一份，
+统一由 nvboard 打印。
+---
+ perip/uart16550/rtl/uart_tfifo.v | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/perip/uart16550/rtl/uart_tfifo.v b/perip/uart16550/rtl/uart_tfifo.v
+index 71329116..dc5f9478 100644
+--- a/perip/uart16550/rtl/uart_tfifo.v
++++ b/perip/uart16550/rtl/uart_tfifo.v
+@@ -211,7 +211,6 @@ begin
+             begin
+                 top   <= #1 top_plus_1;
+                 count <= #1 count + 1'b1;
+-                $write("%c", data_in);
+             end
+         2'b01 : if(count>0)
+             begin
+@@ -221,7 +220,6 @@ begin
+         2'b11 : begin
+                 bottom <= #1 bottom + 1'b1;
+                 top    <= #1 top_plus_1;
+-                $write("%c", data_in);
+                 end
+         default: ;
+         endcase
+-- 
+2.34.1
+

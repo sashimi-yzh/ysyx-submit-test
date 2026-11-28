@@ -1,0 +1,117 @@
+From e802a31f890eec7e991ae02860abe02d3b43697b Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Fri, 7 Aug 2026 10:51:27 +0800
+Subject: [PATCH 06/15] =?UTF-8?q?=E6=96=B0=E5=A2=9E=E5=BB=B6=E8=BF=9F?=
+ =?UTF-8?q?=E6=A8=A1=E5=9D=97?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/APBDelayer.scala | 69 +++++++++++++++++++++++++++++++++++++--
+ src/device/SPI.scala      |  2 +-
+ 2 files changed, 68 insertions(+), 3 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index 0cfc3d0c..2a5014b2 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -22,7 +22,72 @@ class apb_delayer extends BlackBox {
+ 
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+-  io.out <> io.in
++
++  // r = f_cpu / f_device, device is assumed to run at 100MHz.
++  // Default CPU frequency is 550MHz -> r = 5.5; update r with the
++  // yosys-sta frequency report when available.
++  val r = 5.5
++  // s: power-of-2 scale factor; truncation error is reduced to 1/s
++  val log2s = 5
++  val s = (1 << log2s)
++  val R = Math.round(r * s).toInt  // accumulate rate per cycle (scaled)
++
++  io.out.paddr   := io.in.paddr
++  io.out.pprot   := io.in.pprot
++  io.out.pwrite  := io.in.pwrite
++  io.out.pwdata  := io.in.pwdata
++  io.out.pstrb   := io.in.pstrb
++
++  val sIdle :: sWaitDev :: sCountDown :: Nil = Enum(3)
++  val state = RegInit(sIdle)
++
++  // clamp the device-side transaction once the device has replied:
++  // the upstream bridge keeps psel/penable high while we count down,
++  // which would make stateful slaves (e.g. XIPFlash) re-run the request
++  io.out.psel    := (state =/= sCountDown) && io.in.psel
++  io.out.penable := (state =/= sCountDown) && io.in.penable
++  val cnt = RegInit(0.U(32.W))
++  val prdata = RegInit(0.U(32.W))
++  val pslverr = RegInit(false.B)
++
++  // The device works for k cycles, during which the counter accumulates
++  // (R - s) per cycle, i.e. k*(r-1)*s in total. When the device replies,
++  // cnt is shifted right by log2s to get the remaining k*(r-1) cycles to
++  // hold the reply, so the total wait satisfies (t1-t0)*r = t1'-t0.
++  switch (state) {
++    is (sIdle) {
++      // a new transfer starts with the setup phase (psel high); count it
++      // so k covers the cycles the device is actually working
++      when (io.in.psel) {
++        cnt := (R - s).U
++        state := sWaitDev
++      }
++    }
++    is (sWaitDev) {
++      when (io.out.pready) {
++        cnt := cnt >> log2s
++        prdata := io.out.prdata
++        pslverr := io.out.pslverr
++        state := sCountDown
++      } .elsewhen (io.in.psel) {
++        cnt := cnt + (R - s).U
++      } .otherwise {
++        cnt := 0.U
++        state := sIdle
++      }
++    }
++    is (sCountDown) {
++      when (cnt <= 1.U) {
++        state := sIdle
++      } .otherwise {
++        cnt := cnt - 1.U
++      }
++    }
++  }
++
++  io.in.pready  := (state === sCountDown) && (cnt <= 1.U)
++  io.in.prdata  := prdata
++  io.in.pslverr := pslverr
+ }
+ 
+ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+@@ -31,7 +96,7 @@ class APBDelayerWrapper(implicit p: Parameters) extends LazyModule {
+   lazy val module = new Impl
+   class Impl extends LazyModuleImp(this) {
+     (node.in zip node.out) foreach { case ((in, edgeIn), (out, edgeOut)) =>
+-      val delayer = Module(new apb_delayer)
++      val delayer = Module(new APBDelayerChisel)
+       delayer.io.clock := clock
+       delayer.io.reset := reset
+       delayer.io.in <> in
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index a48f5b4b..e3032553 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -205,7 +205,7 @@ class SPIRegController extends Module{
+ 
+   mspi.psel := false.B
+   mspi.penable := false.B
+-  mspi.paddr := req.addr //这个地方报错
++  mspi.paddr := req.addr
+   mspi.pwrite := req.wen
+   mspi.pwdata := req.wdata
+   mspi.pstrb := 0xF.U
+-- 
+2.34.1
+

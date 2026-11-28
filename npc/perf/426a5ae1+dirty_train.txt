@@ -1,0 +1,62 @@
+# 2026-11-06 17:33:42  bench=microbench  mainargs=train  commit=426a5ae1+dirty  make_rc=0
+# 重写仲裁器和BPU;仲裁器AR和R通道分离,写通道直连;BPU采用use bit驱逐策略
+MicroBench PASS
+Scored time: 1369481.687 ms
+Total  time: 1646475.592 ms
+cycle: 1664243749, InstCounter: 195173174, IPC: 0.117274
+[PERF] icache_refill_rehit: 9004878
+[PERF] icache_refill_busy: 845591599
+[PERF] icache_refill_count: 10259692
+[PERF] icache_miss: 11382955
+[PERF] icache_hit: 213671844
+[PERF] icache_refill_flushed: 0
+[PERF] icache_refill_suppressed: 0
+[PERF] icache_miss_killed_by_flush: 0
+[PERF] icache_stall_by_refill: 855851291
+[PERF] icache_refill_req_stall: 0
+[PERF] IFU_get_inst_cycles: 1649302928
+[PERF] IFU_wait_miss: 855851291
+[PERF] IFU_wait_backend: 553456026
+[PERF] IFU_wait_resp: 29881624
+[PERF] IFU_fetch: 210113987
+[PERF] LSU_busy: 26779878
+[PERF] LSU_store_gate: 20926055
+[PERF] LSU_load_gate: 5853823
+[PERF] LSU_load_latency: 706491955
+[PERF] LSU_store_latency: 6910749
+[PERF] LSU_load_wait_free: 227450143
+[PERF] LSU_store_wait_free: 6910749
+[PERF] LSU_load_wait_resp: 479041812
+[PERF] LSU_store_b_pending: 101987553
+[PERF] LSU_report_lost: 0
+[PERF] LSU_two_fire: 0
+[PERF] LSU_get_data: 22728782
+[PERF] LSU_load_get_data: 15818033
+[PERF] LSU_store_get_data: 6910749
+[PERF] IDU_pipe_idle: 910933419
+[PERF] IDU_calc: 113169540
+[PERF] IDU_jump: 4161516
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 15818033
+[PERF] IDU_store: 6910749
+[PERF] IDU_branch: 52937961
+[PERF] IDU_RAW_stall_cycles: 368156635
+[PERF] IDU_idle_cycle: 867845398
+[PERF] IDU_stall_by_EXU_cycle: 293652517
+[PERF] IDU_internal_stall_cycles: 493641471
+[PERF] IDU_flush_discard: 14940812
+[PERF] EXU_flush_count: 14940812
+[PERF] EXU_ex_stall_cycles: 460020724
+[PERF] EXU_ex_stall_by_lsu_reject: 26779878
+[PERF] EXU_ex_stall_by_mem_pending: 433240837
+[PERF] EXU_idle_cycles: 639923579
+[PERF] WBU_commit: 195173174
+[PERF] WBU_stall_cycle: 1469070557
+[PERF] total_cycles: 1664243740
+[32mHIT GOOD TRAP[0m
+#
+# --- 综合/时序（yosys-sta: make sta，nangate45）---
+[AREA] dir=ysyx_26030092-800MHz cells=11749 DFF_X1=3231 area_um2=24881.374 seq_um2=14610.582 seq_pct=58.72
+[TIME] wns_setup_all=0.273 wns_setup_core=0.277 wns_hold_core=0.078 fmax_MHz=1027.266 tns_setup=0.000 tns_hold=0.000
+[TIME] path_setup_core=BPU_u.pc_8__reg_p:D
+[TIME] path_setup_all=BPU_u.btb_0_counter_0__reg_p_E_CLKGATE_X1_E:E

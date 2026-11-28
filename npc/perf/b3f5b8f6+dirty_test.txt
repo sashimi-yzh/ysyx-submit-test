@@ -1,0 +1,66 @@
+# 2026-10-12 10:41:36  bench=microbench  mainargs=test  commit=b3f5b8f6+dirty  make_rc=0
+# icache模块里暂存的数据如果缺失,会根据监听refill的数据,如果refill的数据与req的暂存数据地址一致,那么就会直接复用refill的数据
+MicroBench PASS
+Scored time: 10377.364 ms
+Total  time: 13003.150 ms
+cycle: 31291509, InstCounter: 584714, IPC: 0.018686
+[PERF] icache_refill_rehit: 60408
+[PERF] icache_refill_busy: 7222649
+[PERF] icache_refill_count: 63704
+[PERF] icache_miss: 67795
+[PERF] icache_hit: 646530
+[PERF] icache_refill_flushed: 0
+[PERF] icache_refill_grace_killed: 4091
+[PERF] icache_refill_suppressed: 0
+[PERF] icache_miss_killed_by_flush: 0
+[PERF] icache_stall_by_refill: 7286353
+[PERF] icache_refill_window: 195203
+[PERF] icache_stall_by_backend: 22902306
+[PERF] icache_refill_req_stall: 0
+[PERF] IFU_get_inst_cycles: 31226696
+[PERF] IFU_wait_icache: 30447566
+[PERF] IFU_wait_miss: 7477465
+[PERF] IFU_wait_backend: 22970101
+[PERF] IFU_wait_resp: 129610
+[PERF] IFU_wait_idu: 22902306
+[PERF] IFU_fetch: 649520
+[PERF] LSU_access_latency: 24199877
+[PERF] LSU_wait_free: 1123001
+[PERF] LSU_wait_resp: 23076876
+[PERF] LSU_busy: 24337471
+[PERF] LSU_load_latency: 21349575
+[PERF] LSU_store_latency: 2850302
+[PERF] LSU_load_wait_free: 673288
+[PERF] LSU_store_wait_free: 449713
+[PERF] LSU_load_wait_resp: 20676287
+[PERF] LSU_store_wait_resp: 2400589
+[PERF] LSU_get_data: 137594
+[PERF] LSU_load_get_data: 80060
+[PERF] LSU_store_get_data: 57534
+[PERF] IDU_pipe_idle: 7739674
+[PERF] IDU_calc: 293513
+[PERF] IDU_jump: 24657
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 80060
+[PERF] IDU_store: 57534
+[PERF] IDU_branch: 118717
+[PERF] IDU_RAW_stall_cycles: 19993197
+[PERF] IDU_idle_cycle: 7297167
+[PERF] IDU_stall_by_EXU_cycle: 21056614
+[PERF] IDU_internal_stall_cycles: 22731142
+[PERF] IDU_flush_discard: 64804
+[PERF] EXU_flush_count: 64804
+[PERF] EXU_ex_stall_cycles: 22155078
+[PERF] EXU_ex_stall_by_lsu_reject: 0
+[PERF] EXU_ex_stall_by_mem_pending: 22155078
+[PERF] EXU_idle_cycles: 6029006
+[PERF] WBU_commit: 584714
+[PERF] WBU_stall_cycle: 30706786
+[PERF] AXI_read_busy: 27522292
+[PERF] AXI_write_busy: 2792768
+[PERF] AXI_read_grant_0: 6547258
+[PERF] AXI_write_grant_0: 0
+[PERF] AXI_read_grant_1: 20975034
+[PERF] AXI_write_grant_1: 2792768
+[PERF] total_cycles: 31291500
+[32mHIT GOOD TRAP[0m

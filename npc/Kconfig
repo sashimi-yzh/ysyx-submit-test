@@ -1,0 +1,71 @@
+mainmenu "Kconfig Demo"
+
+config _ENABLE_C
+    bool
+    default y
+
+config _ENABLE_VERILOG
+    bool
+    default y
+
+menu "Debug and difftest setting"
+config ENABLE_SDB
+    bool "Enable sdb"
+    default n
+    help
+        start npc with sdb.
+
+    select _ENABLE_C if ENABLE_SDB
+
+config ENABLE_DIFFTEST
+    bool "Enable difftest"
+    default n
+    help
+        enable differential testing with NEMU.
+
+    select _ENABLE_C if ENABLE_DIFFTEST
+
+config ENABLE_ITRACE
+    bool "Enable itrace"
+    default n
+    help
+        enable instruction trace with capstone disassembly.
+
+    select _ENABLE_C if ENABLE_ITRACE
+
+config ENABLE_MTRACE
+    bool "Enable mtrace"
+    default n
+    help
+        enable memory trace.
+
+    select _ENABLE_C if ENABLE_MTRACE
+
+config ENABLE_FTRACE
+    bool "Enable ftrace"
+    default n
+    help
+        enable function call trace.
+
+    select _ENABLE_C if ENABLE_FTRACE
+
+config ENABLE_FST_TRACE
+    bool "Enable FST waveform trace"
+    default n
+    help
+        enable Verilator FST waveform dump (waveform.fst).
+        requires Verilator built with FST support.
+
+    select _ENABLE_C if ENABLE_FST_TRACE
+
+config TRACE_PATH
+    string "Trace output directory"
+    default ""
+    help
+        directory to store trace output files (itrace.txt, mtrace.txt, ftrace.txt).
+        if empty, use the current working directory.
+
+endmenu
+
+menu "Build configure"
+endmenu

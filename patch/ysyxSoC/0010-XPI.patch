@@ -1,0 +1,256 @@
+From d90a562bfdea7d4b3a06915ece88b60702423705 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sat, 14 Nov 2026 16:43:48 +0800
+Subject: [PATCH 10/15] =?UTF-8?q?=E7=B2=BE=E7=AE=80XPI=E6=8E=A7=E5=88=B6?=
+ =?UTF-8?q?=E5=99=A8?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/SPI.scala | 207 +++++++++++++++----------------------------
+ 1 file changed, 72 insertions(+), 135 deletions(-)
+
+diff --git a/src/device/SPI.scala b/src/device/SPI.scala
+index e3032553..ecbfe1a7 100644
+--- a/src/device/SPI.scala
++++ b/src/device/SPI.scala
+@@ -64,9 +64,6 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+     XIP_Flash.io.in.psel := false.B
+     XIP_Flash.io.in.penable := false.B
+ 
+-    val s_normal :: s_xip :: Nil = Enum(2)
+-    val state = RegInit(s_normal)
+-    
+     mspi.io.in <> in
+     spi_bundle <> mspi.io.spi
+ 
+@@ -82,153 +79,93 @@ class APBSPI(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModul
+ }
+ 
+ class XIPFlash extends Module{
+-  val SPI_BASE = 0x10001000
+-  val SPI_SS = SPI_BASE + 0x18
+-  val SPI_Tx1 = SPI_BASE + 4
+-  val SPI_DIVIDER = SPI_BASE + 0x14
+-  val SPI_CTRL = SPI_BASE + 0x10
+-  val SPI_Rx0 = SPI_BASE
++  // 基址 0x1000_1000
++  val SPI_Rx0     = 0x10001000
++  val SPI_Tx1     = 0x10001004
++  val SPI_CTRL    = 0x10001010
++  val SPI_DIVIDER = 0x10001014
++  val SPI_SS      = 0x10001018
+ 
++  // CTRL：ASS(13) | Tx_NEG(10) | CHAR_LEN(6:0)=0x40；| GO(8) 开始传输
++  val CTRL_BASE = 0x2000 | 0x400 | 0x40
++  val CTRL_GO   = CTRL_BASE | 0x100
+ 
+   val io = IO(new Bundle{
+-      val in = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
++      val in  = Flipped(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+       val out = new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32))
+   })
+ 
+-  io.in.pready := false.B
+-  io.in.prdata := DontCare
+-  io.in.pslverr := DontCare
+-
+-  val addr_reg = Reg(UInt(32.W))
+-
+-  val addr = WireDefault(0.U(32.W))
+-  val wdata = WireDefault(0.U(32.W))
+-  val wen = WireDefault(false.B)
+-  val valid = WireDefault(false.B)
+-
+-  val ctrl = Module(new SPIRegController)
+-  ctrl.mspi <> io.out
+-  ctrl.req.valid := valid
+-  ctrl.req.addr := addr
+-  ctrl.req.wdata := wdata
+-  ctrl.req.wen := wen
+-
+-  val ready = ctrl.req.ready
+-  val rdata = ctrl.req.rdata
+-  val ctrl_rdata_reg = Reg(UInt(32.W))
+-
+-  val s_Tx1 :: s_DIVIDER :: s_SS :: s_CTRL :: s_GO :: s_wait :: s_Rx0 :: Nil = Enum(7)
+-  val state = RegInit(s_Tx1)
++  io.in.pready  := false.B
++  io.in.prdata  := DontCare
++  io.in.pslverr := false.B
++
++  val micro_addr = VecInit(Seq(
++    SPI_Tx1.U(32.W), SPI_DIVIDER.U(32.W), SPI_SS.U(32.W),
++    SPI_CTRL.U(32.W), SPI_CTRL.U(32.W)))
++  val micro_data = VecInit(Seq(
++    (0x03.U << 24) | (io.in.paddr & 0x00FFFFFF.U),   // 0x03 = flash READ + 24 位地址
++    1.U(32.W),                                       // DIVIDER
++    1.U(32.W),                                       // SS
++    CTRL_BASE.U(32.W),                               // ASS | Tx_NEG | CHAR_LEN
++    CTRL_GO.U(32.W)))                                // 同上 | GO
++
++  val s_WRITE :: s_POLL :: s_READ :: Nil = Enum(3)
++  val state = RegInit(s_WRITE)
++  val idx   = RegInit(0.U(3.W))
++  val phase = RegInit(false.B)
++
++  io.out.psel    := false.B
++  io.out.penable := false.B
++  io.out.paddr   := 0.U
++  io.out.pwdata  := 0.U
++  io.out.pwrite  := false.B
++  io.out.pstrb   := 0xF.U
++  io.out.pprot   := 0.U
+ 
+   when(io.in.psel && io.in.penable){
+     assert(!io.in.pwrite)
+     switch(state){
+-      is(s_Tx1){
+-        addr := SPI_Tx1.U
+-        wdata := (0x03.U << 24) | (io.in.paddr & 0x00FFFFFF.U)
+-        wen := true.B
+-        valid := true.B
+-        when(ready){
+-          state := s_DIVIDER
++      is(s_WRITE){
++        io.out.psel    := true.B
++        io.out.paddr   := micro_addr(idx)
++        io.out.pwdata  := micro_data(idx)
++        io.out.pwrite  := true.B
++        io.out.penable := phase
++        when(io.out.pready){
++          phase := false.B
++          when(idx === 4.U){ state := s_POLL }.otherwise{ idx := idx + 1.U }
++        }.otherwise{
++          phase := true.B
+         }
+       }
+-      is(s_DIVIDER){
+-          addr := SPI_DIVIDER.U
+-          wdata := 1.U
+-          wen := true.B
+-          valid := true.B
+-          when(ready){
+-            state := s_SS
+-          }
+-      }
+-      is(s_SS){
+-          addr := SPI_SS.U
+-          wdata := 1.U
+-          wen := true.B
+-          valid := true.B
+-          when(ready){
+-            state := s_CTRL
+-          }
+-      }
+-      is(s_CTRL){
+-          addr := SPI_CTRL.U
+-          wdata := 0x2000.U | 0x400.U | 0x40.U // ASS_BIT | Tx_NEG_BIT | (64 & CHAR_LEN_BITS)
+-          wen := true.B
+-          valid := true.B
+-          when(ready){
+-            state := s_GO
+-          }
+-      }
+-      is(s_GO){
+-          addr := SPI_CTRL.U
+-          // ASS_BIT | Tx_NEG_BIT | (64 & CHAR_LEN_BITS) | GO_BSY_BIT
+-          wdata := 0x2000.U | 0x400.U | 0x40.U | 0x100.U
+-          wen := true.B
+-          valid := true.B
+-          when(ready){
+-            state := s_wait
+-          }
+-      }
+-      is(s_wait){
+-          addr := SPI_CTRL.U
+-          valid := true.B
+-          when(ready && !rdata(8)){
+-            state := s_Rx0
+-          }
+-      }
+-      is(s_Rx0){
+-          addr := SPI_Rx0.U
+-          valid := true.B
+-          when(ready){
+-            state := s_Tx1
+-            io.in.pready := true.B
+-            io.in.prdata := Cat(rdata(7,0),rdata(15,8),rdata(23,16),rdata(31,24))
+-          }
+-      }
+-    }
+-  }
+-
+-}
+-
+-class SPIRegController extends Module{
+-  val req = IO(new Bundle{
+-    val addr = Input(UInt(32.W))
+-    val wdata = Input(UInt(32.W))
+-    val wen = Input(Bool())
+-    val rdata = Output(UInt(32.W))
+-    val valid = Input(Bool())
+-    val ready = Output(Bool())
+-  })
+-  val mspi = IO(new APBBundle(APBBundleParameters(addrBits = 32, dataBits = 32)))
+-  val s_idle :: s_busy :: Nil = Enum(2)
+-  val state = RegInit(s_idle)
+-
+-  mspi.psel := false.B
+-  mspi.penable := false.B
+-  mspi.paddr := req.addr
+-  mspi.pwrite := req.wen
+-  mspi.pwdata := req.wdata
+-  mspi.pstrb := 0xF.U
+-  mspi.pprot := 0.U
+-  
+-  req.ready := mspi.pready
+-  req.rdata := mspi.prdata
+-
+-  state := s_idle
+-  when(req.valid){
+-    mspi.psel := true.B
+-    switch(state){
+-      is(s_idle){
+-        state := s_busy
++      is(s_POLL){
++        io.out.psel    := true.B
++        io.out.paddr   := SPI_CTRL.U
++        io.out.pwrite  := false.B
++        io.out.penable := phase
++        when(io.out.pready){
++          phase := false.B
++          when(!io.out.prdata(8)){ state := s_READ } // GO 位清零才表示传完
++        }.otherwise{
++          phase := true.B
++        }
+       }
+-      is(s_busy){
+-        mspi.penable := true.B
+-        when(mspi.pready){
+-          assert(mspi.pslverr =/= 0.U)
+-          state := s_idle
++      is(s_READ){
++        io.out.psel    := true.B
++        io.out.paddr   := SPI_Rx0.U
++        io.out.pwrite  := false.B
++        io.out.penable := phase
++        when(io.out.pready){
++          phase := false.B
++          idx   := 0.U
++          state := s_WRITE
++          io.in.pready := true.B
++          io.in.prdata := Cat(io.out.prdata(7,0),  io.out.prdata(15,8),
++                              io.out.prdata(23,16), io.out.prdata(31,24))
++        }.otherwise{
++          phase := true.B
+         }
+       }
+     }
+-
+   }
+ }
+-- 
+2.34.1
+

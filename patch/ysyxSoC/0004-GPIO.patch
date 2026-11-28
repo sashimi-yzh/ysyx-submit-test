@@ -1,0 +1,112 @@
+From a2ab6943e615f09ab53e22d7ced07c540ad08626 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Fri, 31 Jul 2026 09:53:12 +0800
+Subject: [PATCH 04/15] =?UTF-8?q?=E5=AE=9E=E7=8E=B0GPIO?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/GPIO.scala | 72 ++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 71 insertions(+), 1 deletion(-)
+
+diff --git a/src/device/GPIO.scala b/src/device/GPIO.scala
+index f770e96a..1c2aeb6f 100644
+--- a/src/device/GPIO.scala
++++ b/src/device/GPIO.scala
+@@ -7,6 +7,7 @@ import freechips.rocketchip.amba.apb._
+ import org.chipsalliance.cde.config.Parameters
+ import freechips.rocketchip.diplomacy._
+ import freechips.rocketchip.util._
++import java.rmi.server.UID
+ 
+ class GPIOIO extends Bundle {
+   val out = Output(UInt(16.W))
+@@ -27,6 +28,75 @@ class gpio_top_apb extends BlackBox {
+ 
+ class gpioChisel extends Module {
+   val io = IO(new GPIOCtrlIO)
++  withClockAndReset(io.clock, io.reset){
++    val led_state = RegInit(0.U(16.W))
++    val seg_state = RegInit(0.U(32.W))
++    io.gpio.out := led_state
++    val hexTable = VecInit(
++      "b00000011".U, // 0 : A-F亮, G灭
++      "b10011111".U, // 1 : B,C亮
++      "b00100101".U, // 2 : A,B,D,E,G亮
++      "b00001101".U, // 3 : A,B,C,D,G亮
++      "b10011001".U, // 4 : B,C,F,G亮
++      "b01001001".U, // 5 : A,C,D,F,G亮
++      "b01000001".U, // 6 : A,C,D,E,F,G亮
++      "b00011111".U, // 7 : A,B,C亮
++      "b00000001".U, // 8 : 全亮
++      "b00001001".U, // 9 : A,B,C,D,F,G亮
++      "b00010001".U, // A (10) : A,B,C,E,F,G亮
++      "b11000001".U, // b (11) : C,D,E,F,G亮
++      "b01100011".U, // C (12) : A,D,E,F亮
++      "b10000101".U, // d (13) : B,C,D,E,G亮
++      "b01100001".U, // E (14) : A,D,E,F,G亮
++      "b01110001".U  // F (15) : A,E,F,G亮
++    )
++
++    io.gpio.seg.zipWithIndex.foreach{ case (seg, idx) =>
++      seg := hexTable(seg_state(idx*4 + 3, idx*4))
++    }
++    val switch_state = io.gpio.in
++    io.in.pready := false.B
++    List(io.in.pslverr, io.in.prdata).map(_ := 0.U)
++
++    val led_ctl = (io.in.paddr & "hf".U(4.W)) === 0.U
++    val seg_ctl = (io.in.paddr & "hf".U(4.W)) === 8.U
++    val sw_ctl = (io.in.paddr & "hf".U(4.W)) === 4.U
++    val maskVec = Wire(Vec(4, UInt(8.W)))
++
++    for (i <- 0 until 4) {
++      maskVec(i) := Mux(io.in.pstrb(i), "hff".U(8.W), 0.U)
++    }
++
++    val mask = maskVec.asUInt
++    dontTouch(mask)
++    when(io.in.psel && io.in.penable){
++        when(io.in.pwrite){// write
++          when(led_ctl){
++            led_state := (led_state & ~mask) | (io.in.pwdata & mask)
++            io.in.pready := true.B
++          }.elsewhen(seg_ctl){
++            seg_state := (seg_state & ~mask) | (io.in.pwdata & mask)
++            io.in.pready := true.B
++          }.otherwise{
++            io.in.pready := true.B
++          }
++        }.otherwise{// read
++          when(led_ctl){
++            io.in.prdata := Cat(0.U(16.W), led_state)
++            io.in.pready := true.B
++          }
++          when(seg_ctl){
++            io.in.prdata := seg_state
++            io.in.pready := true.B
++          }
++          when(sw_ctl){
++            io.in.prdata := Cat(0.U(16.W), io.gpio.in)
++            io.in.pready := true.B
++          }
++        }
++    }
++    
++  }
+ }
+ 
+ class APBGPIO(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModule {
+@@ -43,7 +113,7 @@ class APBGPIO(address: Seq[AddressSet])(implicit p: Parameters) extends LazyModu
+     val (in, _) = node.in(0)
+     val gpio_bundle = IO(new GPIOIO)
+ 
+-    val mgpio = Module(new gpio_top_apb)
++    val mgpio = Module(new gpioChisel)
+     mgpio.io.clock := clock
+     mgpio.io.reset := reset
+     mgpio.io.in <> in
+-- 
+2.34.1
+

@@ -1,0 +1,31 @@
+From 57d198759d95bf473bd2817a1e34fb7233dfcac3 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Tue, 28 Jul 2026 16:56:53 +0800
+Subject: [PATCH 03/15] =?UTF-8?q?=E4=BF=AE=E5=A4=8Dsdram=E5=9C=B0=E5=9D=80?=
+ =?UTF-8?q?=E8=BD=AC=E6=8D=A2=E7=9A=84bug?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ perip/sdram/core_sdram_axi4/sdram_axi_core.v | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/perip/sdram/core_sdram_axi4/sdram_axi_core.v b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+index 2597e0f0..5acdb887 100644
+--- a/perip/sdram/core_sdram_axi4/sdram_axi_core.v
++++ b/perip/sdram/core_sdram_axi4/sdram_axi_core.v
+@@ -179,8 +179,8 @@ reg  [STATE_W-1:0]     delay_state_q;
+ // Address bits
+ assign sdram_cs_o = {~ram_addr_w[SDRAM_ADDR_W + 1], ram_addr_w[SDRAM_ADDR_W + 1]};
+ wire [SDRAM_ROW_W-1:0]  addr_col_w  = {{(SDRAM_ROW_W-SDRAM_COL_W){1'b0}}, ram_addr_w[SDRAM_COL_W+1:2]};
+-wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W:SDRAM_COL_W+2+1];
+-wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+2:SDRAM_COL_W+2-1];
++wire [SDRAM_ROW_W-1:0]  addr_row_w  = ram_addr_w[SDRAM_ADDR_W+1:SDRAM_COL_W+4];
++wire [SDRAM_BANK_W-1:0] addr_bank_w = ram_addr_w[SDRAM_COL_W+3:SDRAM_COL_W+2];
+ 
+ //-----------------------------------------------------------------
+ // SDRAM State Machine
+-- 
+2.34.1
+

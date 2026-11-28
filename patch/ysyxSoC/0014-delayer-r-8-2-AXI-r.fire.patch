@@ -1,0 +1,53 @@
+From f0c48141c4cbb6a639bd491663798ba969e84501 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sat, 21 Nov 2026 17:05:31 +0800
+Subject: [PATCH 14/15] =?UTF-8?q?delayer:=20=E5=BB=B6=E8=BF=9F=E5=8F=82?=
+ =?UTF-8?q?=E6=95=B0=20r=20=E4=BB=8E=208=20=E6=94=B9=E4=B8=BA=202=EF=BC=8C?=
+ =?UTF-8?q?AXI=20=E8=AF=BB=E5=93=8D=E5=BA=94=E6=94=B9=E7=94=A8=20r.fire?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/amba/APBDelayer.scala  | 2 +-
+ src/amba/AXI4Delayer.scala | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/amba/APBDelayer.scala b/src/amba/APBDelayer.scala
+index f7281777..36f99b82 100644
+--- a/src/amba/APBDelayer.scala
++++ b/src/amba/APBDelayer.scala
+@@ -22,7 +22,7 @@ class apb_delayer extends BlackBox {
+ 
+ class APBDelayerChisel extends Module {
+   val io = IO(new APBDelayerIO)
+-  val r = 8
++  val r = 2
+ 
+   val sIdle :: sWait :: sSend :: Nil = Enum(3)
+   val state   = RegInit(sIdle)
+diff --git a/src/amba/AXI4Delayer.scala b/src/amba/AXI4Delayer.scala
+index 575c28ff..2d3d2b9b 100644
+--- a/src/amba/AXI4Delayer.scala
++++ b/src/amba/AXI4Delayer.scala
+@@ -23,7 +23,7 @@ class axi4_delayer extends BlackBox {
+ 
+ class AXI4DelayerChisel extends Module {
+   val io = IO(new AXI4DelayerIO)
+-  val r = 8
++  val r = 2
+ 
+   val sIdle :: sWait :: sBusy :: Nil = Enum(3)
+ 
+@@ -80,7 +80,7 @@ class AXI4DelayerChisel extends Module {
+   io.in.r.bits.id   := rdQ.io.deq.bits.rid
+   io.in.r.bits.resp := rdQ.io.deq.bits.rresp
+   io.in.r.bits.last := rdQ.io.deq.bits.rlast
+-  rdQ.io.deq.ready  := io.in.r.valid && io.in.r.ready
++  rdQ.io.deq.ready  := io.in.r.fire
+ 
+   // 写通道
+   val wr_state = RegInit(sIdle)
+-- 
+2.34.1
+

@@ -1,0 +1,73 @@
+# 2026-10-20 17:17:14  bench=microbench  mainargs=train  commit=a555a42f+dirty  make_rc=0
+# 调整LSU的状态机,提高访存效率
+MicroBench PASS
+Scored time: 2405138.187 ms
+Total  time: 2831728.673 ms
+cycle: 2849998663, InstCounter: 195168807, IPC: 0.068480
+[PERF] icache_refill_rehit: 12587580
+[PERF] icache_refill_busy: 1431664147
+[PERF] icache_refill_count: 12973102
+[PERF] icache_miss: 13957526
+[PERF] icache_hit: 247941140
+[PERF] icache_refill_flushed: 0
+[PERF] icache_refill_suppressed: 0
+[PERF] icache_miss_killed_by_flush: 0
+[PERF] icache_stall_by_refill: 1444637249
+[PERF] icache_stall_by_backend: 1063759779
+[PERF] icache_refill_req_stall: 0
+[PERF] IFU_get_inst_cycles: 2816633725
+[PERF] IFU_wait_icache: 2521370130
+[PERF] IFU_wait_miss: 1444637249
+[PERF] IFU_wait_backend: 1076732881
+[PERF] IFU_wait_resp: 66729858
+[PERF] IFU_wait_idu: 1063759779
+[PERF] IFU_fetch: 228533737
+[PERF] LSU_access_latency: 1124494376
+[PERF] LSU_wait_free: 345222402
+[PERF] LSU_wait_resp: 779271974
+[PERF] LSU_busy: 1124494376
+[PERF] LSU_load_latency: 1064741847
+[PERF] LSU_store_latency: 59752529
+[PERF] LSU_load_wait_free: 285469873
+[PERF] LSU_store_wait_free: 59752529
+[PERF] LSU_load_wait_resp: 779271974
+[PERF] LSU_store_wait_resp: 0
+[PERF] LSU_report_lost: 0
+[PERF] LSU_get_data: 22726958
+[PERF] LSU_load_get_data: 15816188
+[PERF] LSU_store_get_data: 6910770
+[PERF] LSU_store_b_pending: 383714696
+[PERF] LSU_store_gate: 223394632
+[PERF] IDU_pipe_idle: 1557705138
+[PERF] IDU_calc: 113168278
+[PERF] IDU_jump: 4161543
+[PERF] IDU_csr: 3
+[PERF] IDU_load: 15816188
+[PERF] IDU_store: 6910770
+[PERF] IDU_branch: 52936647
+[PERF] IDU_RAW_stall_cycles: 677632202
+[PERF] IDU_idle_cycle: 1436084598
+[PERF] IDU_stall_by_EXU_cycle: 645645101
+[PERF] IDU_internal_stall_cycles: 1014212994
+[PERF] IDU_flush_discard: 33364929
+[PERF] EXU_flush_count: 33364929
+[PERF] EXU_ex_stall_cycles: 969567630
+[PERF] EXU_ex_stall_by_lsu_reject: 223394632
+[PERF] EXU_ex_stall_by_mem_pending: 746172949
+[PERF] EXU_idle_cycles: 1180546570
+[PERF] WBU_commit: 195168807
+[PERF] WBU_stall_cycle: 2654829798
+[PERF] AXI_read_busy: 2201295444
+[PERF] AXI_write_busy: 436556455
+[PERF] AXI_read_grant_0: 1353808494
+[PERF] AXI_write_grant_0: 0
+[PERF] AXI_read_grant_1: 847486950
+[PERF] AXI_write_grant_1: 436556455
+[PERF] total_cycles: 2849998654
+[32mHIT GOOD TRAP[0m
+#
+# --- 综合/时序（yosys-sta: make sta，nangate45）---
+[AREA] dir=ysyx_26030092-800MHz cells=12637 DFF_X1=3235 area_um2=25874.618 seq_um2=14628.670 seq_pct=56.54
+[TIME] wns_setup_all=0.130 wns_setup_core=0.159 wns_hold_core=0.071 fmax_MHz=916.175 tns_setup=0.000 tns_hold=0.000
+[TIME] path_setup_core=IFU_u.icache_main_pipe.icache.cache_rdata_reg_3__reg_p:D
+[TIME] path_setup_all=BPU_u.btb_0_counter_0__reg_p_E_CLKGATE_X1_E:E

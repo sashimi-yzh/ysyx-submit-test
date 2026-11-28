@@ -1,0 +1,266 @@
+From 28b3d93836930128fe50245f5f126072da2124b3 Mon Sep 17 00:00:00 2001
+From: wangjingmin <3201884732@qq.com>
+Date: Sat, 14 Nov 2026 11:34:57 +0800
+Subject: [PATCH 09/15] =?UTF-8?q?=E7=B2=BE=E7=AE=80SDRAM=E4=BB=BF=E7=9C=9F?=
+ =?UTF-8?q?=E6=A8=A1=E5=9E=8B?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/device/SDRAM.scala | 171 ++++++++++++-----------------------------
+ 1 file changed, 50 insertions(+), 121 deletions(-)
+
+diff --git a/src/device/SDRAM.scala b/src/device/SDRAM.scala
+index f059e827..3bb0d6bd 100644
+--- a/src/device/SDRAM.scala
++++ b/src/device/SDRAM.scala
+@@ -1,3 +1,21 @@
++/*
++ * MT48LC16M16A2 简易模型
++ *
++ *
++ * 【引脚】
++ *   cs[1:0]  片选，低有效；
++ *   dqm[3:0] 字节掩码，低有效；dqm[1:0] 掩低 16 位，dqm[3:2] 掩高 16 位
++ *   dq[31:0] 双向数据：低 16 位（high=0）↔ sdram_l(*)，高 16 位（high=1）↔ sdram_h(*)
++ *   a[12:0]  行/列复用地址；ba[1:0] 存储体地址
++ *   命令 = {~cs, ras, cas, we}（各控制信号低有效）
++ *
++ * 【实现的命令】
++ *   0000 LOAD MODE REGISTER：只取 CAS latency = mode_reg[6:4]
++ *   0011 ACTIVE ：rows(ba) := a，打开目标 bank 的第a行
++ *   0100 WRITE  ：把 dq 上的 32 位写到 {row, ba, col} 处，DQM 做字节掩码
++ *   0101 READ   ：收到命令后等 CAS latency 拍，再把该地址的 32 位送上 dq；
++ * ============================================================================
++ */
+ package ysyx
+ 
+ import chisel3._
+@@ -48,22 +66,20 @@ class sdram extends BlackBox {
+ class SDRAMReader extends BlackBox with HasBlackBoxInline {
+   val io = IO(new Bundle{
+     val high_sdram = Input(Bool())
+-    val high = Input(Bool())
+     val addr = Input(UInt(24.W))
+     val valid = Input(Bool())
+-    val rdata = Output(UInt(16.W))
++    val rdata = Output(UInt(32.W))
+   })
+   setInline("SDRAMReader.v",
+     """module SDRAMReader(
+       |  input high_sdram,
+-      |  input high,
+       |  input [23:0] addr,
+       |  input valid,
+-      |  output reg [15:0] rdata
++      |  output reg [31:0] rdata
+       |);
+-      |import "DPI-C" function void sdram_read(input byte high_sdram, input byte high, input int addr, output shortint rdata);
++      |import "DPI-C" function void sdram_read(input byte high_sdram, input int addr, output int rdata);
+       |always @(*) begin
+-      |  if (valid) sdram_read({7'd0, high_sdram}, {7'd0, high}, {8'd0, addr}, rdata);
++      |  if (valid) sdram_read({7'd0, high_sdram}, {8'd0, addr}, rdata);
+       |  else rdata = 0;
+       |end
+       |endmodule
+@@ -74,25 +90,23 @@ class SDRAMWriter extends BlackBox with HasBlackBoxInline {
+   val io = IO(new Bundle{
+     val high_sdram = Input(Bool())
+     val clk = Input(Bool())
+-    val high = Input(Bool())
+     val addr = Input(UInt(24.W))
+-    val data = Input(UInt(16.W))
+-    val mask = Input(UInt(2.W))
++    val data = Input(UInt(32.W))
++    val mask = Input(UInt(4.W))
+     val valid = Input(Bool())
+   })
+   setInline("SDRAMWriter.v",
+     """module SDRAMWriter(
+       |  input high_sdram,
+       |  input clk,
+-      |  input high,
+       |  input [23:0] addr,
+-      |  input [15:0] data,
+-      |  input [1:0] mask,
++      |  input [31:0] data,
++      |  input [3:0] mask,
+       |  input valid
+       |);
+-      |import "DPI-C" function void sdram_write(input byte high_sdram, input byte high, input int addr, input shortint wdata, input byte mask);
++      |import "DPI-C" function void sdram_write(input byte high_sdram, input int addr, input int wdata, input byte mask);
+       |always @(posedge clk) begin
+-      |  if (valid) sdram_write({7'd0, high_sdram}, {7'd0, high}, {8'd0, addr}, data, {6'd0, mask});
++      |  if (valid) sdram_write({7'd0, high_sdram}, {8'd0, addr}, data, {4'd0, mask});
+       |end
+       |endmodule
+     """.stripMargin)
+@@ -110,51 +124,23 @@ class sdramChisel extends RawModule {
+     val cs = WireDefault(true.B)
+     
+     val mode_reg = Reg(UInt(13.W))
+-
+     val rows = Reg(Vec(4,UInt(13.W)))
+     val addr_reg = Reg(UInt(24.W))
+-
+     val cas_latency = mode_reg(6,4)
+-    val burst_length = MuxLookup(mode_reg(2,0), 1.U)(Seq(
+-      "b0000".U -> 1.U,
+-      "b0001".U -> 2.U,
+-      "b0010".U -> 4.U,
+-      "b0011".U -> 8.U
+-    ))
+-    val lowbit = MuxLookup(mode_reg(2,0), 0.U(24.W))(Seq(
+-      "b0000".U -> "b0".U(24.W),
+-      "b0001".U -> "b1".U(24.W),
+-      "b0010".U -> "b11".U(24.W),
+-      "b0011".U -> "b111".U(24.W)
+-    ))
+-    val burst_cnt = Reg(UInt(4.W))
+ 
+-    val readerl = Module(new SDRAMReader)
+-    val writerl = Module(new SDRAMWriter)
+-    val readerh = Module(new SDRAMReader)
+-    val writerh = Module(new SDRAMWriter)
+-    readerl.io.high_sdram := !io.cs(1)
+-    readerh.io.high_sdram := !io.cs(1)
+-    writerl.io.high_sdram := !io.cs(1)
+-    writerh.io.high_sdram := !io.cs(1)
++    val reader = Module(new SDRAMReader)
++    val writer = Module(new SDRAMWriter)
++    reader.io.high_sdram := !io.cs(1)
++    writer.io.high_sdram := !io.cs(1)
+     cs := (~io.cs(0)) || (~io.cs(1))
+     val cmd = Cat(~cs, io.ras, io.cas, io.we)
+ 
+-    readerl.io.valid := false.B
+-    readerl.io.addr := 0.U
+-    readerl.io.high := false.B
+-    readerh.io.valid := false.B
+-    readerh.io.addr := 0.U
+-    readerh.io.high := true.B
+-    
+-    writerl.io.valid := false.B
+-    writerl.io.high := false.B
+-    List(writerl.io.addr, writerl.io.data, writerl.io.mask).map(_ := 0.U)
+-    writerl.io.clk := io.clk
+-    writerh.io.valid := false.B
+-    writerh.io.high := true.B
+-    List(writerh.io.addr, writerh.io.data, writerh.io.mask).map(_ := 0.U)
+-    writerh.io.clk := io.clk
++    reader.io.valid := false.B
++    reader.io.addr := 0.U
++
++    writer.io.valid := false.B
++    List(writer.io.addr, writer.io.data, writer.io.mask).map(_ := 0.U)
++    writer.io.clk := io.clk
+ 
+     when(io.cke){
+       
+@@ -165,90 +151,33 @@ class sdramChisel extends RawModule {
+         mode_reg := io.a
+       }
+       
+-      // 写命令处理
+-      val WRITE_CMD = (cmd === "b0100".U)
+-      val write_bursting = withReset(!io.cke)(RegInit(false.B))
+-      val wburst_cnt = Reg(UInt(4.W))
+-      val waddr_reg = Reg(UInt(24.W))
+-      when(WRITE_CMD) {
+-        // 当前周期：立即锁存数据
+-        write_bursting := !(burst_length === 1.U)
+-        wburst_cnt := 1.U
+-        
+-        // 地址解析：组合bank、row、column
++      when(cmd === "b0100".U) { // write
+         val waddr = Cat(rows(io.ba), io.ba, io.a(8,0))
+-        
+-        writerl.io.mask := io.dqm(1,0)
+-        writerl.io.valid := true.B
+-        writerl.io.addr := waddr
+-        writerl.io.data := dq_in(15,0)
+-        writerh.io.mask := io.dqm(3,2)
+-        writerh.io.valid := true.B
+-        writerh.io.addr := waddr
+-        writerh.io.data := dq_in(31,16)
+-        
+-        // 更新地址寄存器（自动递增，符合burst模式）
+-        waddr_reg := ((waddr + 1.U) & lowbit) | (waddr & ~lowbit)
++        writer.io.mask := io.dqm
++        writer.io.valid := true.B
++        writer.io.addr := waddr
++        writer.io.data := dq_in
+       }
+ 
+-      when(write_bursting) {
+-        wburst_cnt := wburst_cnt + 1.U
+-        
+-        writerl.io.mask := io.dqm(1,0)
+-        writerl.io.valid := true.B
+-        writerl.io.addr := waddr_reg
+-        writerl.io.data := dq_in(15,0)
+-        writerh.io.mask := io.dqm(3,2)
+-        writerh.io.valid := true.B
+-        writerh.io.addr := waddr_reg
+-        writerh.io.data := dq_in(31,16)
+-        
+-        // 更新地址寄存器
+-        waddr_reg := ((waddr_reg + 1.U) & lowbit) | (waddr_reg & ~lowbit)
+-        
+-        // 当前要到来的beat是最后的 1 beat
+-        when(wburst_cnt + 1.U === burst_length) {
+-          write_bursting := false.B
+-        }
+-      }
+-
+-
+-      val READ_CMD = (cmd === "b0101".U)
+       val read_cmd_reg = withReset(!io.cke)(RegInit(false.B))
+-      val read_bursting = withReset(!io.cke)(RegInit(false.B))
+       val latency_cnt = Reg(UInt(3.W))
+-      // READ_CMD 必须拥有最高优先级：控制器逐 beat 发命令时，新命令的
+-      // 到达拍恰好是上一条命令的输出拍（latency===CL），若清零（内层
+-      // when）优先于置位（外层 Mux），背靠背命令会被吞掉
+-      when(READ_CMD){
++
++      when(cmd === "b0101".U){ //read
+         read_cmd_reg := true.B
+-        burst_cnt := 1.U
+         latency_cnt := 1.U
+         addr_reg := Cat(rows(io.ba), io.ba, io.a(8,0))
+       }.otherwise{
+         when(read_cmd_reg && latency_cnt < cas_latency){
+           latency_cnt := latency_cnt + 1.U
+-        }.elsewhen(read_cmd_reg && latency_cnt === cas_latency){// first beat
+-          addr_reg := ((addr_reg + 1.U) & lowbit) | (addr_reg & ~lowbit)
+-          readerl.io.valid := true.B
+-          readerl.io.addr := addr_reg
+-          readerh.io.valid := true.B
+-          readerh.io.addr := addr_reg
++        }.elsewhen(read_cmd_reg && latency_cnt === cas_latency){
++          reader.io.valid := true.B
++          reader.io.addr := addr_reg
+           dq_out_en := true.B
+-          dq_out := Cat(readerh.io.rdata, readerl.io.rdata)
+-
+-          when(burst_cnt === burst_length){// last beat
+-            read_cmd_reg := false.B
+-          }.otherwise{
+-            burst_cnt := burst_cnt + 1.U
+-          }
++          dq_out := reader.io.rdata
++          read_cmd_reg := false.B
+         }
+       }
+ 
+-      when(cmd === "b0110".U){
+-        write_bursting := false.B
+-        read_bursting := false.B
+-      }
+     }
+ 
+ 
+-- 
+2.34.1
+

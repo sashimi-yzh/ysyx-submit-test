@@ -1,0 +1,23 @@
+*.*
+*
+!*/
+!/nemu/*
+!/nexus-am/*
+!/nanos-lite/*
+!/navy-apps/*
+!/npc/*
+!Makefile
+!README.md
+!.gitignore
+!init.sh
+/fceux-am
+/fceux-am.bak
+/nvboard
+/am-kernels
+
+# patch 目录里的 .patch 是 CI 的输入，必须纳入版本管理
+!/patch/*
+!/patch/*/*.patch
+!/patch/*/BASE
+/ysyxSoC
+/rt-thread-am
